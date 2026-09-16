@@ -349,16 +349,39 @@ def list_offers(session: DbSession, user: CurrentUser) -> list[OfferOut]:
 def accept_offer(
     offer_id: str, payload: OfferAction, session: DbSession, user: CurrentUser
 ) -> OfferOut:
-    # PostgreSQL lock order is User -> CandidatePlan -> Offer. User locking
-    # serializes competing actions by one participant; plan locking serializes
-    # capacity/confirmation changes by different participants.
+    # PostgreSQL lock order is User -> sorted CandidatePlans -> Offer. User
+    # locking serializes competing actions by one participant. Locking every
+    # potentially invalidated plan in one global order prevents P1→P2 / P2→P1
+    # deadlocks when two requests choose overlapping Offers concurrently.
     preliminary = session.get(Offer, offer_id)
     if preliminary is None or preliminary.user_id != user.id:
         raise error(status.HTTP_404_NOT_FOUND, "Предложение не найдено")
     session.scalar(select(User).where(User.id == user.id).with_for_update())
-    plan = session.scalar(
-        select(CandidatePlan).where(CandidatePlan.id == preliminary.candidate_plan_id).with_for_update()
-    )
+    target_plan = session.get(CandidatePlan, preliminary.candidate_plan_id)
+    assert target_plan is not None
+    candidate_plan_ids = {target_plan.id}
+    for pending_plan in session.scalars(
+        select(CandidatePlan)
+        .join(Offer, Offer.candidate_plan_id == CandidatePlan.id)
+        .where(Offer.user_id == user.id, Offer.status == "PENDING")
+    ):
+        if overlaps(
+            target_plan.starts_at,
+            target_plan.ends_at,
+            pending_plan.starts_at,
+            pending_plan.ends_at,
+        ):
+            candidate_plan_ids.add(pending_plan.id)
+    locked_plans = {
+        plan.id: plan
+        for plan in session.scalars(
+            select(CandidatePlan)
+            .where(CandidatePlan.id.in_(candidate_plan_ids))
+            .order_by(CandidatePlan.id)
+            .with_for_update()
+        )
+    }
+    plan = locked_plans[preliminary.candidate_plan_id]
     offer = session.scalar(select(Offer).where(Offer.id == offer_id).with_for_update())
     if offer is None or offer.user_id != user.id:
         raise error(status.HTTP_404_NOT_FOUND, "Предложение не найдено")
@@ -400,13 +423,8 @@ def accept_offer(
             other.status = "INVALIDATED"
             affected_plan_ids.add(other_plan.id)
     recompute_candidate_plan(session, plan)
-    for affected in session.scalars(
-        select(CandidatePlan)
-        .where(CandidatePlan.id.in_(affected_plan_ids))
-        .order_by(CandidatePlan.id)
-        .with_for_update()
-    ):
-        recompute_candidate_plan(session, affected)
+    for affected_id in sorted(affected_plan_ids):
+        recompute_candidate_plan(session, locked_plans[affected_id])
     session.commit()
     return offer_out(session, offer)
 

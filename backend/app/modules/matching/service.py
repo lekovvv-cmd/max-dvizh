@@ -145,7 +145,7 @@ def recompute_candidate_plan(session: Session, plan: CandidatePlan) -> bool:
     accepted_ids = {user_id for user_id, offer in statuses.items() if offer.status == "ACCEPTED" and user_id in eligible_by_user}
     available = [candidate for candidate in eligible if statuses.get(candidate.intent.user_id) is None or statuses[candidate.intent.user_id].status != "REJECTED"]
     feasible_size: int | None = None
-    for size in range(12, 0, -1):
+    for size in range(1, 13):
         users = {candidate.intent.user_id for candidate in available if candidate.intent.min_people <= size <= candidate.intent.max_people}
         if accepted_ids <= users and len(users) >= size:
             feasible_size = size

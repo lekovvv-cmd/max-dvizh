@@ -28,7 +28,7 @@ Concrete feasible proposal being assembled.
 
 Statuses: `COLLECTING`, `CONFIRMED`, `EXPIRED`, `CANCELLED` (add READY only if implementation truly needs it).
 
-Contains a concrete source snapshot/activity/venue, concrete time, price representation, participant bounds and participant compatibility. For a collecting plan, `required_min_people == required_max_people == N`: every eventual participant must allow the selected final size N.
+Contains a concrete source snapshot/activity/venue, concrete time, price representation, participant bounds and participant compatibility. For a collecting plan, `required_min_people == required_max_people == N`: every eventual participant must allow the selected minimum feasible final size N.
 
 ## Compatibility
 Enum: `EXACT`, `NEAR`, `CONFLICT`, `UNVERIFIED`.

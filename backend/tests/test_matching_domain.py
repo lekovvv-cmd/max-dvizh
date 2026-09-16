@@ -67,6 +67,12 @@ def test_exact_five_never_has_false_smaller_confirmation_or_incompatible_plan() 
     assert feasible_cohort([GroupSizeCandidate("a", 2, 2), GroupSizeCandidate("b", 3, 3)]) is None
 
 
+def test_group_feasibility_prefers_fastest_valid_minimum_not_largest_cohort() -> None:
+    result = feasible_cohort([GroupSizeCandidate(str(index), 2, 6) for index in range(6)])
+    assert result is not None
+    assert result.size == 2
+
+
 def test_one_time_event_must_be_contained_not_merely_overlap() -> None:
     start = datetime(2026, 9, 18, 18, tzinfo=UTC)
     assert contains_interval(start, start + timedelta(hours=3), start + timedelta(hours=2), start + timedelta(hours=3))

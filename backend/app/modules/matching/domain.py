@@ -143,14 +143,15 @@ def recurring_interval_fits(
 def feasible_cohort(candidates: list[GroupSizeCandidate], maximum_size: int = 12) -> FeasibleCohort | None:
     """Find a deterministic group size satisfying every selected participant.
 
-    The MVP preference is the largest feasible final group. For a chosen size
+    The MVP preference is the smallest feasible final group so an otherwise
+    ready plan does not wait for every compatible person. For a chosen size
     N, every returned participant has ``min_people <= N <= max_people`` and at
     least N eligible users exist. Sorting user ids makes the result independent
     of database/Intent enumeration order; higher-level presentation ranking may
     deterministically choose which N users receive the first private Offers.
     """
     unique = {candidate.user_id: candidate for candidate in candidates}
-    for size in range(maximum_size, 0, -1):
+    for size in range(1, maximum_size + 1):
         cohort = sorted(
             candidate.user_id
             for candidate in unique.values()

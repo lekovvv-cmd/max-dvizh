@@ -22,6 +22,9 @@ jobs:
 
   backend:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql+psycopg://max_dvizh:test_only_password@localhost:5432/max_dvizh
+      TEST_DATABASE_URL: postgresql+psycopg://max_dvizh:test_only_password@localhost:5432/max_dvizh
     services:
       postgres:
         image: postgres:16-alpine

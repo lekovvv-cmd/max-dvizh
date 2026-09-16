@@ -51,7 +51,7 @@ Show every current pending Offer addressed to the user, across all their compani
 ## H. Exactly N participants
 If exactly 5 and 6 compatible, create feasible subset of 5; 6th may be reserve/eligible elsewhere, not publicly excluded. If one declines, next compatible reserve may be offered.
 
-The selected N is deterministic: the largest N for which at least N active eligible users each allow N. Offer ranking only chooses the private first cohort after N is fixed.
+The selected N is deterministic: the smallest N for which at least N active eligible users each allow N. This makes an already feasible ДВИЖ collect faster; someone who wants at least five people sets `min_people=5`. Offer ranking only chooses the private first cohort after N is fixed.
 
 ## I. Confirmed plan
 Enough valid confirmations → `⚡ ДВИЖ СОБРАЛСЯ`; bot notification; Mini App detail; final share/return in MAX.

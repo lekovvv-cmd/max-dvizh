@@ -66,7 +66,7 @@ Accepted. Absence of provider facts necessary to verify a user-set budget/radius
 Accepted. Budget and radius are opt-in hard constraints. Redis cache-aside keys represent the actual city/time/category query needed for an Intent, never a whole-city provider catalogue.
 
 ## ADR-022 — Exact final group size is selected deterministically
-Accepted. For N from 12 down to 1, select the first N with at least N compatible users whose own inclusive ranges contain N. This maximizes a feasible final group without depending on Intent enumeration. Private Offer ranking is deterministic: Exact before Near, known shorter distance, older Intent, then user ID.
+Accepted. For N from 1 up to 12, select the first N with at least N compatible users whose own inclusive ranges contain N. This starts a feasible ДВИЖ as soon as possible without depending on Intent enumeration; a user requiring five people sets `min_people=5`. Private Offer ranking is deterministic: Exact before Near, known shorter distance, older Intent, then user ID.
 
 ## ADR-023 — AutoSignal is local-time aware
 Accepted. Recurrence stores IANA timezone in its private JSON rule. A complete provider event interval must fit the weekday/window after UTC conversion. Overnight end times are supported as a window ending the following local day.
