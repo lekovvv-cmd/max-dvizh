@@ -36,3 +36,9 @@ def test_haversine_and_half_open_interval_overlap() -> None:
     assert not overlaps(
         start, start + timedelta(hours=2), start + timedelta(hours=2), start + timedelta(hours=3)
     )
+    assert overlaps(
+        start.replace(tzinfo=None),
+        (start + timedelta(hours=2)).replace(tzinfo=None),
+        start + timedelta(hours=1),
+        start + timedelta(hours=3),
+    )

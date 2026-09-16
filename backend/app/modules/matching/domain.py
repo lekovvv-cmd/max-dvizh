@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from math import asin, cos, radians, sin, sqrt
 
 
@@ -64,4 +64,12 @@ def compatibility(
 
 
 def overlaps(start_a: datetime, end_a: datetime, start_b: datetime, end_b: datetime) -> bool:
-    return start_a < end_b and start_b < end_a
+    # SQLite returns naive datetimes even for timezone-aware columns. All stored
+    # product times are UTC, so restore that invariant at this boundary.
+    values = (start_a, end_a, start_b, end_b)
+    normalized = tuple(
+        value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+        for value in values
+    )
+    left_start, left_end, right_start, right_end = normalized
+    return left_start < right_end and right_start < left_end
