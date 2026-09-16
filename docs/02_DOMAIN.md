@@ -15,7 +15,7 @@ User willingness under conditions.
 Types: `ONE_TIME`, `RECURRING`.
 Statuses: `ACTIVE`, `PAUSED`, `EXPIRED`, `CANCELLED`.
 
-Core constraints: city, activity/category, time/recurrence, budget_max, origin, radius_km, min_people, max_people.
+Core constraints: city, activity/category, time/recurrence, optional budget_max, optional origin/radius_km, min_people, max_people. A radius requires an origin; both may be omitted.
 
 ## AutoSignal recurrence
 Keep MVP simple: weekdays + local start/end + optional date bounds. Do not build a full rules language.
@@ -31,8 +31,10 @@ Statuses: `COLLECTING`, `CONFIRMED`, `EXPIRED`, `CANCELLED` (add READY only if i
 Contains a concrete source snapshot/activity/venue, concrete time, price representation, participant bounds and participant compatibility.
 
 ## Compatibility
-Enum: `EXACT`, `NEAR`, `CONFLICT`.
+Enum: `EXACT`, `NEAR`, `CONFLICT`, `UNVERIFIED`.
 Computed by backend domain logic.
+
+`UNVERIFIED` means provider data is insufficient to validate a constraint the user actually set. It creates neither an Offer nor a CandidatePlan by itself; it is not a rejection or a Conflict.
 
 ## Deviation
 Structured reason for Near. MVP required: `BUDGET_OVER_MAX` with actual/limit/delta and safe user-facing text.

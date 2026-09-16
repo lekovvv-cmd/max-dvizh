@@ -31,7 +31,7 @@ Do not silently reinterpret the product. If code and docs disagree, reconcile th
 - There is **no separate Blind Consensus voting stage**.
 - Offer selection is the choice mechanism.
 - Near never means accepted; Near requires explicit confirmation.
-- Compatibility: Exact / Near / Conflict.
+- Compatibility: Exact / Near / Conflict / Unverified; Unverified is never an Offer.
 - Online MVP MUST support Near for budget.
 - Distance is individual from each user's selected origin point.
 - MVP uses kilometers, not travel-time estimates.
@@ -72,7 +72,7 @@ Default:
 - initial real leisure provider: KudaGo behind an adapter;
 - bot/MAX integration owned by backend modules;
 - external provider calls only from backend;
-- Redis cache for temporary external provider data; persisted source snapshots only for CandidatePlans.
+- Redis cache-aside for requested city/time/category provider slices; persisted source snapshots only for CandidatePlans.
 
 Do NOT add without an explicit need:
 - microservices;

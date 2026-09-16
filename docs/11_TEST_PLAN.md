@@ -20,8 +20,9 @@
 - Exact;
 - Near;
 - Conflict;
-- unknown price.
-- unknown price with budget → Conflict; missing venue coordinates with radius → Conflict.
+- unknown price without budget → Exact on budget dimension;
+- unknown price with budget → Unverified; missing venue coordinates with radius → Unverified;
+- known hard mismatch → Conflict.
 
 ### Distance
 - Haversine known values;
@@ -48,7 +49,9 @@
 - provider normalization;
 - cache fallback;
 - Redis hit/miss and provider-failure fallback without PostgreSQL catalogue rows;
+- cache-aside key partitioning by city, requested time range and categories;
 - CandidatePlan source snapshot creation and readability after Redis eviction;
+- no CandidatePlan/source snapshot when every evaluated user is Unverified/Conflict;
 - mocked MAX boundary;
 - identity validation adapter.
 

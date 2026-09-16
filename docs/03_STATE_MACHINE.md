@@ -25,6 +25,8 @@ COLLECTING
 
 ## Offer
 
+A CandidatePlan may be created only after at least one Exact or Near eligible user exists. Unverified provider items alone do not produce a CandidatePlan or persisted source snapshot.
+
 ```text
 PENDING
 ├─ accept exact → ACCEPTED

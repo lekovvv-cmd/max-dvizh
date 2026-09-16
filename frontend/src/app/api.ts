@@ -1,7 +1,7 @@
 export type Group = { id: string; name: string; city_slug: string; member_count: number; invite_token?: string | null; invite_url?: string | null }
 export type Location = { id: string; label: string; city_slug: string; kind: string }
-export type Intent = { id: string; type: string; status: string; name: string | null; city_slug: string; activity_category: string; budget_max: number; min_people: number; max_people: number; expires_at: string | null }
-export type Offer = { id: string; status: string; is_near: boolean; group_id: string; group_name: string; title: string; venue_name: string | null; starts_at: string; ends_at: string; price_text: string | null; price_min: number | null; is_demo: boolean; source_url: string | null; source_fetched_at: string; distance_km: number; potential_count: number; required_min_people: number; required_max_people: number; expires_at: string; budget_delta: number | null }
+export type Intent = { id: string; type: string; status: string; name: string | null; city_slug: string; activity_category: string; budget_max: number | null; radius_km: number | null; min_people: number; max_people: number; expires_at: string | null }
+export type Offer = { id: string; status: string; is_near: boolean; group_id: string; group_name: string; title: string; venue_name: string | null; starts_at: string; ends_at: string; price_text: string | null; price_min: number | null; is_demo: boolean; source_url: string | null; source_fetched_at: string; distance_km: number | null; potential_count: number; required_min_people: number; required_max_people: number; expires_at: string; budget_delta: number | null }
 export type Plan = { id: string; status: string; title: string; venue_name: string | null; starts_at: string; ends_at: string; price_text: string | null; source_url: string | null; participant_count: number; required_min_people: number; required_max_people: number; share_text: string }
 
 declare global {

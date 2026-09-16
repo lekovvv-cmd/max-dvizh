@@ -54,9 +54,8 @@ MVP fields:
 - city;
 - available window;
 - activity interests/categories;
-- max budget;
-- origin;
-- radius km;
+- optional max budget;
+- optional origin and radius km;
 - min/max people.
 
 Signal expires.
@@ -82,6 +81,9 @@ Example: max 300 ₽, plan 400 ₽, delta within configured Near threshold. User
 
 ### Conflict
 Hard mismatch; no normal Offer.
+
+### Unverified
+The user set a hard constraint but the provider lacks the fact needed to validate it—for example, no price with a budget limit or no coordinates with a radius. It is not a Conflict, but also is not eligible and creates no Offer.
 
 ## Near privacy
 
@@ -155,7 +157,7 @@ If provider does not cover a use case, do not fake live data. Explicit model/dem
 
 - authoritative free flag → 0;
 - safely parsed minimum may be approximate;
-- unknown → omit price from the UI; it cannot satisfy a user's hard budget constraint;
+- unknown → omit price from the UI; it is Unverified only when the user set a budget limit;
 - preserve original source price text.
 
 ## User-facing state language

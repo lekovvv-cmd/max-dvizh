@@ -57,7 +57,7 @@ Target group 4–12. Bounded subset enumeration is acceptable if measured/tested
 Haversine/geodesic from user's origin to venue/event coords.
 
 ## Cache and provider data
-Redis holds short-lived normalized KudaGo responses under parameterized keys such as `kudago:events:{city}:{date-range}:{categories-hash}`. A cache hit avoids KudaGo; a provider failure may use a valid Redis entry, otherwise returns an honest unavailable/empty state. PostgreSQL never mirrors the provider catalogue: a CandidatePlan alone gets a durable provider-item snapshot.
+Redis holds short-lived normalized KudaGo responses through cache-aside under actual query keys such as `kudago:events:{city}:{start-unix}-{end-unix}:{categories-hash}`. The adapter requests only the Intent's city/time/category slice; a cache hit avoids KudaGo, while a miss fetches and stores that same slice. PostgreSQL never mirrors the provider catalogue: a CandidatePlan alone gets a durable provider-item snapshot.
 
 ## Bot
 Prefer backend-owned bot integration; no separate bot microservice unless needed.

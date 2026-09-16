@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, model_validator
 
 
 class SessionOut(BaseModel):
@@ -52,17 +52,18 @@ class IntentIn(BaseModel):
     activity_category: str = Field(min_length=1, max_length=64)
     available_from: datetime | None = None
     available_to: datetime | None = None
-    budget_max: int = Field(ge=0, le=100000)
-    origin_location_id: str
-    radius_km: float = Field(gt=0, le=100)
+    budget_max: int | None = Field(default=None, ge=0, le=100000)
+    origin_location_id: str | None = None
+    radius_km: float | None = Field(default=None, gt=0, le=100)
     min_people: int = Field(ge=1, le=12)
     max_people: int = Field(ge=1, le=12)
     expires_at: datetime | None = None
 
-    @field_validator("max_people")
-    @classmethod
-    def max_valid(cls, value: int) -> int:
-        return value
+    @model_validator(mode="after")
+    def validate_optional_radius(self) -> IntentIn:
+        if self.radius_km is not None and self.origin_location_id is None:
+            raise ValueError("Для радиуса выберите точку отправления")
+        return self
 
 
 class AutoSignalIn(IntentIn):
@@ -79,7 +80,8 @@ class IntentOut(BaseModel):
     name: str | None
     city_slug: str
     activity_category: str
-    budget_max: int
+    budget_max: int | None
+    radius_km: float | None
     min_people: int
     max_people: int
     expires_at: datetime | None
@@ -100,7 +102,7 @@ class OfferOut(BaseModel):
     is_demo: bool
     source_url: str | None
     source_fetched_at: datetime
-    distance_km: float
+    distance_km: float | None
     potential_count: int
     required_min_people: int
     required_max_people: int

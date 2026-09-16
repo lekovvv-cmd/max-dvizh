@@ -12,7 +12,7 @@ import re
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from hashlib import sha256
-from typing import Any
+from typing import Any, cast
 
 import httpx
 import redis
@@ -66,6 +66,24 @@ class ProviderResult:
     unavailable: bool = False
 
 
+@dataclass(frozen=True)
+class ProviderQuery:
+    """The exact city/time/category slice needed to evaluate an Intent."""
+
+    city_slug: str
+    starts_at: datetime
+    ends_at: datetime
+    categories: tuple[str, ...] = ()
+
+    def cache_key(self) -> str:
+        categories = ",".join(sorted(self.categories))
+        category_hash = sha256(categories.encode()).hexdigest()[:12]
+        return (
+            f"kudago:events:{self.city_slug}:{int(self.starts_at.timestamp())}-"
+            f"{int(self.ends_at.timestamp())}:{category_hash}"
+        )
+
+
 def parse_price(value: str | None, is_free: bool) -> int | None:
     if is_free:
         return 0
@@ -110,17 +128,12 @@ def normalize_event(raw: dict[str, Any], city: str, fetched_at: datetime) -> Nor
 class RedisProviderCache:
     """Small cache module, intentionally not a separate infrastructure layer."""
 
-    def __init__(self, client: redis.Redis[str] | None = None) -> None:
+    def __init__(self, client: redis.Redis | None = None) -> None:
         self.client = client or redis.Redis.from_url(settings.redis_url, decode_responses=True)
 
-    @staticmethod
-    def events_key(city: str, date_range: str = "future", categories: tuple[str, ...] = ()) -> str:
-        category_hash = sha256(",".join(sorted(categories)).encode()).hexdigest()[:12]
-        return f"kudago:events:{city}:{date_range}:{category_hash}"
-
-    def get_events(self, city: str) -> list[NormalizedLeisureItem] | None:
+    def get_events(self, query: ProviderQuery) -> list[NormalizedLeisureItem] | None:
         try:
-            payload = self.client.get(self.events_key(city))
+            payload = cast(str | None, self.client.get(query.cache_key()))
         except redis.RedisError:
             return None
         if payload is None:
@@ -130,10 +143,10 @@ class RedisProviderCache:
         except (TypeError, ValueError, KeyError):
             return None
 
-    def set_events(self, city: str, items: list[NormalizedLeisureItem]) -> None:
+    def set_events(self, query: ProviderQuery, items: list[NormalizedLeisureItem]) -> None:
         try:
             self.client.setex(
-                self.events_key(city),
+                query.cache_key(),
                 settings.leisure_cache_ttl_seconds,
                 json.dumps([item.to_cache() for item in items]),
             )
@@ -152,41 +165,48 @@ class KudaGoProvider:
         response.raise_for_status()
         return [{"slug": str(city["slug"]), "name": str(city["name"])} for city in response.json()]
 
-    def items(self, city: str) -> list[NormalizedLeisureItem]:
+    def items(self, query: ProviderQuery) -> list[NormalizedLeisureItem]:
         fetched_at = utcnow()
+        params: dict[str, str | int] = {
+            "location": query.city_slug,
+            "actual_since": int(query.starts_at.timestamp()),
+            "actual_until": int(query.ends_at.timestamp()),
+            "page_size": 100,
+            "fields": "id,title,dates,place,categories,price,is_free,site_url,images",
+        }
+        if query.categories:
+            params["categories"] = ",".join(sorted(query.categories))
         response = httpx.get(
             f"{settings.kudago_base_url}/events/",
-            params={
-                "location": city,
-                "actual_since": int(fetched_at.timestamp()),
-                "page_size": 100,
-                "fields": "id,title,dates,place,categories,price,is_free,site_url,images",
-            },
+            params=params,
             timeout=settings.kudago_timeout_seconds,
         )
         response.raise_for_status()
         return [
             item
             for raw in response.json().get("results", [])
-            if (item := normalize_event(raw, city, fetched_at)) is not None
+            if (item := normalize_event(raw, query.city_slug, fetched_at)) is not None
         ]
 
 
-def fetch_city_items(
-    city: str, *, provider: KudaGoProvider | None = None, cache: RedisProviderCache | None = None
+def fetch_items(
+    query: ProviderQuery,
+    *,
+    provider: KudaGoProvider | None = None,
+    cache: RedisProviderCache | None = None,
 ) -> ProviderResult:
-    """Use Redis first; on a miss, fetch KudaGo. Never fall back to PostgreSQL."""
+    """Cache-aside for one needed provider query; never mirror a whole catalogue."""
     cache = cache or RedisProviderCache()
-    cached = cache.get_events(city)
+    cached = cache.get_events(query)
     if cached is not None:
         return ProviderResult(cached, cached=True, fetched_at=cached[0].source_fetched_at if cached else None)
     try:
-        items = (provider or KudaGoProvider()).items(city)
+        items = (provider or KudaGoProvider()).items(query)
     except (httpx.HTTPError, ValueError):
         # A second read lets a value written by another request win a race with failure.
-        cached = cache.get_events(city)
+        cached = cache.get_events(query)
         if cached is not None:
             return ProviderResult(cached, cached=True, fetched_at=cached[0].source_fetched_at if cached else None)
         return ProviderResult([], cached=False, fetched_at=None, unavailable=True)
-    cache.set_events(city, items)
+    cache.set_events(query, items)
     return ProviderResult(items, cached=False, fetched_at=items[0].source_fetched_at if items else utcnow())

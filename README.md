@@ -6,13 +6,13 @@ MAX Mini App + chatbot backend для компаний друзей 18–25: п�
 
 `MAX entry → private group/invite → Signal or AutoSignal → KudaGo/Redis CandidatePlan → Exact/Near/Conflict → complete private cross-group Offer pool → explicit choice → overlap invalidation → ConfirmedPlan → bot outbox → MAX share`.
 
-Signal и AutoSignal содержат город, временное окно, категорию, бюджет, личную точку, радиус в км и размер группы. Координаты, бюджет, причины Near, отклонения и отказ никогда не возвращаются другим участникам. Near поддержан только для бюджета и требует отдельного подтверждения.
+Signal и AutoSignal содержат город, временное окно, категорию, необязательные бюджет и радиус с личной точкой, а также размер группы. Координаты, бюджет, причины Near, отклонения и отказ никогда не возвращаются другим участникам. Near поддержан только для бюджета и требует отдельного подтверждения.
 
 ## Architecture
 
 `React/Vite Mini App → FastAPI modular monolith → PostgreSQL`, with Redis between KudaGo and matching for short-lived query-specific provider data.
 
-Backend verifies `WebApp.initData` server-side according to MAX HMAC rules, owns authorization/matching/locks, uses KudaGo only server-side, caches normalized provider DTOs in Redis, persists a source snapshot only when a CandidatePlan is created, and stores bot notifications in an outbox. `frontend/src/app/api.ts` is the typed API boundary. The pure functions in `backend/app/modules/matching/domain.py` perform Haversine, budget compatibility and interval overlap.
+Backend verifies `WebApp.initData` server-side according to MAX HMAC rules, owns authorization/matching/locks, uses KudaGo only server-side, cache-asides only the city/time/category DTO slice needed by an Intent, persists a source snapshot only after at least one Exact/Near eligible user creates a CandidatePlan, and stores bot notifications in an outbox. Missing facts for a user-set hard constraint are `UNVERIFIED`, not a hidden match or Conflict. `frontend/src/app/api.ts` is the typed API boundary. The pure functions in `backend/app/modules/matching/domain.py` perform Haversine, compatibility and interval overlap.
 
 ## Start
 
@@ -73,4 +73,4 @@ Stop with `docker compose down`; `docker compose down -v` also deletes local Pos
 
 ## Development database reset after provider-cache refactor
 
-Migration `20260916_0003` copies each existing CandidatePlan's source facts into `candidate_plan_source_snapshots` and removes the old provider catalogue tables. For disposable local/demo data, reset explicitly with `docker compose down -v`, then run `docker compose up --build`; never use this procedure against a deployment database.
+Migration `20260916_0003` copies each existing CandidatePlan's source facts into `candidate_plan_source_snapshots` and removes the old provider catalogue tables. Migration `20260916_0004` makes budget/origin/radius and member distance nullable for optional constraints. For disposable local/demo data, reset explicitly with `docker compose down -v`, then run `docker compose up --build`; never use this procedure against a deployment database.

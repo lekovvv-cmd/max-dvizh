@@ -1,13 +1,29 @@
 from datetime import UTC, datetime, timedelta
 
-from app.modules.matching.domain import budget_compatibility, haversine_km, overlaps
+from app.modules.matching.domain import budget_compatibility, compatibility, haversine_km, overlaps
 
 
 def test_budget_exact_near_and_conflict() -> None:
     assert budget_compatibility(400, 500, 150) == ("EXACT", None)
     assert budget_compatibility(400, 300, 150) == ("NEAR", 100)
     assert budget_compatibility(500, 300, 150) == ("CONFLICT", 200)
-    assert budget_compatibility(None, 300, 150) == ("CONFLICT", None)
+    assert budget_compatibility(None, 300, 150) == ("UNVERIFIED", None)
+    assert budget_compatibility(None, None, 150) == ("EXACT", None)
+
+
+def test_optional_constraints_distinguish_conflict_from_unverified() -> None:
+    assert compatibility(
+        price=None, max_budget=500, near_limit=150, distance_km=1, radius_km=None
+    ).kind == "UNVERIFIED"
+    assert compatibility(
+        price=400, max_budget=None, near_limit=150, distance_km=None, radius_km=10
+    ).kind == "UNVERIFIED"
+    assert compatibility(
+        price=400, max_budget=None, near_limit=150, distance_km=None, radius_km=None
+    ).kind == "EXACT"
+    assert compatibility(
+        price=800, max_budget=500, near_limit=150, distance_km=None, radius_km=10
+    ).kind == "CONFLICT"
 
 
 def test_haversine_and_half_open_interval_overlap() -> None:

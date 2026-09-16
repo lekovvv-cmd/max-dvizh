@@ -5,8 +5,9 @@ import httpx
 from app.modules.leisure.provider import (
     KudaGoProvider,
     NormalizedLeisureItem,
+    ProviderQuery,
     RedisProviderCache,
-    fetch_city_items,
+    fetch_items,
 )
 
 
@@ -26,9 +27,9 @@ class RecordingProvider(KudaGoProvider):
         self.items_to_return = items
         self.calls = 0
 
-    def items(self, city: str) -> list[NormalizedLeisureItem]:
+    def items(self, query: ProviderQuery) -> list[NormalizedLeisureItem]:
         self.calls += 1
-        assert city == "ekb"
+        assert query.city_slug == "ekb"
         return self.items_to_return
 
 
@@ -36,7 +37,7 @@ class FailingProvider(KudaGoProvider):
     def __init__(self) -> None:
         self.calls = 0
 
-    def items(self, city: str) -> list[NormalizedLeisureItem]:
+    def items(self, query: ProviderQuery) -> list[NormalizedLeisureItem]:
         self.calls += 1
         raise httpx.ConnectError("provider down")
 
@@ -51,12 +52,17 @@ def item() -> NormalizedLeisureItem:
     )
 
 
+def query() -> ProviderQuery:
+    start = datetime(2026, 9, 17, 18, tzinfo=UTC)
+    return ProviderQuery("ekb", start, start + timedelta(hours=4), ("concert",))
+
+
 def test_redis_hit_skips_provider_and_miss_populates_cache() -> None:
     cache = RedisProviderCache(FakeRedis())
     provider = RecordingProvider([item()])
 
-    first = fetch_city_items("ekb", provider=provider, cache=cache)
-    second = fetch_city_items("ekb", provider=provider, cache=cache)
+    first = fetch_items(query(), provider=provider, cache=cache)
+    second = fetch_items(query(), provider=provider, cache=cache)
 
     assert not first.cached
     assert second.cached
@@ -65,10 +71,43 @@ def test_redis_hit_skips_provider_and_miss_populates_cache() -> None:
 
 def test_provider_failure_uses_cache_or_returns_honest_unavailable_result() -> None:
     cache = RedisProviderCache(FakeRedis())
-    cache.set_events("ekb", [item()])
+    cache.set_events(query(), [item()])
 
-    cached = fetch_city_items("ekb", provider=FailingProvider(), cache=cache)
-    missing = fetch_city_items("ekb", provider=FailingProvider(), cache=RedisProviderCache(FakeRedis()))
+    cached = fetch_items(query(), provider=FailingProvider(), cache=cache)
+    missing = fetch_items(query(), provider=FailingProvider(), cache=RedisProviderCache(FakeRedis()))
 
     assert cached.cached and len(cached.items) == 1 and not cached.unavailable
     assert missing.items == [] and missing.unavailable
+
+
+def test_cache_keys_partition_city_time_and_category_queries() -> None:
+    first = query()
+    second = ProviderQuery(first.city_slug, first.starts_at, first.ends_at + timedelta(hours=1), first.categories)
+    third = ProviderQuery(first.city_slug, first.starts_at, first.ends_at, ())
+
+    assert len({first.cache_key(), second.cache_key(), third.cache_key()}) == 3
+
+
+def test_kudago_request_uses_the_same_city_time_category_slice(monkeypatch: object) -> None:
+    captured: dict[str, object] = {}
+
+    class Response:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, list[object]]:
+            return {"results": []}
+
+    def fake_get(_: str, *, params: dict[str, object], timeout: float) -> Response:
+        captured.update(params)
+        assert timeout > 0
+        return Response()
+
+    monkeypatch.setattr("app.modules.leisure.provider.httpx.get", fake_get)  # type: ignore[attr-defined]
+    requested = query()
+    KudaGoProvider().items(requested)
+
+    assert captured["location"] == "ekb"
+    assert captured["actual_since"] == int(requested.starts_at.timestamp())
+    assert captured["actual_until"] == int(requested.ends_at.timestamp())
+    assert captured["categories"] == "concert"

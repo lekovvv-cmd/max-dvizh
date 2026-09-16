@@ -49,7 +49,13 @@ KudaGo timeout + valid cache → allowed cached data, visible freshness, flow re
 Demo/model item is explicitly marked and not represented as live provider data.
 
 ## AC-017 Unknown price
-No reliable price → no invented number and no placeholder row in UI. When budget is a hard constraint, this item is not compatible.
+No reliable price → no invented number and no placeholder row in UI. With a user-set budget this is `UNVERIFIED` and gets no Offer; without budget it does not block matching.
+
+## AC-026 Optional budget and radius
+An Intent may omit budget and/or origin/radius. Missing price/coordinates are allowed for omitted constraints, while a set budget/radius with missing provider facts yields Unverified, not Conflict.
+
+## AC-027 CandidatePlan eligibility gate
+An item with only Conflict/Unverified users creates neither CandidatePlan nor source snapshot; one Exact/Near eligible user creates both.
 
 ## AC-025 Unrestricted cross-group Offer pool
 Five valid pending Offers from multiple groups, including Exact and Near, are all returned by `GET /offers`, each with safe `group_id` and `group_name`; ranking never discards one.

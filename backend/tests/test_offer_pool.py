@@ -93,3 +93,22 @@ def test_creating_candidate_plan_persists_one_source_snapshot_only() -> None:
         assert len(plans) == 1
         assert session.query(CandidatePlanSourceSnapshot).count() == 1
         assert session.query(CandidatePlan).count() == 1
+        assert session.query(Offer).count() == 1
+
+
+def test_unverified_item_does_not_create_candidate_plan_or_snapshot() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    now = datetime.now(UTC)
+    with Session(engine) as session:
+        user = User(id="user", max_user_id="user", display_name="Антон")
+        group = Group(id="group", name="Друзья", default_city_slug="ekb", created_by=user.id, invite_token="token")
+        intent = Intent(id="intent", user_id=user.id, group_id=group.id, type="ONE_TIME", status="ACTIVE", city_slug="ekb", activity_category="other", available_from=now, available_to=now + timedelta(hours=4), budget_max=500, origin_location_id=None, radius_km=None, min_people=1, max_people=2)
+        session.add_all([user, group, intent])
+        session.commit()
+        provider_item = NormalizedLeisureItem(provider="KUDAGO", provider_id="unpriced", item_type="EVENT", city_slug="ekb", title="Без цены", category="other", venue_name=None, starts_at=now + timedelta(hours=1), ends_at=now + timedelta(hours=3), latitude=None, longitude=None, price_text=None, price_min=None, source_url=None, image_url=None, source_fetched_at=now)
+
+        assert regenerate_group(session, group.id, "ekb", [provider_item]) == []
+        assert session.query(CandidatePlan).count() == 0
+        assert session.query(CandidatePlanSourceSnapshot).count() == 0
+        assert session.query(Offer).count() == 0

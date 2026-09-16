@@ -13,9 +13,9 @@ Also show active Signal, AutoSignals and relevant Offer/ConfirmedPlan.
 Progressive sections:
 1. Когда?
 2. Что интересно?
-3. Бюджет?
+3. Бюджет? (необязательно)
 4. Откуда?
-5. Радиус?
+5. Радиус? (необязательно; при выборе точки)
 6. Сколько людей?
 
 Use defaults/presets; avoid giant technical form.
@@ -57,6 +57,8 @@ Never only “Ничего нет”. Explain lack of exact plan and offer a pri
 
 ## Optional metadata
 When provider data is absent, omit its row entirely: do not show “Цена неизвестна”, “Цена не указана” or placeholder venue/image/description. This presentation rule never weakens matching hard constraints.
+
+If the user set a budget/radius but the provider lacks price/coordinates, the backend treats the item as Unverified and does not send an Offer. The UI must not claim that it was a rejection or a compatible option.
 
 ## Data status
 Cached: `Данные обновлены 18 минут назад`.

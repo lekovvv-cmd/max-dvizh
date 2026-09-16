@@ -10,7 +10,7 @@ Every CandidatePlan stores a source snapshot with provider, provider ID/type, pr
 - model/demo data.
 
 ## Freshness
-Define TTL by item type. Do not use old event data as current when date matters.
+Define TTL by query type. Cache only the requested city/time/category slice; do not use old event data as current when date matters.
 
 ## Fallback priority
 1. fresh live data;

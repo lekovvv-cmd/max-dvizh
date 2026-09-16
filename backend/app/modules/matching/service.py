@@ -16,7 +16,7 @@ from app.db.models import (
     OutboxNotification,
 )
 from app.modules.leisure.provider import NormalizedLeisureItem
-from app.modules.matching.domain import compatibility, overlaps
+from app.modules.matching.domain import compatibility, haversine_km, overlaps
 
 
 def utcnow() -> datetime:
@@ -41,7 +41,7 @@ def _fits_time(intent: Intent, item: NormalizedLeisureItem) -> bool:
     if intent.type == "RECURRING":
         recurrence = intent.recurrence_json or {}
         weekdays = recurrence.get("weekdays", [])
-        return int(item.starts_at.weekday()) in weekdays
+        return isinstance(weekdays, list) and item.starts_at.weekday() in weekdays
     return (
         intent.available_from is not None
         and intent.available_to is not None
@@ -63,7 +63,37 @@ def regenerate_group(
         ]
         if not available:
             continue
-        leader = available[0]
+        eligible: list[tuple[Intent, str, float | None, int | None]] = []
+        unverified: list[tuple[Intent, float | None, int | None]] = []
+        for intent in available:
+            location = (
+                session.get(Location, intent.origin_location_id)
+                if intent.origin_location_id is not None
+                else None
+            )
+            distance = (
+                haversine_km(location.latitude, location.longitude, item.latitude, item.longitude)
+                if location is not None and item.latitude is not None and item.longitude is not None
+                else None
+            )
+            result = compatibility(
+                price=item.price_min,
+                max_budget=intent.budget_max,
+                near_limit=settings.near_budget_max_delta_rub,
+                distance_km=distance,
+                radius_km=intent.radius_km,
+            )
+            if result.kind in {"EXACT", "NEAR"}:
+                eligible.append((intent, result.kind, distance, result.budget_delta))
+            elif result.kind == "UNVERIFIED":
+                unverified.append((intent, distance, result.budget_delta))
+
+        # A provider item is only a concrete plan after at least one user can
+        # actually receive an Offer. UNVERIFIED and CONFLICT alone never create
+        # snapshots, plans or provider-derived database rows.
+        if not eligible:
+            continue
+        leader = eligible[0][0]
         plan = session.scalar(
             select(CandidatePlan).where(
                 CandidatePlan.group_id == group_id,
@@ -119,31 +149,20 @@ def regenerate_group(
                 select(CandidatePlanMember).where(CandidatePlanMember.candidate_plan_id == plan.id)
             )
         }
-        candidates: list[tuple[Intent, str, float, int | None]] = []
-        for intent in available:
-            location = session.get(Location, intent.origin_location_id)
-            if location is None or item.latitude is None or item.longitude is None:
-                continue
-            from app.modules.matching.domain import haversine_km
-
-            distance = haversine_km(
-                location.latitude, location.longitude, item.latitude, item.longitude
-            )
-            result = compatibility(
-                price=item.price_min,
-                max_budget=intent.budget_max,
-                near_limit=settings.near_budget_max_delta_rub,
-                distance_km=distance,
-                radius_km=intent.radius_km,
-            )
-            if (
-                result.kind != "CONFLICT"
-                and intent.min_people <= plan.required_max_people
-                and intent.max_people >= plan.required_min_people
-            ):
-                candidates.append((intent, result.kind, distance, result.budget_delta))
+        candidates = [
+            candidate
+            for candidate in eligible
+            if candidate[0].min_people <= plan.required_max_people
+            and candidate[0].max_people >= plan.required_min_people
+        ]
         candidates.sort(
-            key=lambda item: (item[1] == "NEAR", item[2], item[0].created_at, item[0].user_id)
+            key=lambda item: (
+                item[1] == "NEAR",
+                item[2] is None,
+                item[2] if item[2] is not None else float("inf"),
+                item[0].created_at,
+                item[0].user_id,
+            )
         )
         for intent, kind, distance, delta in candidates[: plan.required_max_people]:
             if intent.user_id in existing_users:
@@ -155,7 +174,7 @@ def regenerate_group(
                     user_id=intent.user_id,
                     intent_id=intent.id,
                     compatibility=kind,
-                    distance_km=round(distance, 1),
+                    distance_km=round(distance, 1) if distance is not None else None,
                     budget_delta=delta,
                     deviations_json=deviation,
                 )
@@ -172,6 +191,20 @@ def regenerate_group(
             session.add(
                 OutboxNotification(
                     kind="OFFER", user_id=intent.user_id, payload={"candidate_plan_id": plan.id}
+                )
+            )
+        for intent, distance, delta in unverified:
+            if intent.user_id in existing_users:
+                continue
+            session.add(
+                CandidatePlanMember(
+                    candidate_plan_id=plan.id,
+                    user_id=intent.user_id,
+                    intent_id=intent.id,
+                    compatibility="UNVERIFIED",
+                    distance_km=round(distance, 1) if distance is not None else None,
+                    budget_delta=delta,
+                    deviations_json={"type": "MISSING_PROVIDER_CONSTRAINT_DATA"},
                 )
             )
         plans.append(plan)

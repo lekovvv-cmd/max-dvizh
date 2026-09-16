@@ -67,7 +67,7 @@ Read supported cities from provider/config/data-quality policy. Never `if city =
 Store original `price_text`; parse conservative `price_min` only when safe; preserve free flag/source.
 
 ## Cache/fallback
-Provider client needs timeout, bounded retry when useful, Redis cache and freshness metadata. Event keys include city, date range and a category hash; TTL is `LEISURE_CACHE_TTL_SECONDS`. Cache hit skips KudaGo. On provider failure a valid Redis value may be used; with no cache the API returns an honest unavailable/empty recovery state. Never silently replace live data with demo data or PostgreSQL catalogue rows.
+Provider client needs timeout, bounded retry when useful, Redis cache-aside and freshness metadata. Event keys include city, exact start/end timestamps and a category hash; TTL is `LEISURE_CACHE_TTL_SECONDS`. A miss queries KudaGo with the same `location`, `actual_since`, `actual_until` and categories; a hit skips KudaGo. On provider failure a valid Redis value may be used; with no cache the API returns an honest unavailable/empty recovery state. Never silently replace live data with demo data or PostgreSQL catalogue rows.
 
 ## Provenance
 Store provider/source URL/fetched_at and demo flag.

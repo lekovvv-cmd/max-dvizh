@@ -18,10 +18,10 @@ Origin strategy, Signal form, private persistence, active/expired states.
 Simple weekly recurrence, pause/resume, activity/budget/radius/group size.
 
 ## M5 — KudaGo + Redis cache
-Cities, event/place normalization, parameterized Redis TTL cache, timeout/fallback and freshness UI. Only CandidatePlans persist source snapshots in PostgreSQL.
+Cities, event/place normalization, city/time/category cache-aside Redis TTL cache, timeout/fallback and freshness UI. Only CandidatePlans with at least one eligible user persist source snapshots in PostgreSQL.
 
 ## M6 — CandidatePlan engine
-Time/category/budget/Haversine/group-size; Exact/Near/Conflict; bounded subset logic; unit tests.
+Time/category/optional budget/optional radius/Haversine/group-size; Exact/Near/Conflict/Unverified; bounded subset logic; unit tests.
 
 ## M7 — Offers
 Return the full user's cross-group pending Offer pool (sorting without truncation); exact accept/reject; budget Near accept/reject; expiry.

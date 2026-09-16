@@ -57,4 +57,10 @@ Accepted. One stable provider-item snapshot is saved only when a concrete Candid
 Accepted. UI omits unavailable optional rows rather than printing “unknown”.
 
 ## ADR-019 — Unknown hard-constraint data is incompatible
-Accepted. If an intent sets budget/radius and the provider lacks the data necessary to validate it, the item is Conflict for that intent.
+Superseded by ADR-020. Such an item is not eligible for an Offer.
+
+## ADR-020 — Unverified differs from Conflict
+Accepted. Absence of provider facts necessary to verify a user-set budget/radius is `UNVERIFIED`: it is neither a verified match nor a known mismatch. It never creates an Offer and cannot alone create a CandidatePlan.
+
+## ADR-021 — Constraints are optional and cache is query-scoped
+Accepted. Budget and radius are opt-in hard constraints. Redis cache-aside keys represent the actual city/time/category query needed for an Intent, never a whole-city provider catalogue.

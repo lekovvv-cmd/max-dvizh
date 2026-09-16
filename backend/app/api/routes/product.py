@@ -36,7 +36,8 @@ from app.db.models import (
 from app.modules.leisure.provider import (
     KudaGoProvider,
     NormalizedLeisureItem,
-    fetch_city_items,
+    ProviderQuery,
+    fetch_items,
 )
 from app.modules.matching.domain import overlaps
 from app.modules.matching.service import candidate_count, regenerate_group
@@ -93,6 +94,7 @@ def intent_out(intent: Intent) -> IntentOut:
         city_slug=intent.city_slug,
         activity_category=intent.activity_category,
         budget_max=intent.budget_max,
+        radius_km=intent.radius_km,
         min_people=intent.min_people,
         max_people=intent.max_people,
         expires_at=intent.expires_at,
@@ -178,8 +180,12 @@ def _create_intent(
     recurrence: dict[str, object] | None = None,
 ) -> IntentOut:
     member(session, payload.group_id, user.id)
-    location = session.get(Location, payload.origin_location_id)
-    if location is None or location.user_id != user.id:
+    location = (
+        session.get(Location, payload.origin_location_id)
+        if payload.origin_location_id is not None
+        else None
+    )
+    if payload.origin_location_id is not None and (location is None or location.user_id != user.id):
         raise error(status.HTTP_422_UNPROCESSABLE_ENTITY, "Точка отправления не найдена")
     if payload.min_people > payload.max_people:
         raise error(status.HTTP_422_UNPROCESSABLE_ENTITY, "Минимум участников больше максимума")
@@ -200,12 +206,26 @@ def _create_intent(
     session.add(intent)
     session.commit()
     session.refresh(intent)
-    # Provider failure intentionally results in no fresh plans.  Existing plans
-    # remain readable from their persisted source snapshots.
-    provider_result = fetch_city_items(payload.city_slug)
+    provider_result = fetch_items(_provider_query(payload, type_))
     if not provider_result.unavailable:
         regenerate_group(session, payload.group_id, payload.city_slug, provider_result.items)
     return intent_out(intent)
+
+
+def _provider_query(payload: IntentIn, intent_type: str) -> ProviderQuery:
+    if intent_type == "ONE_TIME":
+        assert payload.available_from is not None and payload.available_to is not None
+        starts_at, ends_at = payload.available_from, payload.available_to
+    else:
+        starts_at = now()
+        ends_at = starts_at + timedelta(days=7)
+    categories = () if payload.activity_category in {"any", "other"} else (payload.activity_category,)
+    return ProviderQuery(
+        city_slug=payload.city_slug,
+        starts_at=starts_at,
+        ends_at=ends_at,
+        categories=categories,
+    )
 
 
 @router.post("/intents", response_model=IntentOut, status_code=status.HTTP_201_CREATED)
@@ -273,7 +293,10 @@ def offer_out(session: DbSession, offer: Offer) -> OfferOut:
         session.scalar(
             select(func.count())
             .select_from(CandidatePlanMember)
-            .where(CandidatePlanMember.candidate_plan_id == plan.id)
+            .where(
+                CandidatePlanMember.candidate_plan_id == plan.id,
+                CandidatePlanMember.compatibility.in_(("EXACT", "NEAR")),
+            )
         )
         or 0
     )
@@ -459,14 +482,20 @@ def get_plan(plan_id: str, session: DbSession, user: CurrentUser) -> PlanOut:
 @router.get("/leisure/cities", response_model=list[CityOut])
 def cities() -> list[CityOut]:
     try:
-        return [CityOut(**item, source="KudaGo") for item in KudaGoProvider().cities()]
+        return [
+            CityOut(slug=item["slug"], name=item["name"], source="KudaGo")
+            for item in KudaGoProvider().cities()
+        ]
     except Exception:
         return []
 
 
 @router.post("/leisure/sync/{city_slug}")
 def sync(city_slug: str, session: DbSession, user: CurrentUser) -> dict[str, object]:
-    result = fetch_city_items(city_slug)
+    starts_at = now()
+    result = fetch_items(
+        ProviderQuery(city_slug=city_slug, starts_at=starts_at, ends_at=starts_at + timedelta(days=7))
+    )
     if result.unavailable:
         raise error(status.HTTP_503_SERVICE_UNAVAILABLE, "Данные KudaGo временно недоступны")
     return {"count": len(result.items), "cached": result.cached, "fetched_at": result.fetched_at}

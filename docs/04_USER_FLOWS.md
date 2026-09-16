@@ -18,7 +18,7 @@ Handle invalid/expired/already-member.
 
 ## C. One-time Signal
 1. Home → `⚡ Подать сигнал`.
-2. City, date/time, categories, budget, origin, radius, min/max people.
+2. City, date/time, categories, optional budget, optional origin/radius, min/max people.
 3. Submit.
 4. Private confirmation; do not leak others.
 5. Backend recomputes CandidatePlans.
@@ -59,3 +59,6 @@ Timeout/failure → valid Redis cache if allowed; show freshness. Without cache,
 
 ## K. No exact plan
 Do not dead-end. If a private Near path exists, invite the relevant user privately. Never say “Андрей мешает из-за бюджета”.
+
+## L. Missing provider facts
+If a user set budget/radius and price/coordinates are absent, the item is privately Unverified and no Offer is sent. If the user did not set that constraint, the same absent optional field does not block a match.
