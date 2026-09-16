@@ -29,8 +29,8 @@ candidate_plan_id, user_id, intent_id, compatibility EXACT/NEAR/UNVERIFIED, dist
 ## offers
 id, candidate_plan_id, user_id, status PENDING/ACCEPTED/REJECTED/EXPIRED/INVALIDATED, is_near, exception_confirmed_at, expires_at, timestamps. Unique(candidate_plan_id,user_id).
 
-## outbox_notifications (recommended)
-id, kind, user/group ref, payload, status, attempts, next_attempt_at, created_at.
+## outbox_notifications
+id, kind, user ref, payload, status, attempts, dedupe_key unique, next_attempt_at, locked_at, created_at. `PROCESSING` claims prevent two workers from dispatching one row concurrently.
 
 ## indexes
 max_user_id; group_members(group_id,user_id); intents(group_id,status,city_slug); candidate_plans(group_id,status,starts_at); candidate_plan_source_snapshots(candidate_plan_id); offers(user_id,status,expires_at).

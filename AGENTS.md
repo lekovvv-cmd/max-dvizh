@@ -35,7 +35,7 @@ Do not silently reinterpret the product. If code and docs disagree, reconcile th
 - Online MVP MUST support Near for budget.
 - Distance is individual from each user's selected origin point.
 - MVP uses kilometers, not travel-time estimates.
-- AutoSignal means “invite me when conditions match”, not automatic attendance.
+- AutoSignal means “invite me when conditions match”, not automatic attendance; matching uses its stored IANA local-time window.
 - MVP is multi-city where provider data is sufficient; do not hard-limit to Kazan.
 - Product geography and pilot geography are separate.
 - No AI/LLM features unless the team explicitly changes the spec.
@@ -92,7 +92,7 @@ MAX documentation changes. Before MAX-specific implementation, consult current o
 - Build vertical slices, not disconnected mock UI.
 - Domain matching logic must be deterministic and unit-testable.
 - Keep HTTP/ORM/provider schemas outside pure domain functions.
-- Use transactions/locking where concurrent Offer acceptance can violate constraints.
+- Use database transactions/locking where concurrent Offer acceptance can violate constraints; selected final N must satisfy every accepted participant's range.
 - Do not add out-of-scope features “because useful”.
 - Update docs when behavior changes.
 - Add regression tests for fixed bugs.

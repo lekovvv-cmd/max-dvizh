@@ -22,6 +22,20 @@ jobs:
 
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: max_dvizh
+          POSTGRES_USER: max_dvizh
+          POSTGRES_PASSWORD: test_only_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U max_dvizh -d max_dvizh"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     defaults:
       run:
         working-directory: backend
@@ -31,6 +45,12 @@ jobs:
         with:
           python-version: '3.13'
       - run: pip install -r requirements.lock
+      - run: alembic upgrade head
+        env:
+          DATABASE_URL: postgresql+psycopg://max_dvizh:test_only_password@localhost:5432/max_dvizh
+      - run: test "$(alembic current | tail -n 1 | awk '{print $1}')" = "20260916_0005"
+        env:
+          DATABASE_URL: postgresql+psycopg://max_dvizh:test_only_password@localhost:5432/max_dvizh
       - run: ruff check .
       - run: mypy app scripts
       - run: pytest

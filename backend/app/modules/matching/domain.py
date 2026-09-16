@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time, timedelta
 from math import asin, cos, radians, sin, sqrt
+from zoneinfo import ZoneInfo
 
 
 @dataclass(frozen=True)
@@ -12,6 +13,23 @@ class CompatibilityResult:
     kind: str
     distance_km: float | None
     budget_delta: int | None
+
+
+@dataclass(frozen=True)
+class GroupSizeCandidate:
+    """A privately eligible participant and their inclusive group-size range."""
+
+    user_id: str
+    min_people: int
+    max_people: int
+
+
+@dataclass(frozen=True)
+class FeasibleCohort:
+    """The size shared by every participant in the returned cohort."""
+
+    size: int
+    user_ids: tuple[str, ...]
 
 
 def haversine_km(origin_lat: float, origin_lon: float, venue_lat: float, venue_lon: float) -> float:
@@ -73,3 +91,71 @@ def overlaps(start_a: datetime, end_a: datetime, start_b: datetime, end_b: datet
     )
     left_start, left_end, right_start, right_end = normalized
     return left_start < right_end and right_start < left_end
+
+
+def contains_interval(
+    available_from: datetime, available_to: datetime, starts_at: datetime, ends_at: datetime
+) -> bool:
+    """A fixed event must entirely fit the one-time availability interval."""
+    values = (available_from, available_to, starts_at, ends_at)
+    start_available, end_available, start_event, end_event = tuple(
+        value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+        for value in values
+    )
+    return start_available <= start_event and end_event <= end_available
+
+
+def recurring_interval_fits(
+    *,
+    starts_at: datetime,
+    ends_at: datetime,
+    weekdays: list[int],
+    local_start: str,
+    local_end: str,
+    timezone_name: str,
+) -> bool:
+    """Match a complete event interval against one local weekly occurrence.
+
+    The weekday names the local date on which the allowed window starts. A
+    window whose end is not later than its start crosses into the following
+    local day (for example Friday 22:00–02:00).
+    """
+    zone = ZoneInfo(timezone_name)
+    event_start = starts_at.replace(tzinfo=UTC) if starts_at.tzinfo is None else starts_at.astimezone(UTC)
+    event_end = ends_at.replace(tzinfo=UTC) if ends_at.tzinfo is None else ends_at.astimezone(UTC)
+    if event_end <= event_start:
+        return False
+    local_event_start = event_start.astimezone(zone)
+    local_event_end = event_end.astimezone(zone)
+    if local_event_start.weekday() not in weekdays:
+        return False
+    start_hour, start_minute = (int(value) for value in local_start.split(":"))
+    end_hour, end_minute = (int(value) for value in local_end.split(":"))
+    window_start = datetime.combine(
+        local_event_start.date(), time(start_hour, start_minute), tzinfo=zone
+    )
+    window_end = datetime.combine(local_event_start.date(), time(end_hour, end_minute), tzinfo=zone)
+    if window_end <= window_start:
+        window_end += timedelta(days=1)
+    return window_start <= local_event_start and local_event_end <= window_end
+
+
+def feasible_cohort(candidates: list[GroupSizeCandidate], maximum_size: int = 12) -> FeasibleCohort | None:
+    """Find a deterministic group size satisfying every selected participant.
+
+    The MVP preference is the largest feasible final group. For a chosen size
+    N, every returned participant has ``min_people <= N <= max_people`` and at
+    least N eligible users exist. Sorting user ids makes the result independent
+    of database/Intent enumeration order; higher-level presentation ranking may
+    deterministically choose which N users receive the first private Offers.
+    """
+    unique = {candidate.user_id: candidate for candidate in candidates}
+    for size in range(maximum_size, 0, -1):
+        cohort = sorted(
+            candidate.user_id
+            for candidate in unique.values()
+            if candidate.min_people <= size <= candidate.max_people
+        )
+        if len(cohort) >= size:
+            return FeasibleCohort(size=size, user_ids=tuple(cohort))
+    return None

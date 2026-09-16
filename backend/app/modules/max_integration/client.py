@@ -1,13 +1,19 @@
-"""MAX Bot API boundary. It sends only after a real token is configured."""
+"""MAX Bot boundary and database-coordinated outbox dispatcher."""
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 import httpx
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.models import OutboxNotification, User
+
+
+def utcnow() -> datetime:
+    return datetime.now(UTC)
 
 
 def send_bot_message(max_user_id: str, text: str) -> bool:
@@ -24,29 +30,72 @@ def send_bot_message(max_user_id: str, text: str) -> bool:
     return True
 
 
-def dispatch_pending(session: Session) -> int:
-    """Best-effort outbox dispatch; failures remain queued for the next worker run."""
+def _text(event: OutboxNotification) -> str:
+    title = str(event.payload.get("title") or "Новое предложение в ДВИЖ")
+    return f"⚡ ДВИЖ СОБРАЛСЯ: {title}" if event.kind == "CONFIRMED_PLAN" else "В ДВИЖ появилось новое личное предложение"
+
+
+def dispatch_pending(session: Session, batch_size: int = 50) -> int:
+    """Claim rows using ``FOR UPDATE SKIP LOCKED`` then deliver outside the lock.
+
+    A claim is committed before network I/O, so concurrent worker processes do
+    not send the same pending row. A stale PROCESSING claim is retried after a
+    bounded lease; external HTTP cannot provide absolute exactly-once delivery.
+    """
     if not settings.max_bot_token:
         return 0
-    delivered = 0
+    current = utcnow()
+    stale_before = current - timedelta(minutes=5)
     for event in session.scalars(
-        select(OutboxNotification).where(OutboxNotification.status == "PENDING").limit(50)
+        select(OutboxNotification).where(
+            OutboxNotification.status == "PROCESSING", OutboxNotification.locked_at < stale_before
+        ).with_for_update(skip_locked=True)
     ):
+        event.status = "PENDING"
+        event.locked_at = None
+    session.commit()
+    claimed = list(
+        session.scalars(
+            select(OutboxNotification)
+            .where(
+                OutboxNotification.status == "PENDING",
+                or_(OutboxNotification.next_attempt_at.is_(None), OutboxNotification.next_attempt_at <= current),
+            )
+            .order_by(OutboxNotification.created_at, OutboxNotification.id)
+            .limit(batch_size)
+            .with_for_update(skip_locked=True)
+        )
+    )
+    for event in claimed:
+        event.status = "PROCESSING"
+        event.locked_at = current
+    session.commit()
+
+    delivered = 0
+    for claimed_event in claimed:
+        current_event = session.get(OutboxNotification, claimed_event.id)
+        if current_event is None or current_event.status != "PROCESSING":
+            continue
+        event = current_event
         user = session.get(User, event.user_id)
         if user is None:
             event.status = "FAILED"
+            event.locked_at = None
+            session.commit()
             continue
-        title = str(event.payload.get("title") or "Новое предложение в ДВИЖ")
-        text = (
-            f"⚡ ДВИЖ СОБРАЛСЯ: {title}"
-            if event.kind == "CONFIRMED_PLAN"
-            else "В ДВИЖ появилось новое личное предложение"
-        )
         try:
-            send_bot_message(user.max_user_id, text)
-            event.status = "SENT"
-            delivered += 1
+            send_bot_message(user.max_user_id, _text(event))
         except httpx.HTTPError:
             event.attempts += 1
-    session.commit()
+            event.status = "PENDING"
+            event.locked_at = None
+            delay = min(2 ** min(event.attempts, 8), settings.outbox_retry_max_seconds)
+            event.next_attempt_at = utcnow() + timedelta(seconds=delay)
+            session.commit()
+        else:
+            event.status = "SENT"
+            event.locked_at = None
+            event.next_attempt_at = None
+            session.commit()
+            delivered += 1
     return delivered

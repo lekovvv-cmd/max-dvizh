@@ -31,7 +31,7 @@ from app.db.models import (
     Intent,
     Location,
     Offer,
-    OutboxNotification,
+    User,
 )
 from app.modules.leisure.provider import (
     KudaGoProvider,
@@ -40,8 +40,12 @@ from app.modules.leisure.provider import (
     fetch_items,
 )
 from app.modules.matching.domain import overlaps
-from app.modules.matching.service import candidate_count, regenerate_group
-from app.modules.max_integration.client import dispatch_pending
+from app.modules.matching.service import (
+    candidate_count,
+    cleanup_expired,
+    recompute_candidate_plan,
+    regenerate_group,
+)
 
 router = APIRouter(tags=["product"])
 
@@ -250,6 +254,7 @@ def create_auto_signal(payload: AutoSignalIn, session: DbSession, user: CurrentU
         "weekdays": payload.weekdays,
         "local_start": payload.local_start,
         "local_end": payload.local_end,
+        "timezone": payload.timezone,
     }
     return _create_intent(payload, session, user, "RECURRING", payload.name, recurrence)
 
@@ -326,6 +331,8 @@ def offer_out(session: DbSession, offer: Offer) -> OfferOut:
 
 @router.get("/offers", response_model=list[OfferOut])
 def list_offers(session: DbSession, user: CurrentUser) -> list[OfferOut]:
+    cleanup_expired(session)
+    session.commit()
     offers = list(
         session.scalars(
             select(Offer)
@@ -338,34 +345,29 @@ def list_offers(session: DbSession, user: CurrentUser) -> list[OfferOut]:
     return [offer_out(session, offer) for offer in offers]
 
 
-def _queue_confirmed_notifications(
-    session: DbSession, plan: CandidatePlan, snapshot: CandidatePlanSourceSnapshot
-) -> None:
-    accepted = session.scalars(
-        select(Offer).where(Offer.candidate_plan_id == plan.id, Offer.status == "ACCEPTED")
-    )
-    for offer in accepted:
-        session.add(
-            OutboxNotification(
-                kind="CONFIRMED_PLAN",
-                user_id=offer.user_id,
-                payload={"plan_id": plan.id, "title": snapshot.title},
-            )
-        )
-
-
 @router.post("/offers/{offer_id}/accept", response_model=OfferOut)
 def accept_offer(
     offer_id: str, payload: OfferAction, session: DbSession, user: CurrentUser
 ) -> OfferOut:
+    # PostgreSQL lock order is User -> CandidatePlan -> Offer. User locking
+    # serializes competing actions by one participant; plan locking serializes
+    # capacity/confirmation changes by different participants.
+    preliminary = session.get(Offer, offer_id)
+    if preliminary is None or preliminary.user_id != user.id:
+        raise error(status.HTTP_404_NOT_FOUND, "Предложение не найдено")
+    session.scalar(select(User).where(User.id == user.id).with_for_update())
+    plan = session.scalar(
+        select(CandidatePlan).where(CandidatePlan.id == preliminary.candidate_plan_id).with_for_update()
+    )
     offer = session.scalar(select(Offer).where(Offer.id == offer_id).with_for_update())
     if offer is None or offer.user_id != user.id:
         raise error(status.HTTP_404_NOT_FOUND, "Предложение не найдено")
+    if offer.status == "ACCEPTED":
+        return offer_out(session, offer)
     if offer.status != "PENDING" or offer.expires_at <= now():
         raise error(status.HTTP_409_CONFLICT, "Предложение уже недоступно")
     if offer.is_near and not payload.confirm_near_exception:
         raise error(status.HTTP_409_CONFLICT, "Подтвердите небольшое превышение бюджета")
-    plan = session.get(CandidatePlan, offer.candidate_plan_id)
     assert plan is not None
     if plan.status != "COLLECTING" or plan.expires_at <= now():
         raise error(status.HTTP_409_CONFLICT, "План больше не собирается")
@@ -384,6 +386,7 @@ def accept_offer(
     if offer.is_near:
         offer.exception_confirmed_at = now()
     session.flush()
+    affected_plan_ids: set[str] = set()
     pending = session.scalars(
         select(Offer).where(
             Offer.user_id == user.id, Offer.status == "PENDING", Offer.id != offer.id
@@ -395,28 +398,38 @@ def accept_offer(
             plan.starts_at, plan.ends_at, other_plan.starts_at, other_plan.ends_at
         ):
             other.status = "INVALIDATED"
-    if candidate_count(session, plan.id) >= plan.required_min_people:
-        plan.status = "CONFIRMED"
-        snapshot = session.scalar(
-            select(CandidatePlanSourceSnapshot).where(
-                CandidatePlanSourceSnapshot.candidate_plan_id == plan.id
-            )
-        )
-        assert snapshot is not None
-        _queue_confirmed_notifications(session, plan, snapshot)
+            affected_plan_ids.add(other_plan.id)
+    recompute_candidate_plan(session, plan)
+    for affected in session.scalars(
+        select(CandidatePlan)
+        .where(CandidatePlan.id.in_(affected_plan_ids))
+        .order_by(CandidatePlan.id)
+        .with_for_update()
+    ):
+        recompute_candidate_plan(session, affected)
     session.commit()
-    dispatch_pending(session)
     return offer_out(session, offer)
 
 
 @router.post("/offers/{offer_id}/reject", response_model=OfferOut)
 def reject_offer(offer_id: str, session: DbSession, user: CurrentUser) -> OfferOut:
+    preliminary = session.get(Offer, offer_id)
+    if preliminary is None or preliminary.user_id != user.id:
+        raise error(status.HTTP_404_NOT_FOUND, "Предложение не найдено")
+    session.scalar(select(User).where(User.id == user.id).with_for_update())
+    plan = session.scalar(
+        select(CandidatePlan).where(CandidatePlan.id == preliminary.candidate_plan_id).with_for_update()
+    )
     offer = session.scalar(select(Offer).where(Offer.id == offer_id).with_for_update())
     if offer is None or offer.user_id != user.id:
         raise error(status.HTTP_404_NOT_FOUND, "Предложение не найдено")
+    if offer.status == "REJECTED":
+        return offer_out(session, offer)
     if offer.status != "PENDING":
         raise error(status.HTTP_409_CONFLICT, "Предложение уже обработано")
     offer.status = "REJECTED"
+    assert plan is not None
+    recompute_candidate_plan(session, plan)
     session.commit()
     return offer_out(session, offer)
 

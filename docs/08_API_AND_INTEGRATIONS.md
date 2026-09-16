@@ -103,3 +103,7 @@ The MAX Bridge is loaded from the official CDN `https://st.max.ru/js/max-web-app
 `window.WebApp.shareMaxContent({ text })` is used for a user-initiated final-plan share. The backend Bot API boundary uses documented `POST https://platform-api2.max.ru/messages?user_id=...` with `Authorization: <bot-token>` and an outbox. It does not send anything while `MAX_BOT_TOKEN` is absent.
 
 To complete real MAX verification, the owner must create/register the bot and Mini App in MAX Business, deploy this app to HTTPS, set the token only in deployment, configure a HTTPS webhook and run the mobile/web walkthrough. This repository does not claim that external account step is complete.
+
+## Runtime configuration
+
+`APP_ENV=development` is the only mode that accepts `X-Demo-User`; every other value requires validated MAX init data. Compose passes all used backend settings, including MAX URLs/token, KudaGo settings, matching thresholds, TTLs and outbox retry/poll settings. Production must set `APP_ENV=production` and deployment secrets externally.

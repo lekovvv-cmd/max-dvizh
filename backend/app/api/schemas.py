@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -71,6 +72,17 @@ class AutoSignalIn(IntentIn):
     weekdays: list[int] = Field(min_length=1, max_length=7)
     local_start: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     local_end: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    timezone: str = Field(min_length=1, max_length=64)
+
+    @model_validator(mode="after")
+    def validate_recurrence(self) -> AutoSignalIn:
+        if any(day < 0 or day > 6 for day in self.weekdays) or len(set(self.weekdays)) != len(self.weekdays):
+            raise ValueError("Дни недели должны быть уникальными числами от 0 до 6")
+        try:
+            ZoneInfo(self.timezone)
+        except ZoneInfoNotFoundError as error:
+            raise ValueError("Укажите IANA timezone, например Asia/Yekaterinburg") from error
+        return self
 
 
 class IntentOut(BaseModel):

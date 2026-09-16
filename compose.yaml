@@ -28,8 +28,21 @@ services:
     build:
       context: ./backend
     environment:
+      APP_ENV: ${APP_ENV:-development}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-max_dvizh}:${POSTGRES_PASSWORD:-local_development_only}@postgres:5432/${POSTGRES_DB:-max_dvizh}
       REDIS_URL: redis://redis:6379/0
+      MAX_BOT_TOKEN: ${MAX_BOT_TOKEN:-}
+      MAX_BOT_API_BASE: ${MAX_BOT_API_BASE:-https://platform-api2.max.ru}
+      MAX_BOT_USERNAME: ${MAX_BOT_USERNAME:-}
+      MAX_MINI_APP_URL: ${MAX_MINI_APP_URL:-}
+      KUDAGO_BASE_URL: ${KUDAGO_BASE_URL:-https://kudago.com/public-api/v1.4}
+      KUDAGO_TIMEOUT_SECONDS: ${KUDAGO_TIMEOUT_SECONDS:-5}
+      NEAR_BUDGET_MAX_DELTA_RUB: ${NEAR_BUDGET_MAX_DELTA_RUB:-150}
+      LEISURE_CACHE_TTL_SECONDS: ${LEISURE_CACHE_TTL_SECONDS:-900}
+      OFFER_TTL_MINUTES: ${OFFER_TTL_MINUTES:-60}
+      MAX_INIT_DATA_MAX_AGE_SECONDS: ${MAX_INIT_DATA_MAX_AGE_SECONDS:-3600}
+      OUTBOX_POLL_SECONDS: ${OUTBOX_POLL_SECONDS:-5}
+      OUTBOX_RETRY_MAX_SECONDS: ${OUTBOX_RETRY_MAX_SECONDS:-300}
     depends_on:
       postgres:
         condition: service_healthy
@@ -42,6 +55,30 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+
+  worker:
+    build:
+      context: ./backend
+    command: ["python", "-m", "app.modules.max_integration.worker"]
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-max_dvizh}:${POSTGRES_PASSWORD:-local_development_only}@postgres:5432/${POSTGRES_DB:-max_dvizh}
+      REDIS_URL: redis://redis:6379/0
+      MAX_BOT_TOKEN: ${MAX_BOT_TOKEN:-}
+      MAX_BOT_API_BASE: ${MAX_BOT_API_BASE:-https://platform-api2.max.ru}
+      MAX_BOT_USERNAME: ${MAX_BOT_USERNAME:-}
+      MAX_MINI_APP_URL: ${MAX_MINI_APP_URL:-}
+      KUDAGO_BASE_URL: ${KUDAGO_BASE_URL:-https://kudago.com/public-api/v1.4}
+      KUDAGO_TIMEOUT_SECONDS: ${KUDAGO_TIMEOUT_SECONDS:-5}
+      NEAR_BUDGET_MAX_DELTA_RUB: ${NEAR_BUDGET_MAX_DELTA_RUB:-150}
+      LEISURE_CACHE_TTL_SECONDS: ${LEISURE_CACHE_TTL_SECONDS:-900}
+      OFFER_TTL_MINUTES: ${OFFER_TTL_MINUTES:-60}
+      MAX_INIT_DATA_MAX_AGE_SECONDS: ${MAX_INIT_DATA_MAX_AGE_SECONDS:-3600}
+      OUTBOX_POLL_SECONDS: ${OUTBOX_POLL_SECONDS:-5}
+      OUTBOX_RETRY_MAX_SECONDS: ${OUTBOX_RETRY_MAX_SECONDS:-300}
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   frontend:
     build:

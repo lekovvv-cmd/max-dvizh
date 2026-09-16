@@ -95,11 +95,22 @@ def parse_price(value: str | None, is_free: bool) -> int | None:
 
 def normalize_event(raw: dict[str, Any], city: str, fetched_at: datetime) -> NormalizedLeisureItem | None:
     dates = raw.get("dates") or []
-    date = next((item for item in dates if item.get("start")), None)
-    if date is None:
+    date = next((entry for entry in dates if entry.get("start")), None)
+    if date is None or not raw.get("id"):
         return None
-    start = datetime.fromtimestamp(int(date["start"]), UTC)
-    end = datetime.fromtimestamp(int(date.get("end") or date["start"]) + 7200, UTC)
+    try:
+        start_timestamp = int(date["start"])
+        end_value = date.get("end")
+        end_timestamp = int(end_value) if end_value is not None else start_timestamp + 7200
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if start_timestamp <= 0 or end_timestamp <= start_timestamp:
+        return None
+    try:
+        start = datetime.fromtimestamp(start_timestamp, UTC)
+        end = datetime.fromtimestamp(end_timestamp, UTC)
+    except (OSError, OverflowError, ValueError):
+        return None
     place = raw.get("place") or {}
     coords = place.get("coords") or raw.get("coords") or {}
     categories = raw.get("categories") or []

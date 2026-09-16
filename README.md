@@ -4,9 +4,9 @@ MAX Mini App + chatbot backend для компаний друзей 18–25: п�
 
 ## Реализованный поток
 
-`MAX entry → private group/invite → Signal or AutoSignal → KudaGo/Redis CandidatePlan → Exact/Near/Conflict → complete private cross-group Offer pool → explicit choice → overlap invalidation → ConfirmedPlan → bot outbox → MAX share`.
+`MAX entry → private group/invite → Signal or AutoSignal → KudaGo/Redis CandidatePlan → Exact/Near/Conflict → complete private cross-group Offer pool → explicit choice → overlap invalidation/recompute → ConfirmedPlan → independently dispatched bot outbox → MAX share`.
 
-Signal и AutoSignal содержат город, временное окно, категорию, необязательные бюджет и радиус с личной точкой, а также размер группы. Координаты, бюджет, причины Near, отклонения и отказ никогда не возвращаются другим участникам. Near поддержан только для бюджета и требует отдельного подтверждения.
+Signal и AutoSignal содержат город, временное окно, категорию, необязательные бюджет и радиус с личной точкой, а также размер группы. AutoSignal сохраняет browser IANA timezone и проверяет полный local interval. Финальный размер выбирается детерминированно и должен находиться в диапазоне каждого участника. Координаты, бюджет, причины Near, отклонения и отказ никогда не возвращаются другим участникам. Near поддержан только для бюджета и требует отдельного подтверждения.
 
 ## Architecture
 
@@ -24,13 +24,13 @@ docker compose up --build
 
 Open `http://localhost:8080`; OpenAPI is at `http://localhost:8000/openapi.json`; readiness is at `http://localhost:8000/api/v1/health/ready`.
 
-Local development accepts `X-Demo-User` only when `APP_ENV=development`. In MAX, the app sends `window.WebApp.initData`; production rejects any unvalidated identity.
+Local development accepts `X-Demo-User` only when `APP_ENV=development`. In MAX, the app sends `window.WebApp.initData`; production (`APP_ENV=production`) rejects any unvalidated identity.
 
 ## Environment and ports
 
 Copy `.env.example` to `.env` for deployment values. Do not commit it. Runtime ports: frontend `8080`, backend `8000`, PostgreSQL `5432`.
 
-`MAX_BOT_TOKEN` is required for a real MAX entry identity and Bot API notifications. `MAX_MINI_APP_URL` must be the public HTTPS Mini App URL registered for the bot. `MAX_BOT_USERNAME` is used to form public `startapp` links in deployment. `REDIS_URL` configures the provider cache. KudaGo needs no secret.
+`MAX_BOT_TOKEN` is required for a real MAX entry identity and Bot API notifications. `MAX_MINI_APP_URL` must be the public HTTPS Mini App URL registered for the bot. `MAX_BOT_USERNAME` is used to form public `startapp` links in deployment. `REDIS_URL` configures the provider cache. The Compose `worker` independently dispatches the PostgreSQL outbox and remains idle when the token is absent. KudaGo needs no secret.
 
 ## Verification walkthrough
 

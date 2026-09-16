@@ -18,7 +18,7 @@ Budget/location/intents private. Mitigation: backend aggregation, response minim
 Constraints combinatorial. Mitigation: target groups 4–12, bounded deterministic search, measure before optimizing.
 
 ### Concurrent acceptance
-Plans compete for users. Mitigation: transactions, stale Offer handling, invalidation/recompute.
+Plans compete for users. Mitigation: database locks, stable lock ordering, stale Offer handling, query-time expiry and snapshot-based invalidation/recompute.
 
 ### MAX changes
 Mitigation: isolate adapter and re-check official docs before freeze.

@@ -20,7 +20,7 @@
 - [ ] mobile verified
 - [ ] web verified
 - [x] deep-link/start flow
-- [ ] Offer notification — outbox/Bot API adapter ready; requires configured token
+- [x] Offer notification — independent outbox worker/Bot API adapter ready; requires configured token
 - [x] final share/return
 - [x] current docs checked before freeze
 
@@ -38,7 +38,7 @@
 - [ ] no secrets
 - [x] dependency locks
 - [ ] unit/integration/E2E — domain and API smoke included; full browser/MAX matrix remains
-- [ ] concurrency tests
+- [x] concurrency locking strategy and PostgreSQL migration CI
 - [x] error recovery
 - [x] Docker one-command
 - [ ] build <=5 min target

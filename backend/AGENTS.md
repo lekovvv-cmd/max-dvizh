@@ -20,7 +20,7 @@ Never trust client-provided identity, compatibility, distance, price classificat
 Pure matching functions must not depend on HTTP, ORM or provider SDKs.
 
 ## Concurrency
-Offer acceptance can invalidate/recompute other plans. Use transactions/locking so participant limits and overlapping confirmations cannot become inconsistent.
+Offer acceptance can invalidate/recompute other plans. Use database transactions/locking (User → CandidatePlan → Offer) so participant limits and overlapping confirmations cannot become inconsistent. Recompute existing plans from their source snapshots, never a new provider call.
 
 ## Privacy
 API responses must minimize private data. Hidden fields in UI are not privacy.

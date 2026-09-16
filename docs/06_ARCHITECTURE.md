@@ -18,7 +18,7 @@ FastAPI backend
 ├─ matching/plans/offers
 ├─ leisure provider adapters
 ├─ provenance/cache
-└─ notifications/share
+└─ notifications/share + same-image outbox worker
      ↓
 PostgreSQL ← CandidatePlans, snapshots and domain entities
      ↑
@@ -62,8 +62,12 @@ Redis holds short-lived normalized KudaGo responses through cache-aside under ac
 ## Bot
 Prefer backend-owned bot integration; no separate bot microservice unless needed.
 
+## Reliability worker
+
+Compose runs a small `worker` process from the backend image. It claims PostgreSQL outbox rows with `FOR UPDATE SKIP LOCKED`, marks them PROCESSING before calling MAX, and retries transient failures with bounded backoff. It stays idle when no bot token is configured; no Celery, broker, or extra service is introduced.
+
 ## API
 Own backend API → expose/export OpenAPI and maintain DATA-API.yaml.
 
 ## Docker
-Local: frontend, backend, PostgreSQL and Redis. Target `docker compose up --build`. Build <=5 minutes excluding initial base image downloads.
+Local: frontend, backend, worker, PostgreSQL and Redis. Target `docker compose up --build`. Build <=5 minutes excluding initial base image downloads.

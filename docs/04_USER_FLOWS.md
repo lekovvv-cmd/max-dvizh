@@ -28,7 +28,7 @@ Handle invalid/expired/already-member.
 1. AutoSignals → Add.
 2. Name, city, activity, weekdays, time, budget, origin, radius, group size.
 3. Save.
-4. Remains active until paused/deleted.
+4. Browser IANA timezone is submitted with weekdays and local start/end; it remains active until paused/deleted.
 5. Compatible plan → Offer.
 6. User must accept.
 
@@ -50,6 +50,8 @@ Show every current pending Offer addressed to the user, across all their compani
 
 ## H. Exactly N participants
 If exactly 5 and 6 compatible, create feasible subset of 5; 6th may be reserve/eligible elsewhere, not publicly excluded. If one declines, next compatible reserve may be offered.
+
+The selected N is deterministic: the largest N for which at least N active eligible users each allow N. Offer ranking only chooses the private first cohort after N is fixed.
 
 ## I. Confirmed plan
 Enough valid confirmations → `⚡ ДВИЖ СОБРАЛСЯ`; bot notification; Mini App detail; final share/return in MAX.

@@ -177,10 +177,14 @@ class Offer(Base):
 
 class OutboxNotification(Base):
     __tablename__ = "outbox_notifications"
+    __table_args__ = (UniqueConstraint("dedupe_key"), Index("ix_outbox_dispatch", "status", "next_attempt_at"))
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     kind: Mapped[str] = mapped_column(String(40))
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
     payload: Mapped[dict[str, object]] = mapped_column(JSON)
     status: Mapped[str] = mapped_column(String(20), default="PENDING")
     attempts: Mapped[int] = mapped_column(Integer, default=0)
+    dedupe_key: Mapped[str | None] = mapped_column(String(180), nullable=True)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

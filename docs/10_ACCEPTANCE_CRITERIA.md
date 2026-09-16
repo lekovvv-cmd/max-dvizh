@@ -80,3 +80,9 @@ Temporary provider/backend error has retry/recovery without mandatory full reset
 
 ## AC-024 Multi-city
 No domain rule hardcodes Kazan-only. Cities derive from provider/config/data policy.
+
+## AC-028 Reliability correctness
+Exactly-N users are never confirmed below N; fixed events fit full one-time availability; AutoSignal evaluates weekday/time/timezone; and a real KudaGo end timestamp is not extended.
+
+## AC-029 Atomic choice and recovery
+Concurrent accepts cannot exceed the selected N or accept overlapping Offers for one user. Reject/invalidation recomputes from the persisted source snapshot and fills an eligible reserve without re-offering a rejected user.

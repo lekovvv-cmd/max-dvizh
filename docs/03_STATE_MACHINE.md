@@ -38,7 +38,7 @@ PENDING
 
 ## Accept Offer transaction
 
-1. Re-read Offer/CandidatePlan.
+1. Lock the current User, then CandidatePlan, then Offer; re-read their state inside the transaction.
 2. Require Offer=PENDING.
 3. Recheck candidate/source validity.
 4. Recheck user's overlapping accepted/confirmed plans.
@@ -46,7 +46,7 @@ PENDING
 6. If Near, require explicit exception confirmation.
 7. Mark ACCEPTED.
 8. Invalidate/recompute overlapping pending Offers for user; all other pending Offers remain in the user's global pool.
-9. Recompute CandidatePlan accepted count/feasibility.
+9. Recompute CandidatePlan and affected overlapping CandidatePlans from persisted source snapshots; no new provider call is needed.
 10. If constraints satisfied, CONFIRMED.
 11. Queue outbound MAX notification/share task.
 

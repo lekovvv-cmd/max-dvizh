@@ -26,7 +26,7 @@ Do not log tokens/full auth payloads or unnecessary exact coordinates/private ru
 Saved locations are user-owned; current location should be ephemeral where possible; never show friend locations on maps.
 
 ## Concurrency/idempotency
-Offer state changes need transactional consistency and stale-request handling.
+Offer state changes use PostgreSQL row locks in User → CandidatePlan → Offer order. Repeating the same final action is idempotent; an opposite final action conflicts. Outbox dedupe keys prevent duplicate logical notifications.
 
 ## Rate limiting
 Protect join/invites, Offer actions, provider sync and bot webhook as appropriate.

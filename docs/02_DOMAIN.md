@@ -18,7 +18,7 @@ Statuses: `ACTIVE`, `PAUSED`, `EXPIRED`, `CANCELLED`.
 Core constraints: city, activity/category, time/recurrence, optional budget_max, optional origin/radius_km, min_people, max_people. A radius requires an origin; both may be omitted.
 
 ## AutoSignal recurrence
-Keep MVP simple: weekdays + local start/end + optional date bounds. Do not build a full rules language.
+Keep MVP simple: weekdays + local start/end + IANA timezone + optional date bounds. Do not build a full rules language. The weekday is the local day on which the window starts; an end not later than the start means an overnight window.
 
 ## Provider item and source snapshot
 Normalized external/model content exists in the provider adapter and temporary Redis cache; it is not a PostgreSQL catalogue. Only when matching creates a CandidatePlan do we persist one `CandidatePlanSourceSnapshot` with provider/provider ID/type, title/category, optional venue/coordinates/price/URLs, fetched timestamp and demo flag.
@@ -28,7 +28,7 @@ Concrete feasible proposal being assembled.
 
 Statuses: `COLLECTING`, `CONFIRMED`, `EXPIRED`, `CANCELLED` (add READY only if implementation truly needs it).
 
-Contains a concrete source snapshot/activity/venue, concrete time, price representation, participant bounds and participant compatibility.
+Contains a concrete source snapshot/activity/venue, concrete time, price representation, participant bounds and participant compatibility. For a collecting plan, `required_min_people == required_max_people == N`: every eventual participant must allow the selected final size N.
 
 ## Compatibility
 Enum: `EXACT`, `NEAR`, `CONFLICT`, `UNVERIFIED`.

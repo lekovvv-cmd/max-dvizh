@@ -8,4 +8,5 @@ pytest-cov==6.0.0
 redis==5.2.1
 ruff==0.9.5
 SQLAlchemy==2.0.38
+tzdata==2025.2
 uvicorn[standard]==0.34.0

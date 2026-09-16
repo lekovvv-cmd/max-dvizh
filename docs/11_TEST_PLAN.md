@@ -15,6 +15,7 @@
 - exactly N;
 - pool > max;
 - reserve if implemented.
+- deterministic mixed ranges, exact-5 below/at threshold and Intent-order independence.
 
 ### Budget
 - Exact;
@@ -42,6 +43,7 @@
 - mismatch;
 - paused;
 - timezone.
+- complete interval containment and overnight local windows.
 
 ## Integration tests
 - PostgreSQL repositories;
@@ -53,6 +55,9 @@
 - CandidatePlan source snapshot creation and readability after Redis eviction;
 - no CandidatePlan/source snapshot when every evaluated user is Unverified/Conflict;
 - mocked MAX boundary;
+- KudaGo valid/missing/invalid/multiple-date normalization;
+- outbox retry, claim and OFFER/CONFIRMED_PLAN delivery;
+- clean PostgreSQL Alembic upgrade to head.
 - identity validation adapter.
 
 ## API tests
