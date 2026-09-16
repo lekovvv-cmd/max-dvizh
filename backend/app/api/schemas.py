@@ -89,6 +89,8 @@ class OfferOut(BaseModel):
     id: str
     status: str
     is_near: bool
+    group_id: str
+    group_name: str
     title: str
     venue_name: str | None
     starts_at: datetime

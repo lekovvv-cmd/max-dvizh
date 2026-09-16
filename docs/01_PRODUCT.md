@@ -39,7 +39,7 @@ Not a feed/catalog. Result is a **ConfirmedPlan** with concrete what/where/when 
 Intent
 → CandidatePlans
 → Exact/Near/Conflict
-→ 1–3 private Offers
+→ full private Offer pool
 → user chooses
 → enough confirmations
 → ConfirmedPlan
@@ -105,7 +105,7 @@ CandidatePlan is not a meeting yet.
 
 Private invitation to a CandidatePlan.
 
-A user may see up to 3 materially different Offers that overlap in time. System ranks them but **never chooses socially for the user**.
+A user sees the full current pool of personally addressed pending Offers, including offers from every one of their groups and both Exact and Near compatibility. The system may sort for convenience but **never chooses socially for the user or discards a ranked Offer**.
 
 Example:
 ```text
@@ -155,7 +155,7 @@ If provider does not cover a use case, do not fake live data. Explicit model/dem
 
 - authoritative free flag → 0;
 - safely parsed minimum may be approximate;
-- unknown → “Цена не указана”;
+- unknown → omit price from the UI; it cannot satisfy a user's hard budget constraint;
 - preserve original source price text.
 
 ## User-facing state language

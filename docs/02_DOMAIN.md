@@ -20,17 +20,15 @@ Core constraints: city, activity/category, time/recurrence, budget_max, origin, 
 ## AutoSignal recurrence
 Keep MVP simple: weekdays + local start/end + optional date bounds. Do not build a full rules language.
 
-## LeisureItem
-Normalized external/model content.
-
-Must carry provenance: provider, provider_id, URL if available, fetched_at, is_demo/model.
+## Provider item and source snapshot
+Normalized external/model content exists in the provider adapter and temporary Redis cache; it is not a PostgreSQL catalogue. Only when matching creates a CandidatePlan do we persist one `CandidatePlanSourceSnapshot` with provider/provider ID/type, title/category, optional venue/coordinates/price/URLs, fetched timestamp and demo flag.
 
 ## CandidatePlan
 Concrete feasible proposal being assembled.
 
 Statuses: `COLLECTING`, `CONFIRMED`, `EXPIRED`, `CANCELLED` (add READY only if implementation truly needs it).
 
-Contains concrete LeisureItem/activity/venue, concrete time, price representation, participant bounds, participant compatibility.
+Contains a concrete source snapshot/activity/venue, concrete time, price representation, participant bounds and participant compatibility.
 
 ## Compatibility
 Enum: `EXACT`, `NEAR`, `CONFLICT`.
@@ -40,7 +38,7 @@ Computed by backend domain logic.
 Structured reason for Near. MVP required: `BUDGET_OVER_MAX` with actual/limit/delta and safe user-facing text.
 
 ## Offer
-Private invitation.
+Private invitation. A user's current pending Offer pool spans every group they belong to and is not product-capped.
 
 Statuses: `PENDING`, `ACCEPTED`, `REJECTED`, `EXPIRED`, `INVALIDATED`.
 

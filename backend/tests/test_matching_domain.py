@@ -7,6 +7,7 @@ def test_budget_exact_near_and_conflict() -> None:
     assert budget_compatibility(400, 500, 150) == ("EXACT", None)
     assert budget_compatibility(400, 300, 150) == ("NEAR", 100)
     assert budget_compatibility(500, 300, 150) == ("CONFLICT", 200)
+    assert budget_compatibility(None, 300, 150) == ("CONFLICT", None)
 
 
 def test_haversine_and_half_open_interval_overlap() -> None:

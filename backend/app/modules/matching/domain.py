@@ -26,7 +26,11 @@ def haversine_km(origin_lat: float, origin_lon: float, venue_lat: float, venue_l
 def budget_compatibility(
     price: int | None, max_budget: int, near_limit: int
 ) -> tuple[str, int | None]:
-    if price is None or price <= max_budget:
+    # A budget is a hard constraint in the current Signal schema.  Unknown
+    # price cannot prove that constraint, so it is never silently Exact.
+    if price is None:
+        return "CONFLICT", None
+    if price <= max_budget:
         return "EXACT", None
     delta = price - max_budget
     if delta <= near_limit:

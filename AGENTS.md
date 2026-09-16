@@ -26,7 +26,7 @@ Do not silently reinterpret the product. If code and docs disagree, reconcile th
 - Intent is either one-time Signal or recurring AutoSignal.
 - CandidatePlan is not a confirmed meeting.
 - Offer is a private invitation to a concrete CandidatePlan.
-- A user may see up to 3 materially different overlapping Offers and chooses themselves.
+- A user sees the full current pool of personally addressed pending Offers across all groups and chooses themselves.
 - Never automatically choose between overlapping Offers.
 - There is **no separate Blind Consensus voting stage**.
 - Offer selection is the choice mechanism.
@@ -72,7 +72,7 @@ Default:
 - initial real leisure provider: KudaGo behind an adapter;
 - bot/MAX integration owned by backend modules;
 - external provider calls only from backend;
-- cache/last-valid snapshot for external data.
+- Redis cache for temporary external provider data; persisted source snapshots only for CandidatePlans.
 
 Do NOT add without an explicit need:
 - microservices;
@@ -135,7 +135,7 @@ MAX entry
 → Signal or AutoSignal
 → CandidatePlan generation
 → Exact/Near/Conflict
-→ 1–3 Offers
+→ full private Offer pool
 → explicit user choice
 → overlapping-plan recomputation
 → enough accepted users

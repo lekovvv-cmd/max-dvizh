@@ -12,7 +12,7 @@ MAX entry
 → Signal/AutoSignal
 → CandidatePlan generation
 → Exact/Near/Conflict
-→ up to 3 Offers
+→ complete private Offer pool across a user's groups
 → explicit user choice
 → overlap recomputation
 → ConfirmedPlan

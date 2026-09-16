@@ -14,7 +14,7 @@ Read root `AGENTS.md` first, then `docs/01_PRODUCT.md`, `docs/04_USER_FLOWS.md`,
 - Consumer Mini App, not admin dashboard.
 - Never implement privacy-sensitive matching in client.
 - Never call leisure providers directly from browser.
-- Show up to 3 overlapping Offers; never auto-select.
+- Show the complete pending Offer pool across the current user's groups; never auto-select or hide a ranked Offer.
 - Near has a distinct explicit confirmation UI.
 - Show only the current user's own distance/origin-derived data.
 - Never label straight-line km as travel time.

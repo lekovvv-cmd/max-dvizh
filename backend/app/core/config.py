@@ -16,6 +16,7 @@ class Settings:
     max_bot_username: str = getenv("MAX_BOT_USERNAME", "")
     kudago_base_url: str = getenv("KUDAGO_BASE_URL", "https://kudago.com/public-api/v1.4")
     kudago_timeout_seconds: float = float(getenv("KUDAGO_TIMEOUT_SECONDS", "5"))
+    redis_url: str = getenv("REDIS_URL", "redis://redis:6379/0")
     near_budget_max_delta_rub: int = int(getenv("NEAR_BUDGET_MAX_DELTA_RUB", "150"))
     leisure_cache_ttl_seconds: int = int(getenv("LEISURE_CACHE_TTL_SECONDS", "900"))
     offer_ttl_minutes: int = int(getenv("OFFER_TTL_MINUTES", "60"))

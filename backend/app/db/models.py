@@ -94,40 +94,11 @@ class Intent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
-class LeisureItem(Base):
-    __tablename__ = "leisure_items"
-    __table_args__ = (
-        UniqueConstraint("provider", "provider_id"),
-        Index("ix_leisure_city_start", "city_slug", "starts_at"),
-    )
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
-    provider: Mapped[str] = mapped_column(String(40))
-    provider_id: Mapped[str] = mapped_column(String(100))
-    item_type: Mapped[str] = mapped_column(String(20))
-    city_slug: Mapped[str] = mapped_column(String(64))
-    title: Mapped[str] = mapped_column(String(250))
-    category: Mapped[str] = mapped_column(String(64))
-    venue_name: Mapped[str | None] = mapped_column(String(250), nullable=True)
-    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
-    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
-    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    price_text: Mapped[str | None] = mapped_column(String(250), nullable=True)
-    price_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    is_free: Mapped[bool] = mapped_column(Boolean, default=False)
-    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
-    image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
-    source_fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
-    raw_metadata: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
-
-
 class CandidatePlan(Base):
     __tablename__ = "candidate_plans"
     __table_args__ = (Index("ix_candidate_group_status_start", "group_id", "status", "starts_at"),)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     group_id: Mapped[str] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), index=True)
-    leisure_item_id: Mapped[str] = mapped_column(ForeignKey("leisure_items.id"))
     city_slug: Mapped[str] = mapped_column(String(64))
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -137,6 +108,33 @@ class CandidatePlan(Base):
     status: Mapped[str] = mapped_column(String(20), default="COLLECTING")
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class CandidatePlanSourceSnapshot(Base):
+    """Stable provider facts, persisted only after a concrete plan is created."""
+
+    __tablename__ = "candidate_plan_source_snapshots"
+    __table_args__ = (UniqueConstraint("candidate_plan_id"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    candidate_plan_id: Mapped[str] = mapped_column(
+        ForeignKey("candidate_plans.id", ondelete="CASCADE"), index=True
+    )
+    provider: Mapped[str] = mapped_column(String(40))
+    provider_item_id: Mapped[str] = mapped_column(String(100))
+    provider_item_type: Mapped[str] = mapped_column(String(20))
+    title: Mapped[str] = mapped_column(String(250))
+    category: Mapped[str] = mapped_column(String(64))
+    venue_name: Mapped[str | None] = mapped_column(String(250), nullable=True)
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    price_text: Mapped[str | None] = mapped_column(String(250), nullable=True)
+    parsed_price: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class CandidatePlanMember(Base):
@@ -175,16 +173,6 @@ class Offer(Base):
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-
-class ProviderSnapshot(Base):
-    __tablename__ = "provider_snapshots"
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
-    provider: Mapped[str] = mapped_column(String(40))
-    city_slug: Mapped[str] = mapped_column(String(64))
-    payload: Mapped[list[dict[str, object]]] = mapped_column(JSON)
-    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    __table_args__ = (UniqueConstraint("provider", "city_slug"),)
 
 
 class OutboxNotification(Base):

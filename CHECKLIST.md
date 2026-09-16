@@ -29,7 +29,7 @@
 - [x] multi-city
 - [x] provenance
 - [x] price uncertainty
-- [x] cache/fallback
+- [x] Redis provider cache/fallback (no PostgreSQL provider catalogue)
 - [x] demo data labelled
 
 ## Technical

@@ -45,8 +45,8 @@ Given max=300, plan=400 within Near threshold:
 ```
 User is not counted until explicit acceptance; others do not see exact budget.
 
-## G. Multiple overlapping Offers
-Show max 3. User chooses one. Backend accepts selected and invalidates/recomputes overlapping ones. No automatic selection.
+## G. Offer pool across companies
+Show every current pending Offer addressed to the user, across all their companies and including Exact and Near. Each card identifies its company. Sorting is allowed, product truncation is not. User chooses one; backend accepts selected and invalidates/recomputes only overlapping ones. No automatic selection.
 
 ## H. Exactly N participants
 If exactly 5 and 6 compatible, create feasible subset of 5; 6th may be reserve/eligible elsewhere, not publicly excluded. If one declines, next compatible reserve may be offered.
@@ -55,7 +55,7 @@ If exactly 5 and 6 compatible, create feasible subset of 5; 6th may be reserve/e
 Enough valid confirmations → `⚡ ДВИЖ СОБРАЛСЯ`; bot notification; Mini App detail; final share/return in MAX.
 
 ## J. Provider unavailable
-Timeout/failure → valid cached snapshot if allowed; show freshness. If model data used, label it explicitly.
+Timeout/failure → valid Redis cache if allowed; show freshness. Without cache, show an honest recovery/empty state. If model data is deliberately used, label it explicitly.
 
 ## K. No exact plan
 Do not dead-end. If a private Near path exists, invite the relevant user privately. Never say “Андрей мешает из-за бюджета”.

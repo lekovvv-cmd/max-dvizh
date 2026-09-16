@@ -43,7 +43,7 @@ PENDING
 5. Recompute stale constraints as needed.
 6. If Near, require explicit exception confirmation.
 7. Mark ACCEPTED.
-8. Invalidate/recompute overlapping pending Offers for user.
+8. Invalidate/recompute overlapping pending Offers for user; all other pending Offers remain in the user's global pool.
 9. Recompute CandidatePlan accepted count/feasibility.
 10. If constraints satisfied, CONFIRMED.
 11. Queue outbound MAX notification/share task.

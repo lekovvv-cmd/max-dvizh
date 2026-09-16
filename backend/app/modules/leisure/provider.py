@@ -1,21 +1,69 @@
-"""KudaGo adapter: normalization, provenance and last-successful snapshot fallback."""
+"""KudaGo adapter with a Redis-only external catalogue cache.
+
+Provider records are deliberately plain normalized DTOs. They never become
+PostgreSQL rows unless matching creates a CandidatePlan, at which point the
+plan receives its own immutable source snapshot.
+"""
 
 from __future__ import annotations
 
+import json
 import re
-from datetime import UTC, datetime, timedelta
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
+from hashlib import sha256
 from typing import Any
 
 import httpx
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+import redis
 
 from app.core.config import settings
-from app.db.models import LeisureItem, ProviderSnapshot
 
 
 def utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+@dataclass(frozen=True)
+class NormalizedLeisureItem:
+    provider: str
+    provider_id: str
+    item_type: str
+    city_slug: str
+    title: str
+    category: str
+    venue_name: str | None
+    starts_at: datetime
+    ends_at: datetime
+    latitude: float | None
+    longitude: float | None
+    price_text: str | None
+    price_min: int | None
+    source_url: str | None
+    image_url: str | None
+    source_fetched_at: datetime
+    is_demo: bool = False
+
+    def to_cache(self) -> dict[str, object]:
+        result = asdict(self)
+        for field in ("starts_at", "ends_at", "source_fetched_at"):
+            result[field] = getattr(self, field).isoformat()
+        return result
+
+    @classmethod
+    def from_cache(cls, value: dict[str, object]) -> NormalizedLeisureItem:
+        converted = dict(value)
+        for field in ("starts_at", "ends_at", "source_fetched_at"):
+            converted[field] = datetime.fromisoformat(str(converted[field]))
+        return cls(**converted)  # type: ignore[arg-type]
+
+
+@dataclass(frozen=True)
+class ProviderResult:
+    items: list[NormalizedLeisureItem]
+    cached: bool
+    fetched_at: datetime | None
+    unavailable: bool = False
 
 
 def parse_price(value: str | None, is_free: bool) -> int | None:
@@ -27,9 +75,7 @@ def parse_price(value: str | None, is_free: bool) -> int | None:
     return int(numbers[0]) if len(numbers) == 1 else None
 
 
-def normalize_event(
-    raw: dict[str, Any], city: str, fetched_at: datetime
-) -> dict[str, object] | None:
+def normalize_event(raw: dict[str, Any], city: str, fetched_at: datetime) -> NormalizedLeisureItem | None:
     dates = raw.get("dates") or []
     date = next((item for item in dates if item.get("start")), None)
     if date is None:
@@ -41,27 +87,59 @@ def normalize_event(
     categories = raw.get("categories") or []
     price_text = raw.get("price") or None
     free = bool(raw.get("is_free", False))
-    return {
-        "provider": "KUDAGO",
-        "provider_id": str(raw["id"]),
-        "item_type": "EVENT",
-        "city_slug": city,
-        "title": str(raw.get("title") or "Событие KudaGo"),
-        "category": str(categories[0] if categories else "other"),
-        "venue_name": place.get("title"),
-        "latitude": coords.get("lat"),
-        "longitude": coords.get("lon"),
-        "starts_at": start.isoformat(),
-        "ends_at": end.isoformat(),
-        "price_text": price_text,
-        "price_min": parse_price(price_text, free),
-        "is_free": free,
-        "source_url": raw.get("site_url"),
-        "image_url": ((raw.get("images") or [{}])[0] or {}).get("image"),
-        "source_fetched_at": fetched_at.isoformat(),
-        "is_demo": False,
-        "raw_metadata": {"source": "KudaGo"},
-    }
+    return NormalizedLeisureItem(
+        provider="KUDAGO",
+        provider_id=str(raw["id"]),
+        item_type="EVENT",
+        city_slug=city,
+        title=str(raw.get("title") or "Событие KudaGo"),
+        category=str(categories[0] if categories else "other"),
+        venue_name=place.get("title"),
+        latitude=coords.get("lat"),
+        longitude=coords.get("lon"),
+        starts_at=start,
+        ends_at=end,
+        price_text=price_text,
+        price_min=parse_price(price_text, free),
+        source_url=raw.get("site_url"),
+        image_url=((raw.get("images") or [{}])[0] or {}).get("image"),
+        source_fetched_at=fetched_at,
+    )
+
+
+class RedisProviderCache:
+    """Small cache module, intentionally not a separate infrastructure layer."""
+
+    def __init__(self, client: redis.Redis[str] | None = None) -> None:
+        self.client = client or redis.Redis.from_url(settings.redis_url, decode_responses=True)
+
+    @staticmethod
+    def events_key(city: str, date_range: str = "future", categories: tuple[str, ...] = ()) -> str:
+        category_hash = sha256(",".join(sorted(categories)).encode()).hexdigest()[:12]
+        return f"kudago:events:{city}:{date_range}:{category_hash}"
+
+    def get_events(self, city: str) -> list[NormalizedLeisureItem] | None:
+        try:
+            payload = self.client.get(self.events_key(city))
+        except redis.RedisError:
+            return None
+        if payload is None:
+            return None
+        try:
+            return [NormalizedLeisureItem.from_cache(item) for item in json.loads(payload)]
+        except (TypeError, ValueError, KeyError):
+            return None
+
+    def set_events(self, city: str, items: list[NormalizedLeisureItem]) -> None:
+        try:
+            self.client.setex(
+                self.events_key(city),
+                settings.leisure_cache_ttl_seconds,
+                json.dumps([item.to_cache() for item in items]),
+            )
+        except redis.RedisError:
+            # The live provider response is still usable; cache outages never create demo data.
+            return
 
 
 class KudaGoProvider:
@@ -74,13 +152,13 @@ class KudaGoProvider:
         response.raise_for_status()
         return [{"slug": str(city["slug"]), "name": str(city["name"])} for city in response.json()]
 
-    def items(self, city: str) -> list[dict[str, object]]:
-        now = utcnow()
+    def items(self, city: str) -> list[NormalizedLeisureItem]:
+        fetched_at = utcnow()
         response = httpx.get(
             f"{settings.kudago_base_url}/events/",
             params={
                 "location": city,
-                "actual_since": int(now.timestamp()),
+                "actual_since": int(fetched_at.timestamp()),
                 "page_size": 100,
                 "fields": "id,title,dates,place,categories,price,is_free,site_url,images",
             },
@@ -90,67 +168,25 @@ class KudaGoProvider:
         return [
             item
             for raw in response.json().get("results", [])
-            if (item := normalize_event(raw, city, now))
+            if (item := normalize_event(raw, city, fetched_at)) is not None
         ]
 
 
-def _persist_items(session: Session, records: list[dict[str, object]]) -> list[LeisureItem]:
-    result: list[LeisureItem] = []
-    for record in records:
-        existing = session.scalar(
-            select(LeisureItem).where(
-                LeisureItem.provider == record["provider"],
-                LeisureItem.provider_id == record["provider_id"],
-            )
-        )
-        values = dict(record)
-        for field in ("starts_at", "ends_at", "source_fetched_at"):
-            values[field] = datetime.fromisoformat(str(values[field]))
-        if existing is None:
-            existing = LeisureItem(**values)  # type: ignore[arg-type]
-            session.add(existing)
-        else:
-            for key, value in values.items():
-                setattr(existing, key, value)
-        result.append(existing)
-    session.flush()
-    return result
-
-
-def sync_city(session: Session, city: str) -> tuple[list[LeisureItem], bool, datetime | None]:
-    """Return live items or last successful snapshot; failures never become disguised demo data."""
+def fetch_city_items(
+    city: str, *, provider: KudaGoProvider | None = None, cache: RedisProviderCache | None = None
+) -> ProviderResult:
+    """Use Redis first; on a miss, fetch KudaGo. Never fall back to PostgreSQL."""
+    cache = cache or RedisProviderCache()
+    cached = cache.get_events(city)
+    if cached is not None:
+        return ProviderResult(cached, cached=True, fetched_at=cached[0].source_fetched_at if cached else None)
     try:
-        records = KudaGoProvider().items(city)
-        snapshot = session.scalar(
-            select(ProviderSnapshot).where(
-                ProviderSnapshot.provider == "KUDAGO", ProviderSnapshot.city_slug == city
-            )
-        )
-        if snapshot is None:
-            snapshot = ProviderSnapshot(
-                provider="KUDAGO", city_slug=city, payload=records, fetched_at=utcnow()
-            )
-            session.add(snapshot)
-        else:
-            snapshot.payload, snapshot.fetched_at = records, utcnow()
-        session.commit()
-        return _persist_items(session, records), False, snapshot.fetched_at
+        items = (provider or KudaGoProvider()).items(city)
     except (httpx.HTTPError, ValueError):
-        session.rollback()
-        snapshot = session.scalar(
-            select(ProviderSnapshot).where(
-                ProviderSnapshot.provider == "KUDAGO", ProviderSnapshot.city_slug == city
-            )
-        )
-        if snapshot is None:
-            return [], False, None
-        return _persist_items(session, snapshot.payload), True, snapshot.fetched_at
-
-
-def cached_city_items(session: Session, city: str) -> list[LeisureItem]:
-    cutoff = utcnow() - timedelta(days=1)
-    return list(
-        session.scalars(
-            select(LeisureItem).where(LeisureItem.city_slug == city, LeisureItem.starts_at > cutoff)
-        )
-    )
+        # A second read lets a value written by another request win a race with failure.
+        cached = cache.get_events(city)
+        if cached is not None:
+            return ProviderResult(cached, cached=True, fetched_at=cached[0].source_fetched_at if cached else None)
+        return ProviderResult([], cached=False, fetched_at=None, unavailable=True)
+    cache.set_events(city, items)
+    return ProviderResult(items, cached=False, fetched_at=items[0].source_fetched_at if items else utcnow())

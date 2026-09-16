@@ -25,15 +25,19 @@ from app.core.config import settings
 from app.db.models import (
     CandidatePlan,
     CandidatePlanMember,
+    CandidatePlanSourceSnapshot,
     Group,
     GroupMember,
     Intent,
-    LeisureItem,
     Location,
     Offer,
     OutboxNotification,
 )
-from app.modules.leisure.provider import KudaGoProvider, cached_city_items, sync_city
+from app.modules.leisure.provider import (
+    KudaGoProvider,
+    NormalizedLeisureItem,
+    fetch_city_items,
+)
 from app.modules.matching.domain import overlaps
 from app.modules.matching.service import candidate_count, regenerate_group
 from app.modules.max_integration.client import dispatch_pending
@@ -196,22 +200,11 @@ def _create_intent(
     session.add(intent)
     session.commit()
     session.refresh(intent)
-    items, _, _ = sync_city(session, payload.city_slug)
-    model_items = list(
-        session.scalars(
-            select(LeisureItem).where(
-                LeisureItem.city_slug == payload.city_slug,
-                LeisureItem.is_demo.is_(True),
-                LeisureItem.provider_id == f"demo-{payload.group_id}",
-            )
-        )
-    )
-    regenerate_group(
-        session,
-        payload.group_id,
-        payload.city_slug,
-        items + model_items or cached_city_items(session, payload.city_slug),
-    )
+    # Provider failure intentionally results in no fresh plans.  Existing plans
+    # remain readable from their persisted source snapshots.
+    provider_result = fetch_city_items(payload.city_slug)
+    if not provider_result.unavailable:
+        regenerate_group(session, payload.group_id, payload.city_slug, provider_result.items)
     return intent_out(intent)
 
 
@@ -263,14 +256,19 @@ def change_auto_signal(
 def offer_out(session: DbSession, offer: Offer) -> OfferOut:
     plan = session.get(CandidatePlan, offer.candidate_plan_id)
     assert plan is not None
-    item = session.get(LeisureItem, plan.leisure_item_id)
+    snapshot = session.scalar(
+        select(CandidatePlanSourceSnapshot).where(
+            CandidatePlanSourceSnapshot.candidate_plan_id == plan.id
+        )
+    )
+    group = session.get(Group, plan.group_id)
     membership = session.scalar(
         select(CandidatePlanMember).where(
             CandidatePlanMember.candidate_plan_id == plan.id,
             CandidatePlanMember.user_id == offer.user_id,
         )
     )
-    assert item is not None and membership is not None
+    assert snapshot is not None and membership is not None and group is not None
     potential = (
         session.scalar(
             select(func.count())
@@ -283,15 +281,17 @@ def offer_out(session: DbSession, offer: Offer) -> OfferOut:
         id=offer.id,
         status=offer.status,
         is_near=offer.is_near,
-        title=item.title,
-        venue_name=item.venue_name,
+        group_id=group.id,
+        group_name=group.name,
+        title=snapshot.title,
+        venue_name=snapshot.venue_name,
         starts_at=plan.starts_at,
         ends_at=plan.ends_at,
-        price_text=item.price_text,
-        price_min=item.price_min,
-        is_demo=item.is_demo,
-        source_url=item.source_url,
-        source_fetched_at=item.source_fetched_at,
+        price_text=snapshot.price_text,
+        price_min=snapshot.parsed_price,
+        is_demo=snapshot.is_demo,
+        source_url=snapshot.source_url,
+        source_fetched_at=snapshot.source_fetched_at,
         distance_km=membership.distance_km,
         potential_count=potential,
         required_min_people=plan.required_min_people,
@@ -310,23 +310,13 @@ def list_offers(session: DbSession, user: CurrentUser) -> list[OfferOut]:
             .order_by(Offer.created_at.desc())
         )
     )
-    selected: list[Offer] = []
-    for offer in offers:
-        if len(selected) >= 3:
-            break
-        plan = session.get(CandidatePlan, offer.candidate_plan_id)
-        if (
-            plan
-            and all(
-                session.get(CandidatePlan, kept.candidate_plan_id) is not None for kept in selected
-            )
-        ):
-            selected.append(offer)
-    return [offer_out(session, offer) for offer in selected]
+    # This is the user's global pool across every group. Ordering is convenience
+    # only: it must never become a product limit.
+    return [offer_out(session, offer) for offer in offers]
 
 
 def _queue_confirmed_notifications(
-    session: DbSession, plan: CandidatePlan, item: LeisureItem
+    session: DbSession, plan: CandidatePlan, snapshot: CandidatePlanSourceSnapshot
 ) -> None:
     accepted = session.scalars(
         select(Offer).where(Offer.candidate_plan_id == plan.id, Offer.status == "ACCEPTED")
@@ -336,7 +326,7 @@ def _queue_confirmed_notifications(
             OutboxNotification(
                 kind="CONFIRMED_PLAN",
                 user_id=offer.user_id,
-                payload={"plan_id": plan.id, "title": item.title},
+                payload={"plan_id": plan.id, "title": snapshot.title},
             )
         )
 
@@ -384,9 +374,13 @@ def accept_offer(
             other.status = "INVALIDATED"
     if candidate_count(session, plan.id) >= plan.required_min_people:
         plan.status = "CONFIRMED"
-        item = session.get(LeisureItem, plan.leisure_item_id)
-        assert item is not None
-        _queue_confirmed_notifications(session, plan, item)
+        snapshot = session.scalar(
+            select(CandidatePlanSourceSnapshot).where(
+                CandidatePlanSourceSnapshot.candidate_plan_id == plan.id
+            )
+        )
+        assert snapshot is not None
+        _queue_confirmed_notifications(session, plan, snapshot)
     session.commit()
     dispatch_pending(session)
     return offer_out(session, offer)
@@ -405,20 +399,24 @@ def reject_offer(offer_id: str, session: DbSession, user: CurrentUser) -> OfferO
 
 
 def plan_out(session: DbSession, plan: CandidatePlan) -> PlanOut:
-    item = session.get(LeisureItem, plan.leisure_item_id)
-    assert item is not None
+    snapshot = session.scalar(
+        select(CandidatePlanSourceSnapshot).where(
+            CandidatePlanSourceSnapshot.candidate_plan_id == plan.id
+        )
+    )
+    assert snapshot is not None
     participants = candidate_count(session, plan.id)
-    price = item.price_text or "Цена не указана"
-    share = f"⚡ ДВИЖ СОБРАЛСЯ: {item.title}, {plan.starts_at.strftime('%d.%m %H:%M')} · {price}"
+    price = f" · {snapshot.price_text}" if snapshot.price_text else ""
+    share = f"⚡ ДВИЖ СОБРАЛСЯ: {snapshot.title}, {plan.starts_at.strftime('%d.%m %H:%M')}{price}"
     return PlanOut(
         id=plan.id,
         status=plan.status,
-        title=item.title,
-        venue_name=item.venue_name,
+        title=snapshot.title,
+        venue_name=snapshot.venue_name,
         starts_at=plan.starts_at,
         ends_at=plan.ends_at,
-        price_text=item.price_text,
-        source_url=item.source_url,
+        price_text=snapshot.price_text,
+        source_url=snapshot.source_url,
         participant_count=participants,
         required_min_people=plan.required_min_people,
         required_max_people=plan.required_max_people,
@@ -468,8 +466,10 @@ def cities() -> list[CityOut]:
 
 @router.post("/leisure/sync/{city_slug}")
 def sync(city_slug: str, session: DbSession, user: CurrentUser) -> dict[str, object]:
-    items, cached, fetched_at = sync_city(session, city_slug)
-    return {"count": len(items), "cached": cached, "fetched_at": fetched_at}
+    result = fetch_city_items(city_slug)
+    if result.unavailable:
+        raise error(status.HTTP_503_SERVICE_UNAVAILABLE, "Данные KudaGo временно недоступны")
+    return {"count": len(result.items), "cached": result.cached, "fetched_at": result.fetched_at}
 
 
 @router.post("/development/seed-demo/{group_id}", status_code=status.HTTP_201_CREATED)
@@ -478,13 +478,7 @@ def seed_demo(group_id: str, session: DbSession, user: CurrentUser) -> dict[str,
         raise error(status.HTTP_404_NOT_FOUND, "Не найдено")
     group = member(session, group_id, user.id)
     start = now() + timedelta(hours=2)
-    existing = session.scalar(
-        select(LeisureItem).where(
-            LeisureItem.provider == "MODEL", LeisureItem.provider_id == f"demo-{group.id}"
-        )
-    )
-    if existing is None:
-        existing = LeisureItem(
+    demo_item = NormalizedLeisureItem(
             provider="MODEL",
             provider_id=f"demo-{group.id}",
             item_type="MODEL",
@@ -498,14 +492,10 @@ def seed_demo(group_id: str, session: DbSession, user: CurrentUser) -> dict[str,
             ends_at=start + timedelta(hours=3),
             price_text="400 ₽",
             price_min=400,
-            is_free=False,
             source_url=None,
             image_url=None,
             source_fetched_at=now(),
             is_demo=True,
-            raw_metadata={"label": "Демонстрационные данные"},
         )
-        session.add(existing)
-        session.commit()
-    regenerate_group(session, group.id, group.default_city_slug, [existing])
+    regenerate_group(session, group.id, group.default_city_slug, [demo_item])
     return {"status": "seeded", "label": "Демонстрационные данные"}

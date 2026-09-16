@@ -1,7 +1,7 @@
 # 13 — Data provenance and external data policy
 
 ## Provenance required
-Every leisure item stores provider, provider ID, provider URL if available, fetch timestamp, original price text, demo/model flag.
+Every CandidatePlan stores a source snapshot with provider, provider ID/type, provider URL if available, fetch timestamp, original price text, parsed price and demo/model flag. Browsed provider items do not become database rows.
 
 ## Distinguish
 - provider fact;
@@ -14,11 +14,11 @@ Define TTL by item type. Do not use old event data as current when date matters.
 
 ## Fallback priority
 1. fresh live data;
-2. valid recent cached snapshot;
+2. valid recent Redis cache entry;
 3. explicit demo/model data only for demonstration;
 4. honest empty/error state.
 
-Never fabricate a live event or silently label model data as live.
+Never fabricate a live event, restore a provider catalogue from PostgreSQL, or silently label model data as live.
 
 ## Official sources
 The case recommends official resources such as Культура.РФ, PRO.Культура.РФ, Минспорт sources, Путешествуем.рф, Добро.рф, Пушкинская карта information and ФИАС.

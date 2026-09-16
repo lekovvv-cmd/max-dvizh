@@ -26,7 +26,7 @@ Fields: activity/category, days, time, budget, participant count, origin, radius
 One card = one AND rule. Do not build arbitrary boolean programming UI.
 
 ## Offer list
-Up to 3 overlapping Offers. Each includes enough to choose: what/where/when, source-aware price, own distance, group state, CTA.
+Show the complete current Offer pool from all user's companies. Each card identifies its company and includes enough to choose: what/where/when, available source-aware price, own distance, group state and CTA. Sort only for navigation; do not hide lower-ranked offers.
 
 ## Exact Offer
 ```text
@@ -54,6 +54,9 @@ Show what/where/when, price/source caveat, user's distance, confirmed participan
 
 ## Empty state
 Never only “Ничего нет”. Explain lack of exact plan and offer a private Near/edit action if available.
+
+## Optional metadata
+When provider data is absent, omit its row entirely: do not show “Цена неизвестна”, “Цена не указана” or placeholder venue/image/description. This presentation rule never weakens matching hard constraints.
 
 ## Data status
 Cached: `Данные обновлены 18 минут назад`.

@@ -50,7 +50,7 @@ Useful resources:
 
 Useful event data includes title, dates, place, location, categories, price, is_free, images, site_url.
 
-Provider adapter should normalize to domain `LeisureItem`.
+Provider adapter normalizes to an in-memory `NormalizedLeisureItem` DTO. Redis caches query-specific normalized results; PostgreSQL saves a source snapshot only for a CandidatePlan created from one.
 
 Suggested internal interface:
 ```text
@@ -67,7 +67,7 @@ Read supported cities from provider/config/data-quality policy. Never `if city =
 Store original `price_text`; parse conservative `price_min` only when safe; preserve free flag/source.
 
 ## Cache/fallback
-Provider client needs timeout, bounded retry when useful, cache/last valid snapshot, freshness metadata. Never silently replace live data with demo data.
+Provider client needs timeout, bounded retry when useful, Redis cache and freshness metadata. Event keys include city, date range and a category hash; TTL is `LEISURE_CACHE_TTL_SECONDS`. Cache hit skips KudaGo. On provider failure a valid Redis value may be used; with no cache the API returns an honest unavailable/empty recovery state. Never silently replace live data with demo data or PostgreSQL catalogue rows.
 
 ## Provenance
 Store provider/source URL/fetched_at and demo flag.
@@ -82,7 +82,7 @@ Suggested route families (final contract may evolve):
 /api/v1/locations
 /api/v1/intents
 /api/v1/autosignals
-/api/v1/offers
+/api/v1/offers  # all current user's pending offers across groups; no product cap
 /api/v1/offers/{id}/accept
 /api/v1/offers/{id}/reject
 /api/v1/plans

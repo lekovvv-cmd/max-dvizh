@@ -21,6 +21,7 @@
 - Near;
 - Conflict;
 - unknown price.
+- unknown price with budget → Conflict; missing venue coordinates with radius → Conflict.
 
 ### Distance
 - Haversine known values;
@@ -46,6 +47,8 @@
 - concurrent Offer acceptance;
 - provider normalization;
 - cache fallback;
+- Redis hit/miss and provider-failure fallback without PostgreSQL catalogue rows;
+- CandidatePlan source snapshot creation and readability after Redis eviction;
 - mocked MAX boundary;
 - identity validation adapter.
 
@@ -55,7 +58,7 @@ At minimum: session, groups/join, locations, Intents/AutoSignals, Offers list, e
 ## E2E
 1. Signal → CandidatePlan → Offer → ConfirmedPlan.
 2. Near 300→400.
-3. Multiple overlapping Offers and recomputation.
+3. Five cross-group pending Offers (Exact and Near) are all accessible; overlapping recomputation still applies after acceptance.
 4. Provider outage with cache/freshness.
 5. Deep-link/group join.
 

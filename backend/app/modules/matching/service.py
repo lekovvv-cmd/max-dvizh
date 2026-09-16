@@ -9,12 +9,13 @@ from app.core.config import settings
 from app.db.models import (
     CandidatePlan,
     CandidatePlanMember,
+    CandidatePlanSourceSnapshot,
     Intent,
-    LeisureItem,
     Location,
     Offer,
     OutboxNotification,
 )
+from app.modules.leisure.provider import NormalizedLeisureItem
 from app.modules.matching.domain import compatibility, overlaps
 
 
@@ -36,7 +37,7 @@ def _active_intents(session: Session, group_id: str, city: str) -> list[Intent]:
     ]
 
 
-def _fits_time(intent: Intent, item: LeisureItem) -> bool:
+def _fits_time(intent: Intent, item: NormalizedLeisureItem) -> bool:
     if intent.type == "RECURRING":
         recurrence = intent.recurrence_json or {}
         weekdays = recurrence.get("weekdays", [])
@@ -49,7 +50,7 @@ def _fits_time(intent: Intent, item: LeisureItem) -> bool:
 
 
 def regenerate_group(
-    session: Session, group_id: str, city: str, items: list[LeisureItem]
+    session: Session, group_id: str, city: str, items: list[NormalizedLeisureItem]
 ) -> list[CandidatePlan]:
     intents = _active_intents(session, group_id, city)
     plans: list[CandidatePlan] = []
@@ -66,14 +67,18 @@ def regenerate_group(
         plan = session.scalar(
             select(CandidatePlan).where(
                 CandidatePlan.group_id == group_id,
-                CandidatePlan.leisure_item_id == item.id,
                 CandidatePlan.status == "COLLECTING",
+                CandidatePlan.id.in_(
+                    select(CandidatePlanSourceSnapshot.candidate_plan_id).where(
+                        CandidatePlanSourceSnapshot.provider == item.provider,
+                        CandidatePlanSourceSnapshot.provider_item_id == item.provider_id,
+                    )
+                ),
             )
         )
         if plan is None:
             plan = CandidatePlan(
                 group_id=group_id,
-                leisure_item_id=item.id,
                 city_slug=city,
                 starts_at=item.starts_at,
                 ends_at=item.ends_at,
@@ -85,6 +90,27 @@ def regenerate_group(
             )
             session.add(plan)
             session.flush()
+            session.add(
+                CandidatePlanSourceSnapshot(
+                    candidate_plan_id=plan.id,
+                    provider=item.provider,
+                    provider_item_id=item.provider_id,
+                    provider_item_type=item.item_type,
+                    title=item.title,
+                    category=item.category,
+                    venue_name=item.venue_name,
+                    starts_at=item.starts_at,
+                    ends_at=item.ends_at,
+                    latitude=item.latitude,
+                    longitude=item.longitude,
+                    price_text=item.price_text,
+                    parsed_price=item.price_min,
+                    source_url=item.source_url,
+                    image_url=item.image_url,
+                    source_fetched_at=item.source_fetched_at,
+                    is_demo=item.is_demo,
+                )
+            )
         if plan.required_min_people > plan.required_max_people:
             continue
         existing_users = {

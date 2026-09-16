@@ -4,15 +4,15 @@ MAX Mini App + chatbot backend для компаний друзей 18–25: п�
 
 ## Реализованный поток
 
-`MAX entry → private group/invite → Signal or AutoSignal → KudaGo CandidatePlan → Exact/Near/Conflict → up to 3 private Offers → explicit choice → overlap invalidation → ConfirmedPlan → bot outbox → MAX share`.
+`MAX entry → private group/invite → Signal or AutoSignal → KudaGo/Redis CandidatePlan → Exact/Near/Conflict → complete private cross-group Offer pool → explicit choice → overlap invalidation → ConfirmedPlan → bot outbox → MAX share`.
 
 Signal и AutoSignal содержат город, временное окно, категорию, бюджет, личную точку, радиус в км и размер группы. Координаты, бюджет, причины Near, отклонения и отказ никогда не возвращаются другим участникам. Near поддержан только для бюджета и требует отдельного подтверждения.
 
 ## Architecture
 
-`React/Vite Mini App → FastAPI modular monolith → PostgreSQL`.
+`React/Vite Mini App → FastAPI modular monolith → PostgreSQL`, with Redis between KudaGo and matching for short-lived query-specific provider data.
 
-Backend verifies `WebApp.initData` server-side according to MAX HMAC rules, owns authorization/matching/locks, uses KudaGo only server-side, normalizes and snapshots provider results, and stores bot notifications in an outbox. `frontend/src/app/api.ts` is the typed API boundary. The pure functions in `backend/app/modules/matching/domain.py` perform Haversine, budget compatibility and interval overlap.
+Backend verifies `WebApp.initData` server-side according to MAX HMAC rules, owns authorization/matching/locks, uses KudaGo only server-side, caches normalized provider DTOs in Redis, persists a source snapshot only when a CandidatePlan is created, and stores bot notifications in an outbox. `frontend/src/app/api.ts` is the typed API boundary. The pure functions in `backend/app/modules/matching/domain.py` perform Haversine, budget compatibility and interval overlap.
 
 ## Start
 
@@ -30,7 +30,7 @@ Local development accepts `X-Demo-User` only when `APP_ENV=development`. In MAX,
 
 Copy `.env.example` to `.env` for deployment values. Do not commit it. Runtime ports: frontend `8080`, backend `8000`, PostgreSQL `5432`.
 
-`MAX_BOT_TOKEN` is required for a real MAX entry identity and Bot API notifications. `MAX_MINI_APP_URL` must be the public HTTPS Mini App URL registered for the bot. `MAX_BOT_USERNAME` is used to form public `startapp` links in deployment. KudaGo needs no secret.
+`MAX_BOT_TOKEN` is required for a real MAX entry identity and Bot API notifications. `MAX_MINI_APP_URL` must be the public HTTPS Mini App URL registered for the bot. `MAX_BOT_USERNAME` is used to form public `startapp` links in deployment. `REDIS_URL` configures the provider cache. KudaGo needs no secret.
 
 ## Verification walkthrough
 
@@ -39,7 +39,7 @@ Copy `.env.example` to `.env` for deployment values. Do not commit it. Runtime p
 3. For each demo user, add a location from **Подать сигнал**, seed the explicitly labelled model data once, then submit a matching Signal. KudaGo is also queried and its events remain source-labelled.
 4. Each member sees a private Offer. An Exact price can be accepted directly; for a 300→400 Near Offer the UI requires `Всё равно пойду` and only then counts the member.
 5. Accepting an Offer invalidates that user's pending Offers that overlap its interval. When the minimum is reached, **ДВИЖ СОБРАЛСЯ** appears in Plans and can be shared through `WebApp.shareMaxContent`.
-6. To exercise unavailable-provider recovery, block `kudago.com` after one successful sync; the backend serves the last snapshot when present and never labels it as live/demo data.
+6. To exercise unavailable-provider recovery, block `kudago.com` after one successful sync; the backend serves the still-valid Redis cache when present and otherwise returns an honest unavailable state. It never uses fake live data or a PostgreSQL provider catalogue.
 
 `DATA-API.yaml` contains reviewer API calls. `scripts/export-openapi.ps1` exports the generated contract. The full product/API/integration limitations are in `docs/08_API_AND_INTEGRATIONS.md` and `docs/18_RISKS_NON_GOALS.md`.
 
@@ -66,7 +66,11 @@ The repository contains the live adapter and Bridge integration but cannot creat
 ## Limitations
 
 - A MAX bot/account, HTTPS deployment and manual MAX mobile/web verification remain external-account work; no token is committed.
-- KudaGo coverage and price quality vary by city. Missing price remains `Цена не указана`; model data is always labelled.
+- KudaGo coverage and price quality vary by city. Missing optional metadata is omitted from UI; an unknown price cannot satisfy a budget-constrained match. Model data is always labelled.
 - The MVP has no booking, payments, travel-time estimates, chat reading, public feed, AI, or post-confirmation rescheduling engine.
 
 Stop with `docker compose down`; `docker compose down -v` also deletes local PostgreSQL data.
+
+## Development database reset after provider-cache refactor
+
+Migration `20260916_0003` copies each existing CandidatePlan's source facts into `candidate_plan_source_snapshots` and removes the old provider catalogue tables. For disposable local/demo data, reset explicitly with `docker compose down -v`, then run `docker compose up --build`; never use this procedure against a deployment database.

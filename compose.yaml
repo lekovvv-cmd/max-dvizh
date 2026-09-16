@@ -15,13 +15,25 @@ services:
       timeout: 3s
       retries: 20
 
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   backend:
     build:
       context: ./backend
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-max_dvizh}:${POSTGRES_PASSWORD:-local_development_only}@postgres:5432/${POSTGRES_DB:-max_dvizh}
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     ports:
       - "${BACKEND_PORT:-8000}:8000"

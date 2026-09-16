@@ -28,7 +28,7 @@ min=max=5 → ConfirmedPlan participant count exactly 5.
 6 compatible, max=5 → valid subset of 5; sixth is not publicly labelled excluded.
 
 ## AC-010 Multiple overlapping Offers
-Bowling + PC Club overlap; user may see both (overall max 3); system does not choose automatically.
+Bowling + PC Club overlap; user may see both with any other pending offers in the unrestricted global pool; system does not choose automatically.
 
 ## AC-011 Accept overlap
 Accept PC Club → selected Offer accepted, overlapping Bowling participation invalidated/recomputed, Bowling candidate recomputed.
@@ -49,7 +49,10 @@ KudaGo timeout + valid cache → allowed cached data, visible freshness, flow re
 Demo/model item is explicitly marked and not represented as live provider data.
 
 ## AC-017 Unknown price
-No reliable price → no invented number; show “Цена не указана” or safe source text.
+No reliable price → no invented number and no placeholder row in UI. When budget is a hard constraint, this item is not compatible.
+
+## AC-025 Unrestricted cross-group Offer pool
+Five valid pending Offers from multiple groups, including Exact and Near, are all returned by `GET /offers`, each with safe `group_id` and `group_name`; ranking never discards one.
 
 ## AC-018 MAX core flow
 Judge can enter via MAX, open Mini App, join/create context, create/activate Intent, receive Offer, accept, reach ConfirmedPlan, return/share result in MAX.
