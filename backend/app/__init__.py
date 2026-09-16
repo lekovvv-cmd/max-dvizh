@@ -1,0 +1,1 @@
+"""MAX ДВИЖ backend package."""

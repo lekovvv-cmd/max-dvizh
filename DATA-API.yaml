@@ -1,0 +1,18 @@
+config_version: "1.0"
+solution:
+  name: "MAX ДВИЖ"
+  team: "TBD"
+  stage: "M0 bootstrap"
+base_url: "http://localhost:8000"
+contract_status: "Only the technical health endpoint is implemented. Product API contracts are pending; no speculative endpoints are listed."
+checks:
+  - id: health
+    description: "Technical availability check for the FastAPI service."
+    method: GET
+    path: /api/v1/health
+    role: anonymous
+    headers: {}
+    params: {}
+    body: null
+    expected_statuses: [200]
+    required_response_fields: [status, service, version]

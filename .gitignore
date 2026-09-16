@@ -1,0 +1,37 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+frontend/dist/
+frontend/coverage/
+dist/
+.vite/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+backend/.coverage
+backend/htmlcov/
+backend/.venv/
+.venv/
+venv/
+
+# Local tooling
+.idea/
+.vscode/
+*.log
+tmp/
+.local/
+.DS_Store
+
+# Docker volumes
+postgres-data/
+
+# Original unpacked specification archive; source-of-truth files are copied to the repository root.
+MAX_DVIZH_AGENT_PACK/

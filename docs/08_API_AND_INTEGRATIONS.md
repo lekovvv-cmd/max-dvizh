@@ -1,0 +1,97 @@
+# 08 — API and integrations
+
+## Always verify current docs
+
+The case explicitly warns that MAX docs evolve.
+
+Current official roots to verify before coding/freeze:
+- MAX docs: https://dev.max.ru/docs
+- MAX Bot API: https://dev.max.ru/docs-api
+- MAX Bridge: https://dev.max.ru/docs/webapps/bridge
+- MAX UI: https://dev.max.ru/ui
+- KudaGo API: https://docs.kudago.com/api/
+
+Do not assume copied endpoint details stay current.
+
+# MAX
+
+## Required product uses
+
+### Bot
+Real product role:
+- Mini App entry;
+- Offer notification;
+- `ДВИЖ СОБРАЛСЯ` notification;
+- reminders if implemented.
+
+### Mini App
+Used for Signal/AutoSignal, locations/constraints, multiple Offers, Near confirmation, final plan.
+
+### Deep links/start context
+Use current supported mechanism for group invite, Offer and plan opening. Prefer opaque tokens, not sequential DB IDs.
+
+### Share back
+Use current supported Bridge/share mechanism for final plan. Current docs include `shareMaxContent`; verify exact contract before implementation.
+
+## MAX identity
+Never authorize using raw client `user_id`. Implement server-side validation exactly according to current official docs. If a launch mode has limitations, document them; do not invent validation.
+
+# KudaGo
+
+KudaGo currently documents a public API and calls it a free database of events and places. Current docs show `/public-api/v1.4/...`; verify current version before implementation.
+
+Useful resources:
+- locations;
+- event categories;
+- place categories;
+- events;
+- places;
+- search.
+
+Useful event data includes title, dates, place, location, categories, price, is_free, images, site_url.
+
+Provider adapter should normalize to domain `LeisureItem`.
+
+Suggested internal interface:
+```text
+LeisureProvider
+- list_cities()
+- list_items(query)
+- get_item(id)
+```
+
+## Multi-city
+Read supported cities from provider/config/data-quality policy. Never `if city == Kazan` in domain logic.
+
+## Price
+Store original `price_text`; parse conservative `price_min` only when safe; preserve free flag/source.
+
+## Cache/fallback
+Provider client needs timeout, bounded retry when useful, cache/last valid snapshot, freshness metadata. Never silently replace live data with demo data.
+
+## Provenance
+Store provider/source URL/fetched_at and demo flag.
+
+# Our API
+
+Suggested route families (final contract may evolve):
+```text
+/api/v1/session
+/api/v1/groups
+/api/v1/groups/{id}/members
+/api/v1/locations
+/api/v1/intents
+/api/v1/autosignals
+/api/v1/offers
+/api/v1/offers/{id}/accept
+/api/v1/offers/{id}/reject
+/api/v1/plans
+/api/v1/plans/{id}
+/api/v1/leisure/cities
+```
+
+Do not add CRUD merely because a table exists.
+
+Because we have own API:
+- keep OpenAPI exportable;
+- maintain DATA-API.yaml with mandatory verification calls.
