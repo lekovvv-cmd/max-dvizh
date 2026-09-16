@@ -143,7 +143,12 @@ def recompute_candidate_plan(session: Session, plan: CandidatePlan) -> bool:
         _upsert_member(session, plan.id, candidate)
     eligible_by_user = {candidate.intent.user_id: candidate for candidate in eligible}
     accepted_ids = {user_id for user_id, offer in statuses.items() if offer.status == "ACCEPTED" and user_id in eligible_by_user}
-    available = [candidate for candidate in eligible if statuses.get(candidate.intent.user_id) is None or statuses[candidate.intent.user_id].status != "REJECTED"]
+    available = [
+        candidate
+        for candidate in eligible
+        if (statuses.get(candidate.intent.user_id) is None or statuses[candidate.intent.user_id].status != "REJECTED")
+        and not _has_other_overlap(session, user_id=candidate.intent.user_id, plan=plan)
+    ]
     feasible_size: int | None = None
     for size in range(1, 13):
         users = {candidate.intent.user_id for candidate in available if candidate.intent.min_people <= size <= candidate.intent.max_people}
