@@ -66,6 +66,7 @@ def seed_plan(session: Session, users: list[User], plan_id: str, start: datetime
             session.add(GroupMember(group_id="group", user_id=user.id))
         intent = Intent(id=f"intent-{plan_id}-{user.id}", user_id=user.id, group_id="group", type="ONE_TIME", status="ACTIVE", city_slug="ekb", activity_category="other", available_from=start - timedelta(hours=1), available_to=start + timedelta(hours=3), budget_max=None, origin_location_id=None, radius_km=None, min_people=required, max_people=required)
         session.add(intent)
+        session.flush()
         session.add(CandidatePlanMember(candidate_plan_id=plan.id, user_id=user.id, intent_id=intent.id, compatibility="EXACT", distance_km=None, budget_delta=None, deviations_json=None))
         offer = Offer(candidate_plan_id=plan.id, user_id=user.id, status="PENDING", is_near=False, expires_at=plan.expires_at)
         session.add(offer)
