@@ -54,6 +54,7 @@ def seed_plan(session: Session, users: list[User], plan_id: str, start: datetime
     if group is None:
         group = Group(id="group", name="Друзья", default_city_slug="ekb", created_by=users[0].id, invite_token="invite")
         session.add(group)
+        session.flush()
     plan = CandidatePlan(id=plan_id, group_id="group", city_slug="ekb", starts_at=start, ends_at=start + timedelta(hours=2), estimated_price_min=400, required_min_people=required, required_max_people=required, status="COLLECTING", expires_at=start + timedelta(hours=1))
     session.add(plan)
     session.add(CandidatePlanSourceSnapshot(candidate_plan_id=plan.id, provider="MODEL", provider_item_id=plan_id, provider_item_type="MODEL", title=plan_id, category="other", venue_name=None, starts_at=plan.starts_at, ends_at=plan.ends_at, latitude=None, longitude=None, price_text="400 ₽", parsed_price=400, source_url=None, image_url=None, source_fetched_at=start, is_demo=True))
