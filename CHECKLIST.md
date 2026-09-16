@@ -3,50 +3,50 @@
 ## Product
 - [ ] problem evidence collected / research plan exists
 - [ ] one priority flow
-- [ ] Signal
-- [ ] AutoSignal
-- [ ] Near budget
-- [ ] multiple overlapping Offers
-- [ ] user chooses Offer
-- [ ] exact group-size constraints
-- [ ] individual km distance
-- [ ] ConfirmedPlan
-- [ ] no Blind Consensus reintroduced
-- [ ] not Kazan-only
+- [x] Signal
+- [x] AutoSignal
+- [x] Near budget
+- [x] multiple overlapping Offers
+- [x] user chooses Offer
+- [x] exact group-size constraints
+- [x] individual km distance
+- [x] ConfirmedPlan
+- [x] no Blind Consensus reintroduced
+- [x] not Kazan-only
 
 ## MAX
-- [ ] real bot role
-- [ ] Mini App connected to bot
+- [ ] real bot role — code/config ready; requires owner MAX bot/account
+- [x] Mini App connected to bot
 - [ ] mobile verified
 - [ ] web verified
-- [ ] deep-link/start flow
-- [ ] Offer notification
-- [ ] final share/return
-- [ ] current docs checked before freeze
+- [x] deep-link/start flow
+- [ ] Offer notification — outbox/Bot API adapter ready; requires configured token
+- [x] final share/return
+- [x] current docs checked before freeze
 
 ## Data
-- [ ] real provider
-- [ ] multi-city
-- [ ] provenance
-- [ ] price uncertainty
-- [ ] cache/fallback
-- [ ] demo data labelled
+- [x] real provider
+- [x] multi-city
+- [x] provenance
+- [x] price uncertainty
+- [x] cache/fallback
+- [x] demo data labelled
 
 ## Technical
 - [ ] modular monolith
-- [ ] Postgres migrations
+- [x] Postgres migrations
 - [ ] no secrets
-- [ ] dependency locks
-- [ ] unit/integration/E2E
+- [x] dependency locks
+- [ ] unit/integration/E2E — domain and API smoke included; full browser/MAX matrix remains
 - [ ] concurrency tests
-- [ ] error recovery
-- [ ] Docker one-command
+- [x] error recovery
+- [x] Docker one-command
 - [ ] build <=5 min target
 
 ## Submission
-- [ ] README complete
-- [ ] OpenAPI exported
-- [ ] DATA-API.yaml
+- [x] README complete
+- [ ] OpenAPI exported — run after deployed image refresh
+- [x] DATA-API.yaml
 - [ ] test accounts/data
 - [ ] HTTPS deployment
 - [ ] presentation PDF

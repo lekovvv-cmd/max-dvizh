@@ -1,34 +1,9 @@
-:root {
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #18202a;
-  background: #f4f7fa;
-  font-synthesis: none;
-}
-
-* { box-sizing: border-box; }
-
-body { margin: 0; min-width: 320px; }
-
-button { font: inherit; }
-
-.app-shell {
-  display: grid;
-  min-height: 100vh;
-  place-items: center;
-  padding: 24px;
-}
-
-.bootstrap-card {
-  width: min(100%, 560px);
-  padding: 32px;
-  border: 1px solid #d9e1e8;
-  border-radius: 16px;
-  background: #fff;
-  box-shadow: 0 12px 32px rgb(24 32 42 / 8%);
-}
-
-.product-name { margin: 0; color: #4d5c6d; font-weight: 700; letter-spacing: 0.03em; }
-.bootstrap-card h1 { margin: 12px 0; font-size: clamp(1.6rem, 5vw, 2.25rem); }
-.bootstrap-card p { line-height: 1.55; }
-.bootstrap-card button { padding: 10px 14px; border: 0; border-radius: 8px; background: #1464f4; color: #fff; cursor: pointer; }
-.bootstrap-card button:focus-visible { outline: 3px solid #8ab4ff; outline-offset: 2px; }
+:root { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #17211d; background: #f4f6f3; font-synthesis: none; }
+* { box-sizing: border-box; } body { margin: 0; min-width: 320px; } button, input, select { font: inherit; } button { cursor: pointer; } button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #76d779; outline-offset: 2px; }
+.app { width: min(100%, 720px); margin: auto; min-height: 100vh; padding: 18px 16px 92px; } .center { min-height: 100vh; display: grid; place-items: center; padding: 20px; } .center .card { width: min(100%, 480px); }
+header { display: flex; justify-content: space-between; align-items: center; padding: 0 2px 18px; color: #59645e; font-size: .9rem; } .brand { border: 0; background: none; color: #115a2b; font-size: 1.25rem; font-weight: 800; padding: 4px 0; }
+.content { display: grid; gap: 14px; } h1 { font-size: clamp(1.75rem, 7vw, 2.55rem); line-height: 1.05; margin: 0 0 7px; letter-spacing: -.04em; } h2 { margin: 12px 0 5px; font-size: 1.2rem; } h3 { margin: 2px 0 8px; font-size: 1.1rem; } p { line-height: 1.45; } .eyebrow, .tag { color: #147534; text-transform: uppercase; font-weight: 800; letter-spacing: .06em; font-size: .72rem; margin: 0; } .hint { color: #68746d; font-size: .9rem; margin: 4px 0 10px; }
+.card, .empty { border: 1px solid #d8e0d8; border-radius: 18px; background: #fff; padding: 16px; box-shadow: 0 6px 22px rgba(21, 47, 30, .05); } .empty { color: #526057; } .offer { display: grid; gap: 5px; margin: 10px 0; } .offer p { margin: 0; } .near { border-color: #e9bf4f; background: #fffdf6; } .near-note { padding: 10px; border-radius: 12px; background: #fff4d5; color: #735516; } .near-note p { font-size: .88rem; margin-top: 4px; } .confirmed { border-color: #81c994; background: #f4fff4; }
+.primary, .secondary, .group, nav button { min-height: 44px; border-radius: 12px; padding: 10px 14px; font-weight: 700; } .primary { border: 0; background: #166534; color: #fff; } .primary:disabled, .secondary:disabled { opacity: .55; cursor: not-allowed; } .secondary { border: 1px solid #bac9be; background: #fff; color: #264432; } .wide { width: 100%; font-size: 1.05rem; min-height: 52px; } .actions { display: flex; gap: 9px; margin-top: 6px; flex-wrap: wrap; } a { color: #106c31; font-size: .9rem; }
+.form { display: grid; gap: 13px; } label { display: grid; gap: 6px; font-size: .88rem; font-weight: 700; color: #3c4b42; } input, select { width: 100%; min-height: 44px; padding: 9px 10px; border: 1px solid #bfcac1; border-radius: 10px; background: #fff; color: #17211d; } .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; } .back { border: 0; padding: 0; background: none; color: #166534; text-align: left; }
+.error { color: #a51f1f; } nav { position: fixed; z-index: 2; bottom: 0; left: 0; right: 0; display: grid; grid-template-columns: repeat(4, 1fr); max-width: 720px; margin: auto; padding: 9px 8px max(9px, env(safe-area-inset-bottom)); border-top: 1px solid #d8e0d8; background: rgba(255,255,255,.96); } nav button { border: 0; background: transparent; color: #637169; padding: 4px; font-size: .75rem; } nav button.active { color: #12602e; } .group { width: 100%; display: flex; justify-content: space-between; border: 1px solid #d8e0d8; background: #fff; text-align: left; margin: 4px 0; } .group.selected { border-color: #166534; background: #f4fff4; } code { display: block; overflow-wrap: anywhere; font-size: .75rem; color: #526057; } .dev { border-style: dashed; } @media (min-width: 600px) { .app { padding-top: 30px; } .card, .empty { padding: 20px; } }

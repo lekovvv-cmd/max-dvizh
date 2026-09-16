@@ -1,18 +1,68 @@
 config_version: "1.0"
-solution:
-  name: "MAX ДВИЖ"
-  team: "TBD"
-  stage: "M0 bootstrap"
+solution: { name: "MAX ДВИЖ", team: "TBD", stage: "MVP" }
 base_url: "http://localhost:8000"
-contract_status: "Only the technical health endpoint is implemented. Product API contracts are pending; no speculative endpoints are listed."
+authentication:
+  production: "X-MAX-Init-Data with validated MAX WebApp.initData"
+  local_demo: "X-Demo-User is accepted only when APP_ENV=development"
 checks:
-  - id: health
-    description: "Technical availability check for the FastAPI service."
+  - id: session
     method: GET
-    path: /api/v1/health
-    role: anonymous
-    headers: {}
-    params: {}
-    body: null
+    path: /api/v1/session
+    role: authenticated_user
+    headers: { X-Demo-User: anton }
     expected_statuses: [200]
-    required_response_fields: [status, service, version]
+    required_response_fields: [id, display_name]
+  - id: create_group
+    method: POST
+    path: /api/v1/groups
+    role: authenticated_user
+    headers: { X-Demo-User: anton }
+    body: { name: "Тестовая компания", city_slug: "ekb" }
+    expected_statuses: [201]
+    required_response_fields: [id, name, invite_token]
+  - id: create_location
+    method: POST
+    path: /api/v1/locations
+    role: authenticated_user
+    headers: { X-Demo-User: anton }
+    body: { label: "Моя точка", latitude: 56.8389, longitude: 60.6057, city_slug: "ekb", kind: "SAVED" }
+    expected_statuses: [201]
+    required_response_fields: [id, label]
+  - id: create_signal
+    method: POST
+    path: /api/v1/intents
+    role: group_member
+    headers: { X-Demo-User: anton }
+    body: "Use ids returned by create_group and create_location; timestamps must form a future window."
+    expected_statuses: [201, 422]
+    required_response_fields: [id, type, status]
+  - id: offers
+    method: GET
+    path: /api/v1/offers
+    role: authenticated_user
+    headers: { X-Demo-User: anton }
+    expected_statuses: [200]
+    required_response_fields: []
+  - id: accept_exact_offer
+    method: POST
+    path: /api/v1/offers/{offer_id}/accept
+    role: offer_owner
+    headers: { X-Demo-User: anton }
+    body: { confirm_near_exception: false }
+    expected_statuses: [200, 409]
+    required_response_fields: [id, status]
+  - id: accept_near_offer
+    method: POST
+    path: /api/v1/offers/{offer_id}/accept
+    role: offer_owner
+    headers: { X-Demo-User: anton }
+    body: { confirm_near_exception: true }
+    expected_statuses: [200, 409]
+    required_response_fields: [id, status]
+  - id: confirmed_plans
+    method: GET
+    path: /api/v1/plans
+    role: participant
+    headers: { X-Demo-User: anton }
+    expected_statuses: [200]
+    required_response_fields: []

@@ -1,79 +1,72 @@
 # MAX ДВИЖ
 
-Технический каркас M0 для MAX Mini App + bot, который помогает группе друзей превратить намерение провести досуг в конкретный осуществимый план. Полная продуктовая спецификация находится в [`docs/`](docs/01_PRODUCT.md); этот commit намеренно не реализует продуктовые сценарии.
+MAX Mini App + chatbot backend для компаний друзей 18–25: приватные условия превращаются в конкретные осуществимые планы, а не в подбор людей.
 
-## Статус
+## Реализованный поток
 
-Bootstrap готов: React/TypeScript/Vite frontend, FastAPI backend, PostgreSQL, Alembic, Docker Compose, базовые проверки и минимальный health-shell. Signal, AutoSignal, matching, Offers, MAX и KudaGo интеграции запланированы для следующих milestones и здесь не эмулируются.
+`MAX entry → private group/invite → Signal or AutoSignal → KudaGo CandidatePlan → Exact/Near/Conflict → up to 3 private Offers → explicit choice → overlap invalidation → ConfirmedPlan → bot outbox → MAX share`.
 
-## Core user flow
+Signal и AutoSignal содержат город, временное окно, категорию, бюджет, личную точку, радиус в км и размер группы. Координаты, бюджет, причины Near, отклонения и отказ никогда не возвращаются другим участникам. Near поддержан только для бюджета и требует отдельного подтверждения.
 
-Целевой flow определён в [`docs/04_USER_FLOWS.md`](docs/04_USER_FLOWS.md): MAX entry → group → Signal/AutoSignal → CandidatePlan → private Offers → explicit choice → ConfirmedPlan → return to MAX. На M0 доступен только технический health-shell.
+## Architecture
 
-## Architecture and components
+`React/Vite Mini App → FastAPI modular monolith → PostgreSQL`.
 
-Модульный монолит: `frontend` (React/Vite) → `backend` (FastAPI) → `postgres`. Предусмотрены backend-модули из [`docs/06_ARCHITECTURE.md`](docs/06_ARCHITECTURE.md), но их бизнес-логика пока не реализована. Frontend nginx проксирует `/api/` в backend.
+Backend verifies `WebApp.initData` server-side according to MAX HMAC rules, owns authorization/matching/locks, uses KudaGo only server-side, normalizes and snapshots provider results, and stores bot notifications in an outbox. `frontend/src/app/api.ts` is the typed API boundary. The pure functions in `backend/app/modules/matching/domain.py` perform Haversine, budget compatibility and interval overlap.
 
-## Quick start
+## Start
 
-Требование: Docker Desktop with Docker Compose v2+.
+Prerequisite: Docker Desktop with Compose v2.
 
-```bash
+```powershell
 docker compose up --build
 ```
 
-После старта откройте `http://localhost:8080`; API healthcheck доступен по `http://localhost:8000/api/v1/health`.
+Open `http://localhost:8080`; OpenAPI is at `http://localhost:8000/openapi.json`; readiness is at `http://localhost:8000/api/v1/health/ready`.
+
+Local development accepts `X-Demo-User` only when `APP_ENV=development`. In MAX, the app sends `window.WebApp.initData`; production rejects any unvalidated identity.
 
 ## Environment and ports
 
-Скопируйте `.env.example` в `.env` только если нужны другие локальные значения. В репозитории нет рабочих секретов.
+Copy `.env.example` to `.env` for deployment values. Do not commit it. Runtime ports: frontend `8080`, backend `8000`, PostgreSQL `5432`.
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `POSTGRES_DB` | `max_dvizh` | Local database name |
-| `POSTGRES_USER` | `max_dvizh` | Local database user |
-| `POSTGRES_PASSWORD` | `local_development_only` | Local-only Docker password; replace for deployment |
-| `POSTGRES_PORT` | `5432` | PostgreSQL host port |
-| `BACKEND_PORT` | `8000` | FastAPI host port |
-| `FRONTEND_PORT` | `8080` | Frontend host port |
+`MAX_BOT_TOKEN` is required for a real MAX entry identity and Bot API notifications. `MAX_MINI_APP_URL` must be the public HTTPS Mini App URL registered for the bot. `MAX_BOT_USERNAME` is used to form public `startapp` links in deployment. KudaGo needs no secret.
 
-## Dependencies
+## Verification walkthrough
 
-Frontend dependencies are fixed in `frontend/package-lock.json`; backend dependencies are fixed in `backend/requirements.lock`. The runtime images are pinned in the Dockerfiles and `compose.yaml`.
+1. Start Compose and create a company in the web Mini App.
+2. In **Компания**, copy the invite token/link. In local QA use the explicitly labelled **Локальная проверка** control to switch to a second demo user, then open the invite link.
+3. For each demo user, add a location from **Подать сигнал**, seed the explicitly labelled model data once, then submit a matching Signal. KudaGo is also queried and its events remain source-labelled.
+4. Each member sees a private Offer. An Exact price can be accepted directly; for a 300→400 Near Offer the UI requires `Всё равно пойду` and only then counts the member.
+5. Accepting an Offer invalidates that user's pending Offers that overlap its interval. When the minimum is reached, **ДВИЖ СОБРАЛСЯ** appears in Plans and can be shared through `WebApp.shareMaxContent`.
+6. To exercise unavailable-provider recovery, block `kudago.com` after one successful sync; the backend serves the last snapshot when present and never labels it as live/demo data.
 
-## Integrations and data handling
+`DATA-API.yaml` contains reviewer API calls. `scripts/export-openapi.ps1` exports the generated contract. The full product/API/integration limitations are in `docs/08_API_AND_INTEGRATIONS.md` and `docs/18_RISKS_NON_GOALS.md`.
 
-MAX, KudaGo and all product integrations are deliberately pending. Their boundaries and provenance policy are documented in [`docs/08_API_AND_INTEGRATIONS.md`](docs/08_API_AND_INTEGRATIONS.md) and [`docs/13_DATA_POLICY.md`](docs/13_DATA_POLICY.md). No test, demo or provider data is included in M0.
+## Checks
 
-## Verification
-
-```bash
+```powershell
 npm --prefix frontend ci
 npm --prefix frontend run check
 docker compose build
 docker compose run --rm --no-deps backend ruff check .
 docker compose run --rm --no-deps backend mypy app scripts
 docker compose run --rm --no-deps backend pytest
-docker compose up --build -d
+./scripts/export-openapi.ps1
 ```
 
-Then request `GET /api/v1/health` and load the frontend shell. Export OpenAPI to `docs/openapi.json` with `./scripts/export-openapi.ps1` on PowerShell.
+## Real MAX hand-off
 
-## Expected behavior
+The repository contains the live adapter and Bridge integration but cannot create a MAX bot, register the Mini App or run mobile/web QA without the owner's MAX Business account and bot token. Owner steps:
 
-The frontend reports whether the backend health endpoint is reachable. The backend exposes only technical health and generated OpenAPI endpoints; no product contracts are claimed yet. Alembic is run before the backend starts.
+1. Create the bot and Mini App in MAX Business; set the deployed HTTPS URL.
+2. Set `MAX_BOT_TOKEN`, `MAX_BOT_USERNAME`, `MAX_MINI_APP_URL` and a public HTTPS webhook subscription in deployment only.
+3. Open the bot in MAX mobile and web; create a group through `startapp=<opaque invite token>`, complete the walkthrough, and verify the Bot API outbox notification plus in-MAX share.
 
-## Stop and restart
+## Limitations
 
-Stop containers with `docker compose down`. To remove the local database volume as well, run `docker compose down -v` (this deletes local database data). Restart with `docker compose up --build`.
+- A MAX bot/account, HTTPS deployment and manual MAX mobile/web verification remain external-account work; no token is committed.
+- KudaGo coverage and price quality vary by city. Missing price remains `Цена не указана`; model data is always labelled.
+- The MVP has no booking, payments, travel-time estimates, chat reading, public feed, AI, or post-confirmation rescheduling engine.
 
-## Known limitations
-
-- No deployed HTTPS endpoint, MAX bot/Mini App, current MAX identity validation or MAX web/mobile QA.
-- No product API, authentication, matching, provider adapter, cache, notifications or E2E product flow.
-- `DATA-API.yaml` intentionally lists only the live technical health check until real API contracts exist.
-- Presentation, test accounts and frozen submission hash are pending later milestones.
-
-## Submission checklist
-
-The full submission requirements remain tracked in [`CHECKLIST.md`](CHECKLIST.md) and [`docs/14_HACKATHON_SUBMISSION.md`](docs/14_HACKATHON_SUBMISSION.md). This README will be expanded as M1–M11 are completed.
+Stop with `docker compose down`; `docker compose down -v` also deletes local PostgreSQL data.

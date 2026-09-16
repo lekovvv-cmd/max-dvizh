@@ -95,3 +95,11 @@ Do not add CRUD merely because a table exists.
 Because we have own API:
 - keep OpenAPI exportable;
 - maintain DATA-API.yaml with mandatory verification calls.
+
+## Implemented verification (2026-09-16)
+
+The MAX Bridge is loaded from the official CDN `https://st.max.ru/js/max-web-app.js`. The client sends `window.WebApp.initData` to the backend as `X-MAX-Init-Data`; `app.modules.auth.service.validate_init_data` validates one `hash`, URL-decodes and sorts launch parameters, then applies the documented two-stage HMAC-SHA256 calculation and checks `auth_date`. Client data never authorizes a user by itself.
+
+`window.WebApp.shareMaxContent({ text })` is used for a user-initiated final-plan share. The backend Bot API boundary uses documented `POST https://platform-api2.max.ru/messages?user_id=...` with `Authorization: <bot-token>` and an outbox. It does not send anything while `MAX_BOT_TOKEN` is absent.
+
+To complete real MAX verification, the owner must create/register the bot and Mini App in MAX Business, deploy this app to HTTPS, set the token only in deployment, configure a HTTPS webhook and run the mobile/web walkthrough. This repository does not claim that external account step is complete.

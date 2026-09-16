@@ -1,74 +1,72 @@
 import { useCallback, useEffect, useState } from 'react'
+import type { FormEvent } from 'react'
+import { api, setDemoUser } from './api'
+import type { Group, Intent, Location, Offer, Plan } from './api'
 
-type HealthResponse = {
-  status: string
-  service: string
-  version: string
-}
-
-type HealthState =
-  | { kind: 'loading' }
-  | { kind: 'success'; data: HealthResponse }
-  | { kind: 'error' }
-
-const healthUrl = '/api/v1/health'
+type Screen = 'home' | 'signal' | 'autos' | 'plans' | 'group'
+const localDate = (date: Date) => date.toISOString().slice(0, 16)
+const label = (value: string) => new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 
 export function App() {
-  const [health, setHealth] = useState<HealthState>({ kind: 'loading' })
-
-  const checkHealth = useCallback(async () => {
-    setHealth({ kind: 'loading' })
-
+  const [screen, setScreen] = useState<Screen>('home')
+  const [loading, setLoading] = useState(true); const [error, setError] = useState('')
+  const [group, setGroup] = useState<Group | null>(null); const [groups, setGroups] = useState<Group[]>([])
+  const [locations, setLocations] = useState<Location[]>([]); const [intents, setIntents] = useState<Intent[]>([])
+  const [offers, setOffers] = useState<Offer[]>([]); const [plans, setPlans] = useState<Plan[]>([]); const [name, setName] = useState('')
+  const load = useCallback(async () => {
+    setLoading(true); setError('')
     try {
-      const response = await fetch(healthUrl)
-      if (!response.ok) {
-        throw new Error(`Health check failed with ${response.status}`)
-      }
-      const data = (await response.json()) as HealthResponse
-      setHealth({ kind: 'success', data })
-    } catch {
-      setHealth({ kind: 'error' })
-    }
-  }, [])
-
-  useEffect(() => {
-    void checkHealth()
-  }, [checkHealth])
-
-  return (
-    <main className="app-shell">
-      <section aria-labelledby="bootstrap-title" className="bootstrap-card">
-        <p className="product-name">MAX ДВИЖ</p>
-        <h1 id="bootstrap-title">Технический каркас готов</h1>
-        <p>
-          M0: frontend подключён к backend healthcheck. Продуктовые сценарии будут
-          добавляться следующими вертикальными срезами.
-        </p>
-        <HealthPanel health={health} onRetry={checkHealth} />
-      </section>
-    </main>
-  )
+      const session = await api.session(); const nextGroups = await api.groups()
+      const selected = group && nextGroups.some(item => item.id === group.id) ? group : nextGroups[0] ?? null
+      const [nextLocations, nextOffers, nextPlans, nextIntents] = await Promise.all([api.locations(), api.offers(), api.plans(), selected ? api.intents(selected.id) : Promise.resolve([])])
+      setName(session.display_name); setGroups(nextGroups); setGroup(selected); setLocations(nextLocations); setOffers(nextOffers); setPlans(nextPlans); setIntents(nextIntents)
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось загрузить ДВИЖ') } finally { setLoading(false) }
+  }, [group])
+  useEffect(() => { void load() }, [load])
+  useEffect(() => { const token = new URLSearchParams(window.location.hash.slice(1)).get('startapp') || new URLSearchParams(window.WebApp?.initData || '').get('start_param'); if (token) void api.join(token).then(result => { setGroup(result.group); void load() }).catch(() => undefined) }, [load])
+  if (loading) return <main className="center"><p aria-live="polite">Открываем ДВИЖ…</p></main>
+  if (error) return <main className="center"><section className="card error" role="alert"><h1>Не удалось загрузить</h1><p>{error}</p><button onClick={() => void load()}>Повторить</button></section></main>
+  if (!group) return <Start onCreated={created => { setGroup(created); void load() }} />
+  return <main className="app"><header><button className="brand" onClick={() => setScreen('home')}>⚡ ДВИЖ</button><span>{name}</span></header>
+    {screen === 'home' && <Home group={group} offers={offers} plans={plans} intents={intents} onSignal={() => setScreen('signal')} onChanged={() => void load()} />}
+    {screen === 'signal' && <Signal group={group} locations={locations} addLocation={async () => { const location = await api.createLocation(defaultLocation(group.city_slug)); setLocations([location, ...locations]); return location }} done={() => { setScreen('home'); void load() }} />}
+    {screen === 'autos' && <Autos group={group} locations={locations} intents={intents} changed={() => void load()} />}
+    {screen === 'plans' && <Plans plans={plans} />}
+    {screen === 'group' && <Company groups={groups} active={group} select={selected => { setGroup(selected); setScreen('home'); void load() }} />}
+    <nav aria-label="Навигация"><button className={screen === 'home' ? 'active' : ''} onClick={() => setScreen('home')}>Главная</button><button className={screen === 'autos' ? 'active' : ''} onClick={() => setScreen('autos')}>Авто</button><button className={screen === 'plans' ? 'active' : ''} onClick={() => setScreen('plans')}>Планы</button><button className={screen === 'group' ? 'active' : ''} onClick={() => setScreen('group')}>Компания</button></nav></main>
 }
 
-function HealthPanel({ health, onRetry }: { health: HealthState; onRetry: () => Promise<void> }) {
-  if (health.kind === 'loading') {
-    return <p aria-live="polite">Проверяем backend…</p>
-  }
-
-  if (health.kind === 'error') {
-    return (
-      <div role="alert">
-        <p>Backend пока недоступен.</p>
-        <button type="button" onClick={() => void onRetry()}>
-          Повторить проверку
-        </button>
-      </div>
-    )
-  }
-
-  return (
-    <p aria-live="polite">
-      Backend: {health.data.status} · {health.data.service} v{health.data.version}
-    </p>
-  )
+function Start({ onCreated }: { onCreated: (group: Group) => void }) {
+  const [name, setName] = useState('Наша компания'); const [city, setCity] = useState('ekb'); const [error, setError] = useState('')
+  async function submit(event: FormEvent) { event.preventDefault(); try { onCreated(await api.createGroup({ name, city_slug: city })) } catch (reason) { setError(reason instanceof Error ? reason.message : 'Ошибка') } }
+  return <main className="center"><form className="card form" onSubmit={submit}><p className="eyebrow">MAX ДВИЖ</p><h1>С кем собираем ДВИЖ?</h1><p>Создайте приватную компанию. Условия и точки участников не будут видны друг другу.</p><label>Название<input value={name} onChange={e => setName(e.target.value)} required /></label><label>Город (slug KudaGo)<input value={city} onChange={e => setCity(e.target.value)} required /></label>{error && <p className="error">{error}</p>}<button className="primary">Создать компанию</button></form></main>
 }
+
+function Home({ group, offers, plans, intents, onSignal, onChanged }: { group: Group; offers: Offer[]; plans: Plan[]; intents: Intent[]; onSignal: () => void; onChanged: () => void }) {
+  return <section className="content"><p className="eyebrow">{group.name} · {group.member_count} участника</p><h1>Куда двинемся?</h1><button className="primary wide" onClick={onSignal}>⚡ Подать сигнал</button>{offers.length ? <section><h2>Твои предложения</h2><p className="hint">Можно выбрать до трёх пересекающихся вариантов — решение только за тобой.</p>{offers.map(offer => <OfferCard key={offer.id} offer={offer} changed={onChanged} />)}</section> : <section className="empty"><h2>Пока без предложения</h2><p>Подай сигнал — ДВИЖ проверит время, бюджет, расстояние и размер компании.</p><button className="secondary" onClick={() => void api.seedDemo(group.id).then(onChanged)}>Заполнить демо-данные</button></section>}{plans.map(plan => <PlanCard key={plan.id} plan={plan} />)}{intents.length > 0 && <p className="hint">Твоих активных сигналов: {intents.filter(item => item.status === 'ACTIVE').length}</p>}</section>
+}
+
+function OfferCard({ offer, changed }: { offer: Offer; changed: () => void }) {
+  const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
+  async function action(accept: boolean) { setBusy(true); setError(''); try { if (accept) await api.accept(offer.id, offer.is_near); else await api.reject(offer.id); changed() } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось обработать') } finally { setBusy(false) } }
+  return <article className={`card offer ${offer.is_near ? 'near' : ''}`}><p className="tag">{offer.is_demo ? 'Демонстрационные данные' : `KudaGo · данные обновлены ${label(offer.source_fetched_at)}`} · до {label(offer.expires_at)}</p><h3>{offer.title}</h3><p>{offer.venue_name || 'Место уточняется'}<br />{label(offer.starts_at)} — {new Intl.DateTimeFormat('ru-RU', { timeStyle: 'short' }).format(new Date(offer.ends_at))}</p><p>{offer.price_text || 'Цена не указана'} · {offer.distance_km.toFixed(1)} км от твоей точки</p><p className="hint">Потенциально {offer.potential_count} · нужно {offer.required_min_people}–{offer.required_max_people}</p>{offer.is_near ? <div className="near-note"><strong>Небольшое исключение</strong><p>Твой лимит ниже цены на {offer.budget_delta} ₽. Ты не будешь учтён, пока явно не подтвердишь это.</p></div> : null}{error ? <p className="error">{error}</p> : null}<div className="actions"><button className="primary" disabled={busy} onClick={() => void action(true)}>{offer.is_near ? 'Всё равно пойду' : 'Я в деле'}</button><button className="secondary" disabled={busy} onClick={() => void action(false)}>Пас</button></div>{offer.source_url ? <a href={offer.source_url} target="_blank" rel="noreferrer">Источник события</a> : null}</article>
+}
+
+function Signal({ group, locations, addLocation, done }: { group: Group; locations: Location[]; addLocation: () => Promise<Location>; done: () => void }) {
+  const [locationId, setLocationId] = useState(locations[0]?.id || ''); const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
+  async function add() { const location = await addLocation(); setLocationId(location.id) }
+  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const form = new FormData(event.currentTarget); setBusy(true); try { await api.signal({ group_id: group.id, city_slug: group.city_slug, activity_category: form.get('category'), available_from: new Date(String(form.get('start'))).toISOString(), available_to: new Date(String(form.get('end'))).toISOString(), budget_max: Number(form.get('budget')), origin_location_id: locationId, radius_km: Number(form.get('radius')), min_people: Number(form.get('min')), max_people: Number(form.get('max')), expires_at: new Date(Date.now() + 86400000).toISOString() }); done() } catch (reason) { setError(reason instanceof Error ? reason.message : 'Ошибка') } finally { setBusy(false) } }
+  const start = localDate(new Date(Date.now() + 7200000)); const end = localDate(new Date(Date.now() + 18000000))
+  return <section className="content"><button className="back" onClick={done}>← Назад</button><h1>⚡ Подать сигнал</h1><form className="form" onSubmit={submit}><label>Когда?<input name="start" type="datetime-local" defaultValue={start} required /></label><label>До<input name="end" type="datetime-local" defaultValue={end} required /></label><label>Что интересно?<select name="category"><option value="other">Любой досуг</option><option value="concert">Концерт</option><option value="exhibition">Выставка</option></select></label><label>Максимальный бюджет, ₽<input name="budget" type="number" min="0" defaultValue="500" required /></label><label>Откуда?<select value={locationId} onChange={e => setLocationId(e.target.value)} required><option value="">Выбери точку</option>{locations.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>{locations.length === 0 && <button className="secondary" type="button" onClick={() => void add()}>Добавить демо-точку</button>}<label>Радиус, км<input name="radius" type="number" min="1" max="100" defaultValue="10" required /></label><div className="two"><label>От<input name="min" type="number" min="1" max="12" defaultValue="2" required /></label><label>До<input name="max" type="number" min="1" max="12" defaultValue="6" required /></label></div>{error && <p className="error">{error}</p>}<button className="primary" disabled={busy || !locationId}>{busy ? 'Ищем варианты…' : 'Найти ДВИЖ'}</button></form></section>
+}
+
+function Autos({ group, locations, intents, changed }: { group: Group; locations: Location[]; intents: Intent[]; changed: () => void }) {
+  const [locationId, setLocationId] = useState(locations[0]?.id || ''); const [error, setError] = useState('')
+  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const form = new FormData(event.currentTarget); try { await api.autosignal({ group_id: group.id, city_slug: group.city_slug, name: form.get('name'), activity_category: form.get('category'), weekdays: [4, 5], local_start: '18:00', local_end: '23:00', budget_max: Number(form.get('budget')), origin_location_id: locationId, radius_km: 10, min_people: 2, max_people: 6 }); changed() } catch (reason) { setError(reason instanceof Error ? reason.message : 'Ошибка') } }
+  return <section className="content"><h1>Позови меня, если…</h1><p className="hint">Автосигнал делает тебя доступным для предложения, но никогда не записывает автоматически.</p><form className="form card" onSubmit={submit}><label>Название<input name="name" defaultValue="Пятничный ДВИЖ" required /></label><label>Активность<select name="category"><option value="other">Любой досуг</option><option value="concert">Концерт</option></select></label><label>Бюджет<input name="budget" type="number" defaultValue="500" /></label><label>Точка<select value={locationId} onChange={e => setLocationId(e.target.value)}>{locations.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>{error && <p className="error">{error}</p>}<button className="primary" disabled={!locationId}>Сохранить автосигнал</button></form>{intents.filter(item => item.type === 'RECURRING').map(item => <article className="card" key={item.id}><strong>{item.name}</strong><p>{item.status === 'ACTIVE' ? 'Активен' : item.status}</p><button className="secondary" onClick={() => void api.autoAction(item.id, item.status === 'ACTIVE' ? 'pause' : 'resume').then(changed)}>{item.status === 'ACTIVE' ? 'Пауза' : 'Возобновить'}</button></article>)}</section>
+}
+
+function Plans({ plans }: { plans: Plan[] }) { return <section className="content"><h1>Собравшиеся планы</h1>{plans.length === 0 ? <div className="empty"><p>Подтверждённых планов пока нет.</p></div> : plans.map(plan => <PlanCard key={plan.id} plan={plan} />)}</section> }
+function PlanCard({ plan }: { plan: Plan }) { const share = () => { if (window.WebApp?.shareMaxContent) window.WebApp.shareMaxContent({ text: plan.share_text }); else void navigator.clipboard?.writeText(plan.share_text) }; return <article className="card confirmed"><p className="tag">⚡ ДВИЖ СОБРАЛСЯ</p><h2>{plan.title}</h2><p>{plan.venue_name || 'Место уточняется'}<br />{label(plan.starts_at)} · {plan.price_text || 'Цена не указана'}</p><p>{plan.participant_count} подтверждено</p><button className="primary" onClick={share}>Поделиться в MAX</button></article> }
+function Company({ groups, active, select }: { groups: Group[]; active: Group; select: (group: Group) => void }) { const [person, setPerson] = useState('anton'); const invite = active.invite_url || `${window.location.origin}#startapp=${active.invite_token}`; return <section className="content"><h1>Компания</h1>{groups.map(group => <button key={group.id} className={`group ${group.id === active.id ? 'selected' : ''}`} onClick={() => select(group)}><strong>{group.name}</strong><span>{group.member_count} участника</span></button>)}<article className="card"><h2>Пригласить</h2><p>Передай ссылку в MAX. Она содержит только непрозрачный токен группы.</p><code>{invite}</code></article><article className="card dev"><h2>Локальная проверка</h2><label>Демо-пользователь<input value={person} onChange={e => setPerson(e.target.value)} /></label><button className="secondary" onClick={() => { setDemoUser(person); window.location.reload() }}>Сменить пользователя</button></article></section> }
+function defaultLocation(city: string) { const points: Record<string, [number, number]> = { ekb: [56.8389, 60.6057], msk: [55.7558, 37.6176], spb: [59.9343, 30.3351] }; const [latitude, longitude] = points[city] || [55.7558, 37.6176]; return { label: 'Моя точка', latitude, longitude, city_slug: city, kind: 'SAVED', is_ephemeral: false } }
