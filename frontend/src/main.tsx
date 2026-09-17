@@ -1,5 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { MaxUI } from '@maxhub/max-ui'
+import '@maxhub/max-ui/dist/styles.css'
 import { App } from './app/App'
 import './styles/global.css'
 
@@ -11,6 +13,8 @@ if (rootElement === null) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <App />
+    <MaxUI>
+      <App />
+    </MaxUI>
   </StrictMode>,
 )

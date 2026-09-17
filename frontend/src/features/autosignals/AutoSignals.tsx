@@ -1,0 +1,25 @@
+import { Button, Input, Switch } from '@maxhub/max-ui'
+import { useState } from 'react'
+
+import { api } from '../../app/api'
+import type { Group, Intent, Location } from '../../app/api'
+import { activityLabel, weekDays } from '../../shared/lib/format'
+import { EmptyState } from '../../shared/ui/EmptyState'
+
+export function AutoSignals({ group, intents, locations, onChanged }: { group: Group; intents: Intent[]; locations: Location[]; onChanged: () => void }) {
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState('')
+  const autos = intents.filter(intent => intent.type === 'RECURRING' && intent.status !== 'CANCELLED')
+  async function toggle(intent: Intent) { setError(''); try { await api.autoAction(intent.id, intent.status === 'ACTIVE' ? 'pause' : 'resume'); onChanged() } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось изменить автосигнал') } }
+  if (creating) return <AutoSignalForm group={group} locations={locations} onDone={() => { setCreating(false); onChanged() }} onCancel={() => setCreating(false)} />
+  return <section><p className="section-kicker">Автосигналы</p><h1>Позови меня, если…</h1><p className="screen-intro">Автосигнал приглашает, но никогда не записывает тебя сам.</p>{error ? <p className="form-error" role="alert">{error}</p> : null}
+    {autos.length ? <div className="autos-list">{autos.map(intent => <article className="autosignal-card" key={intent.id}><div><h2>⚡ {intent.name || 'Мой ДВИЖ'}</h2><p>{weekDays(intent.weekdays)}{intent.local_start && intent.local_end ? ` · ${intent.local_start}–${intent.local_end}` : ''}</p><p>{group.name}</p><p>{activityLabel(intent.activity_category)}{intent.budget_max !== null ? ` · до ${intent.budget_max} ₽` : ''}{intent.radius_km !== null ? ` · до ${intent.radius_km} км` : ''}</p></div><label className="switch-control"><span className="sr-only">{intent.status === 'ACTIVE' ? 'Поставить на паузу' : 'Возобновить'} {intent.name}</span><Switch checked={intent.status === 'ACTIVE'} onChange={() => void toggle(intent)} /></label></article>)}</div> : <EmptyState title="Автосигналов пока нет">Настрой один раз — и ДВИЖ позовёт, когда условия совпадут.</EmptyState>}
+    <Button className="new-auto" variant="secondary" stretched onClick={() => setCreating(true)}>+ Новый автосигнал</Button>
+  </section>
+}
+
+function AutoSignalForm({ group, locations, onDone, onCancel }: { group: Group; locations: Location[]; onDone: () => void; onCancel: () => void }) {
+  const [name, setName] = useState('Пятничный ДВИЖ'); const [category, setCategory] = useState('other'); const [budget, setBudget] = useState(''); const [locationId, setLocationId] = useState(''); const [radius, setRadius] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState('')
+  async function submit(event: React.FormEvent) { event.preventDefault(); setBusy(true); setError(''); try { await api.autosignal({ group_id: group.id, city_slug: group.city_slug, name, activity_category: category, weekdays: [4], local_start: '18:00', local_end: '23:00', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, budget_max: budget ? Number(budget) : null, origin_location_id: radius ? locationId : null, radius_km: radius ? Number(radius) : null, min_people: 2, max_people: 6 }); onDone() } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось сохранить автосигнал') } finally { setBusy(false) } }
+  return <section className="auto-form"><button className="back-link" onClick={onCancel}>‹ Назад</button><p className="section-kicker">Новый автосигнал</p><h1>Когда тебя звать?</h1><p className="screen-intro">Можно изменить условия позже.</p><form onSubmit={submit}><label>Название<Input value={name} onChange={event => setName(event.target.value)} required /></label><label>Активность<select value={category} onChange={event => setCategory(event.target.value)}><option value="other">Всё равно</option><option value="games">🎮 Игры</option><option value="sport">🎳 Активности</option><option value="exhibition">🎭 Культура</option><option value="concert">🎵 Музыка</option></select></label><div className="form-row"><label>Бюджет, ₽ <Input type="number" min="0" placeholder="Неважно" value={budget} onChange={event => setBudget(event.target.value)} /></label><label>Радиус, км <Input type="number" min="1" placeholder="Неважно" value={radius} onChange={event => setRadius(event.target.value)} /></label></div>{radius ? <label>Точка отправления<select value={locationId} required onChange={event => setLocationId(event.target.value)}><option value="">Выбери точку</option>{locations.map(location => <option value={location.id} key={location.id}>{location.label}</option>)}</select></label> : null}{error ? <p className="form-error" role="alert">{error}</p> : null}<div className="form-actions"><Button variant="secondary" type="button" onClick={onCancel}>Отмена</Button><Button variant="primary" type="submit" loading={busy} disabled={busy}>Сохранить</Button></div></form></section>
+}

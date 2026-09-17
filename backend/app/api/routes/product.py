@@ -90,6 +90,7 @@ def group_out(session: DbSession, group: Group, expose_token: bool = False) -> G
 
 
 def intent_out(intent: Intent) -> IntentOut:
+    recurrence = intent.recurrence_json or {}
     return IntentOut(
         id=intent.id,
         type=intent.type,
@@ -102,6 +103,9 @@ def intent_out(intent: Intent) -> IntentOut:
         min_people=intent.min_people,
         max_people=intent.max_people,
         expires_at=intent.expires_at,
+        weekdays=recurrence.get("weekdays") if intent.type == "RECURRING" else None,
+        local_start=recurrence.get("local_start") if intent.type == "RECURRING" else None,
+        local_end=recurrence.get("local_end") if intent.type == "RECURRING" else None,
     )
 
 

@@ -96,6 +96,13 @@ Because we have own API:
 - keep OpenAPI exportable;
 - maintain DATA-API.yaml with mandatory verification calls.
 
+## Frontend response additions
+
+`IntentOut` returns `weekdays`, `local_start` and `local_end` only for the current
+user's recurring Intent. These safe display fields let the AutoSignals screen show
+the owner's saved schedule; they do not expose another member's recurring rule and
+do not alter matching or scheduler semantics.
+
 ## Implemented verification (2026-09-16)
 
 The MAX Bridge is loaded from the official CDN `https://st.max.ru/js/max-web-app.js`. The client sends `window.WebApp.initData` to the backend as `X-MAX-Init-Data`; `app.modules.auth.service.validate_init_data` validates one `hash`, URL-decodes and sorts launch parameters, then applies the documented two-stage HMAC-SHA256 calculation and checks `auth_date`. Client data never authorizes a user by itself.

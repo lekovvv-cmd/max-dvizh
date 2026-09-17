@@ -97,6 +97,9 @@ class IntentOut(BaseModel):
     min_people: int
     max_people: int
     expires_at: datetime | None
+    weekdays: list[int] | None = None
+    local_start: str | None = None
+    local_end: str | None = None
 
 
 class OfferOut(BaseModel):
