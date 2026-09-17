@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, status
@@ -48,6 +49,7 @@ from app.modules.matching.service import (
 )
 
 router = APIRouter(tags=["product"])
+TIME_OF_DAY = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
 
 def now() -> datetime:
@@ -89,8 +91,31 @@ def group_out(session: DbSession, group: Group, expose_token: bool = False) -> G
     )
 
 
+def recurrence_display_fields(
+    recurrence: dict[str, object] | None,
+) -> tuple[list[int] | None, str | None, str | None]:
+    """Return only well-formed recurring fields that are safe to display to the owner."""
+    data = recurrence or {}
+    raw_weekdays = data.get("weekdays")
+    weekdays: list[int] | None = None
+    if isinstance(raw_weekdays, list):
+        parsed_weekdays: list[int] = []
+        for day in raw_weekdays:
+            if type(day) is not int or day < 0 or day > 6:
+                break
+            parsed_weekdays.append(day)
+        else:
+            weekdays = parsed_weekdays or None
+
+    raw_start = data.get("local_start")
+    local_start = raw_start if isinstance(raw_start, str) and TIME_OF_DAY.fullmatch(raw_start) else None
+    raw_end = data.get("local_end")
+    local_end = raw_end if isinstance(raw_end, str) and TIME_OF_DAY.fullmatch(raw_end) else None
+    return weekdays, local_start, local_end
+
+
 def intent_out(intent: Intent) -> IntentOut:
-    recurrence = intent.recurrence_json or {}
+    weekdays, local_start, local_end = recurrence_display_fields(intent.recurrence_json)
     return IntentOut(
         id=intent.id,
         type=intent.type,
@@ -103,9 +128,9 @@ def intent_out(intent: Intent) -> IntentOut:
         min_people=intent.min_people,
         max_people=intent.max_people,
         expires_at=intent.expires_at,
-        weekdays=recurrence.get("weekdays") if intent.type == "RECURRING" else None,
-        local_start=recurrence.get("local_start") if intent.type == "RECURRING" else None,
-        local_end=recurrence.get("local_end") if intent.type == "RECURRING" else None,
+        weekdays=weekdays if intent.type == "RECURRING" else None,
+        local_start=local_start if intent.type == "RECURRING" else None,
+        local_end=local_end if intent.type == "RECURRING" else None,
     )
 
 

@@ -12,7 +12,9 @@ function mockApi(overrides: Record<string, unknown> = {}) {
         : url.includes('/offers') ? []
           : url.includes('/plans') || url.includes('/locations') || url.includes('/intents') ? []
             : []
-    const selected = url.includes('/offers') ? overrides.offers ?? body : body
+    const selected = url.includes('/offers') ? overrides.offers ?? body
+      : url.includes('/intents') ? overrides.intents ?? body
+        : body
     return Promise.resolve({ ok: true, json: async () => selected })
   }))
 }
@@ -73,6 +75,59 @@ describe('App', () => {
     expect(request).toBeDefined()
     if (!request) throw new Error('Signal request was not sent')
     expect(JSON.parse(String(request.body))).toMatchObject({ budget_max: null, radius_km: null, origin_location_id: null })
+  })
+
+  it('keeps a custom zero budget instead of converting it to null', async () => {
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      void init
+      return Promise.resolve({ ok: true, json: async () => url.includes('/session') ? { id: '1', display_name: 'Антон' } : url.includes('/groups') ? [group] : [] })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Подать сигнал ⚡' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Дальше' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Свой' })[0])
+    fireEvent.change(screen.getByLabelText('Свой бюджет'), { target: { value: '0' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Дальше' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Ровно 5' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Подать сигнал ⚡' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/v1/intents', expect.anything()))
+    const signalCall = fetchMock.mock.calls.find(([url]) => url === '/api/v1/intents')
+    const request = signalCall?.[1]
+    expect(JSON.parse(String(request?.body))).toMatchObject({ budget_max: 0, radius_km: null, min_people: 5, max_people: 5 })
+  })
+
+  it('sends selected AutoSignal weekdays, time, timezone, and group size', async () => {
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      void init
+      return Promise.resolve({ ok: true, json: async () => url.includes('/session') ? { id: '1', display_name: 'Антон' } : url.includes('/groups') ? [group] : [] })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<App />)
+    await screen.findByText('Пока тихо')
+    fireEvent.click(screen.getByRole('button', { name: 'Авто' }))
+    fireEvent.click(screen.getByRole('button', { name: '+ Новый автосигнал' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Пн' }))
+    fireEvent.change(screen.getByDisplayValue('18:00'), { target: { value: '22:00' } })
+    fireEvent.change(screen.getByDisplayValue('23:00'), { target: { value: '02:00' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Ровно 5' }))
+    fireEvent.change(screen.getByLabelText('Бюджет'), { target: { value: '0' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/v1/autosignals', expect.anything()))
+    const autoCall = fetchMock.mock.calls.find(([url]) => url === '/api/v1/autosignals')
+    const request = autoCall?.[1]
+    expect(JSON.parse(String(request?.body))).toMatchObject({
+      weekdays: [0, 4], local_start: '22:00', local_end: '02:00',
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, budget_max: 0, min_people: 5, max_people: 5,
+    })
+  })
+
+  it('shows the actual recurring schedule stored for an AutoSignal', async () => {
+    mockApi({ intents: [{ id: 'auto', type: 'RECURRING', status: 'ACTIVE', name: 'Ночной ДВИЖ', city_slug: 'ekb', activity_category: 'games', budget_max: null, radius_km: null, min_people: 3, max_people: 12, expires_at: null, weekdays: [0, 4], local_start: '22:00', local_end: '02:00' }] })
+    render(<App />)
+    await screen.findByText('Пока тихо')
+    fireEvent.click(screen.getByRole('button', { name: 'Авто' }))
+    expect(await screen.findByText('Пн · Пт · 22:00–02:00')).toBeInTheDocument()
   })
 
   it('keeps navigation available for AutoSignals and plans', async () => {
