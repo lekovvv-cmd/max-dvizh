@@ -70,3 +70,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker compose build
+      - name: Start the full stack
+        run: docker compose up -d --no-build
+      - name: Smoke API and Mini App
+        run: |
+          for attempt in {1..45}; do
+            if curl -fsS http://localhost:8000/api/v1/health/ready >/dev/null && curl -fsS http://localhost:8080/ >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose ps
+          docker compose logs --tail=80
+          exit 1
+      - name: Stop the full stack
+        if: always()
+        run: docker compose down -v

@@ -56,7 +56,7 @@ docker compose run --rm --no-deps -e TEST_DATABASE_URL=postgresql+psycopg://max_
 ./scripts/export-openapi.ps1
 ```
 
-The PostgreSQL reliability tests recreate tables in `TEST_DATABASE_URL`; use a dedicated test database. If `max_dvizh_test` already exists, skip its creation command. Replace the sample local credentials above when overriding Compose's PostgreSQL defaults.
+The PostgreSQL reliability tests recreate tables in `TEST_DATABASE_URL`; use a dedicated test database. If `max_dvizh_test` already exists, skip its creation command. Replace the sample local credentials above when overriding Compose's PostgreSQL defaults. GitHub Actions also starts the full Compose stack and checks the backend readiness endpoint and Mini App HTTP response after the build.
 
 ## Real MAX hand-off
 
