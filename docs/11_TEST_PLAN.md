@@ -82,6 +82,8 @@ At minimum: session, groups/join, locations, Intents/AutoSignals, Offers list, e
 7. Eight compatible members receive Offers; three confirm a plan and later members join until capacity.
 8. Exact-five queue promotes first waiter after cancellation; mixed minimums never confirm early.
 9. AutoSignal scheduler creates an Offer without the user visiting the app.
+10. One eligible member receives an Offer before enough people signal to reach the minimum.
+11. Two concurrent regenerations for one Company produce one plan, one Offer and one notification in PostgreSQL.
 
 ## Manual real MAX QA
 - mobile;

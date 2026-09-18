@@ -12,7 +12,16 @@ from sqlalchemy.orm import Session
 from app.api.routes import product
 from app.api.schemas import AutoSignalIn, OfferAction, SignalBatchIn
 from app.core.timezones import display_timezone
-from app.db.models import Base, Group, GroupMember, Intent, Offer, User
+from app.db.models import (
+    Base,
+    CandidatePlan,
+    CandidatePlanSourceSnapshot,
+    Group,
+    GroupMember,
+    Intent,
+    Offer,
+    User,
+)
 from app.modules.leisure.provider import NormalizedLeisureItem, ProviderResult
 from app.modules.matching.domain import offer_expiry
 from app.modules.matching.scheduler import evaluate_active_autosignals
@@ -50,6 +59,28 @@ def test_all_eight_get_offers_and_plan_stays_open_after_three_responses() -> Non
             product.accept_offer(offers[user.id].id, OfferAction(), session, SimpleNamespace(id=user.id))
         assert plan.status == "CONFIRMED"
         assert len(list(session.scalars(select(Offer).where(Offer.status == "ACCEPTED")))) == 8
+
+
+def test_first_eligible_member_gets_offer_before_minimum_signals_exist() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        users = [User(id=f"early-{index}", max_user_id=f"early-{index}", display_name=f"Early {index}") for index in range(5)]
+        group = Group(id="early-group", name="Friends", default_city_slug="ekb", created_by=users[0].id)
+        session.add_all([*users, group])
+        session.flush()
+        session.add_all(GroupMember(group_id=group.id, user_id=user.id) for user in users)
+        current = datetime.now(UTC)
+        session.add(Intent(user_id=users[0].id, group_id=group.id, type="ONE_TIME", status="ACTIVE", city_slug="ekb", activity_category="games", available_from=current, available_to=current + timedelta(hours=6), min_people=3))
+        session.commit()
+        item = NormalizedLeisureItem(provider="MODEL", provider_id="first", item_type="EVENT", city_slug="ekb", title="Квиз", category="games", venue_name="Клуб", starts_at=current + timedelta(hours=2), ends_at=current + timedelta(hours=4), latitude=None, longitude=None, price_text=None, price_min=None, source_url=None, image_url=None, source_fetched_at=current, is_demo=True)
+        plans = regenerate_group(session, group.id, "ekb", [item])
+        assert len(plans) == 1
+        assert plans[0].status == "COLLECTING"
+        assert plans[0].required_min_people == 3
+        assert len(list(session.scalars(select(Offer)))) == 1
+        assert len(list(session.scalars(select(CandidatePlanSourceSnapshot)))) == 1
+        assert len(list(session.scalars(select(CandidatePlan)))) == 1
 
 
 def test_exact_five_waitlist_promotes_first_responder_after_cancellation() -> None:

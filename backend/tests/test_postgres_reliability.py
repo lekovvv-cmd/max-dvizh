@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import httpx
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -32,7 +32,9 @@ from app.db.models import (
     OutboxNotification,
     User,
 )
-from app.modules.matching.service import recompute_candidate_plan
+from app.modules.leisure.provider import NormalizedLeisureItem
+from app.modules.matching import scheduler
+from app.modules.matching.service import recompute_candidate_plan, regenerate_group
 from app.modules.max_integration import client as outbox_client
 
 TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
@@ -81,6 +83,53 @@ def users(session: Session, count: int) -> list[User]:
     session.add_all(result)
     session.commit()
     return result
+
+
+def test_concurrent_group_regeneration_creates_one_plan_offer_and_notification(engine: Engine) -> None:
+    current = datetime.now(UTC)
+    with Session(engine) as session:
+        people = users(session, 3)
+        group = Group(id="group", name="Друзья", default_city_slug="ekb", created_by=people[0].id)
+        session.add(group)
+        session.flush()
+        session.add_all(GroupMember(group_id=group.id, user_id=person.id) for person in people)
+        session.add(Intent(user_id=people[0].id, group_id=group.id, type="ONE_TIME", status="ACTIVE", city_slug="ekb", activity_category="games", available_from=current, available_to=current + timedelta(hours=5), min_people=2))
+        session.commit()
+    item = NormalizedLeisureItem(provider="MODEL", provider_id="race", item_type="EVENT", city_slug="ekb", title="Квиз", category="games", venue_name="Клуб", starts_at=current + timedelta(hours=2), ends_at=current + timedelta(hours=3), latitude=None, longitude=None, price_text=None, price_min=None, source_url=None, image_url=None, source_fetched_at=current, is_demo=True)
+    barrier = Barrier(2)
+    outcomes: list[list[str] | Exception] = []
+
+    def regenerate() -> None:
+        with Session(engine) as session:
+            barrier.wait()
+            try:
+                outcomes.append([plan.id for plan in regenerate_group(session, "group", "ekb", [item])])
+            except Exception as error:
+                outcomes.append(error)
+
+    threads = [Thread(target=regenerate) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=5)
+    assert all(not thread.is_alive() for thread in threads)
+    assert len(outcomes) == 2 and all(isinstance(outcome, list) and len(outcome) == 1 for outcome in outcomes)
+    with Session(engine) as session:
+        assert len(list(session.scalars(select(CandidatePlan)))) == 1
+        assert len(list(session.scalars(select(CandidatePlanSourceSnapshot)))) == 1
+        assert len(list(session.scalars(select(Offer)))) == 1
+        assert len(list(session.scalars(select(OutboxNotification)))) == 1
+
+
+def test_second_scheduler_skips_when_first_holds_advisory_lock(engine: Engine, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(scheduler, "engine", engine)
+    monkeypatch.setattr(scheduler, "fetch_items", lambda *_: pytest.fail("locked scheduler must not fetch"))
+    with engine.connect() as first:
+        first.execute(text("SELECT pg_advisory_lock(:lock_id)"), {"lock_id": scheduler.LOCK_ID})
+        try:
+            assert scheduler.run_once() == 0
+        finally:
+            first.execute(text("SELECT pg_advisory_unlock(:lock_id)"), {"lock_id": scheduler.LOCK_ID})
 
 
 def test_last_slot_and_same_user_overlap_are_atomic(engine: Engine) -> None:

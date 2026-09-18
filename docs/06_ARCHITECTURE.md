@@ -49,7 +49,7 @@ matching engine ← Redis (parameterized TTL cache) ← KudaGo public API
 API/router → application service → domain logic → repository/provider.
 
 ## Matching engine
-Pure normalized inputs, no HTTP/SQL/KudaGo DTOs. Returns compatibility, time containment and participant-range feasibility. The application service sends Offers to all eligible users and manages confirmed-open capacity and private waitlist.
+Pure normalized inputs, no HTTP/SQL/KudaGo DTOs. Returns compatibility, time containment and participant-range feasibility. One eligible member can create a concrete CandidatePlan and receive an Offer before the confirmation minimum is met. The application service sends Offers to all eligible users and manages confirmed-open capacity and private waitlist. Every regeneration entry point locks the Company row in PostgreSQL, serializing plan lookup/creation across scheduler and HTTP-triggered work.
 
 ## Participant size
 Target group 4–12. Effective capacity uses current Company membership unless accepted participants specify a lower explicit maximum. No advance social cohort is selected.

@@ -74,6 +74,8 @@ Accepted. Recurrence stores IANA timezone in its private JSON rule. A complete p
 ## ADR-024 — Open plans and private waitlist
 Accepted. Every compatible member receives a private Offer. `Неважно` means min=2 and no explicit max; other primary presets mean min=3 or 5 with no explicit max. Effective max is the current company size. The plan confirms when enough accepting users satisfy every accepted member's range, then stays open for further compatible joins until capacity or cutoff. Explicit `Ровно N` admits the first N successful acceptances and privately waitlists later responses in response order. Cancellation before cutoff promotes the first eligible waitlisted member. Neither Offer ranking nor Intent enumeration decides who may respond.
 
+One compatible member may start a concrete CandidatePlan and receive an Offer even when fewer than N members have signalled. N is the confirmation threshold, not the plan creation threshold. A personal minimum above the current Company capacity cannot yield an Offer.
+
 ## ADR-025 — One Signal batch, one city
 Accepted. A one-time Signal may address multiple companies in the same provider-supported city. Creation, edit and cancellation are atomic for the whole batch. Company owns city; the client does not choose it per Signal. Signal expiry is derived server-side from the availability window. A saved location is optional; distance matching requires a real, user-owned location in that city.
 

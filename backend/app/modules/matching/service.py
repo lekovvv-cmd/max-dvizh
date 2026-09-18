@@ -23,10 +23,8 @@ from app.db.models import (
 )
 from app.modules.leisure.provider import NormalizedLeisureItem
 from app.modules.matching.domain import (
-    GroupSizeCandidate,
     compatibility,
     contains_interval,
-    feasible_cohort,
     haversine_km,
     offer_expiry,
     overlaps,
@@ -186,6 +184,8 @@ def recompute_candidate_plan(session: Session, plan: CandidatePlan, *, intents: 
         plan.status = "CANCELLED"
         return False
     eligible, unverified = _evaluate_item(session, plan.group_id, plan.city_slug, _snapshot_item(snapshot, plan.city_slug), intents=intents, locations=locations)
+    capacity = group_capacity(session, plan.group_id)
+    eligible = [candidate for candidate in eligible if candidate.intent.min_people <= capacity]
     statuses = _offer_statuses(session, plan.id)
     for candidate in [*eligible, *unverified]:
         _upsert_member(session, plan.id, candidate)
@@ -231,6 +231,11 @@ def recompute_candidate_plan(session: Session, plan: CandidatePlan, *, intents: 
 def regenerate_group(session: Session, group_id: str, city: str, items: list[NormalizedLeisureItem]) -> list[CandidatePlan]:
     """Create/update plans for provider items and commit the request flow once."""
     cleanup_expired(session)
+    # Every entry point (HTTP, background evaluation, periodic scheduler) takes
+    # the same company lock before looking up or creating a plan. The scheduler's
+    # global advisory lock alone does not serialize HTTP-triggered evaluations.
+    if session.scalar(select(Group.id).where(Group.id == group_id).with_for_update()) is None:
+        return []
     intents = _active_intents(session, group_id, city)
     location_ids = {intent.origin_location_id for intent in intents if intent.origin_location_id}
     locations = {location.id: location for location in session.scalars(select(Location).where(Location.id.in_(location_ids)))} if location_ids else {}
@@ -245,14 +250,16 @@ def regenerate_group(session: Session, group_id: str, city: str, items: list[Nor
         if item.item_type == "PLACE" and place_day in used_place_days:
             continue
         eligible, _ = _evaluate_item(session, group_id, city, item, intents=intents, locations=locations)
-        feasibility = feasible_cohort([GroupSizeCandidate(candidate.intent.user_id, candidate.intent.min_people, candidate.intent.max_people) for candidate in eligible], maximum_size=capacity)
-        if feasibility is None:
+        eligible = [candidate for candidate in eligible if candidate.intent.min_people <= capacity]
+        # One compatible member is enough to create a concrete invitation. The
+        # minimum is a confirmation condition, not a prerequisite for an Offer.
+        if not eligible:
             continue
         if item.item_type == "PLACE":
             used_place_days.add(place_day)
-        plan = session.scalar(select(CandidatePlan).join(CandidatePlanSourceSnapshot).where(CandidatePlan.group_id == group_id, CandidatePlan.status.in_(("COLLECTING", "CONFIRMED_OPEN", "CONFIRMED")), CandidatePlanSourceSnapshot.provider == item.provider, CandidatePlanSourceSnapshot.provider_item_id == item.provider_id, CandidatePlan.starts_at == item.starts_at))
+        plan = session.scalar(select(CandidatePlan).join(CandidatePlanSourceSnapshot).where(CandidatePlan.group_id == group_id, CandidatePlan.status.in_(("COLLECTING", "CONFIRMED_OPEN", "CONFIRMED")), CandidatePlanSourceSnapshot.provider == item.provider, CandidatePlanSourceSnapshot.provider_item_id == item.provider_id, CandidatePlan.starts_at == item.starts_at).with_for_update(of=CandidatePlan))
         if plan is None:
-            plan = CandidatePlan(group_id=group_id, city_slug=city, starts_at=item.starts_at, ends_at=item.ends_at, estimated_price_min=item.price_min, required_min_people=feasibility.size, required_max_people=capacity, status="COLLECTING", expires_at=item.starts_at - timedelta(minutes=10))
+            plan = CandidatePlan(group_id=group_id, city_slug=city, starts_at=item.starts_at, ends_at=item.ends_at, estimated_price_min=item.price_min, required_min_people=min(candidate.intent.min_people for candidate in eligible), required_max_people=capacity, status="COLLECTING", expires_at=item.starts_at - timedelta(minutes=10))
             session.add(plan)
             session.flush()
             session.add(CandidatePlanSourceSnapshot(candidate_plan_id=plan.id, provider=item.provider, provider_item_id=item.provider_id, provider_item_type=item.item_type, title=item.title, category=item.category, venue_name=item.venue_name, starts_at=item.starts_at, ends_at=item.ends_at, latitude=item.latitude, longitude=item.longitude, price_text=item.price_text, parsed_price=item.price_min, source_url=item.source_url, image_url=item.image_url, source_fetched_at=item.source_fetched_at, is_demo=item.is_demo, source_metadata={"categories": item.categories, "price_kind": item.price_kind, "address_text": item.address_text, "opening_hours_unverified": item.opening_hours_unverified, "timetable": item.timetable}))
