@@ -21,7 +21,7 @@ class GroupSizeCandidate:
 
     user_id: str
     min_people: int
-    max_people: int
+    max_people: int | None
 
 
 @dataclass(frozen=True)
@@ -155,8 +155,27 @@ def feasible_cohort(candidates: list[GroupSizeCandidate], maximum_size: int = 12
         cohort = sorted(
             candidate.user_id
             for candidate in unique.values()
-            if candidate.min_people <= size <= candidate.max_people
+            if candidate.min_people <= size and (candidate.max_people is None or size <= candidate.max_people)
         )
         if len(cohort) >= size:
             return FeasibleCohort(size=size, user_ids=tuple(cohort))
+    return None
+
+
+def offer_expiry(now: datetime, starts_at: datetime) -> datetime | None:
+    """Give users time proportional to the remaining interval, with a start cutoff."""
+    cutoff = starts_at - timedelta(minutes=10)
+    if cutoff <= now:
+        return None
+    ttl = min(timedelta(hours=6), max(timedelta(minutes=10), (starts_at - now) / 2))
+    return min(now + ttl, cutoff)
+
+
+def confirmed_size(accepted: list[GroupSizeCandidate], group_size: int) -> int | None:
+    """Return the accepted count only if every accepted person's range allows it."""
+    count = len(accepted)
+    if count < 2 or count > group_size:
+        return None
+    if all(candidate.min_people <= count <= (candidate.max_people or group_size) for candidate in accepted):
+        return count
     return None

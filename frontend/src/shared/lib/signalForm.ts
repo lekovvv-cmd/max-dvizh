@@ -1,10 +1,10 @@
 export type GroupSizeChoice = 'any' | '3+' | '5+' | 'exactly-5'
 
-export const groupSizeRange = (choice: GroupSizeChoice): readonly [number, number] => {
-  if (choice === '3+') return [3, 12]
-  if (choice === '5+') return [5, 12]
+export const groupSizeRange = (choice: GroupSizeChoice): readonly [number, number | null] => {
+  if (choice === '3+') return [3, null]
+  if (choice === '5+') return [5, null]
   if (choice === 'exactly-5') return [5, 5]
-  return [1, 12]
+  return [2, null]
 }
 
 export const parseOptionalInteger = (raw: string, min: number, max: number): number | null | undefined => {

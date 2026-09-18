@@ -9,6 +9,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.timezones import display_timezone
 from app.db.models import OutboxNotification, User
 
 
@@ -31,8 +32,19 @@ def send_bot_message(max_user_id: str, text: str) -> bool:
 
 
 def _text(event: OutboxNotification) -> str:
-    title = str(event.payload.get("title") or "Новое предложение в ДВИЖ")
-    return f"⚡ ДВИЖ СОБРАЛСЯ: {title}" if event.kind == "CONFIRMED_PLAN" else "В ДВИЖ появилось новое личное предложение"
+    title = str(event.payload.get("title") or "ДВИЖ")
+    group = str(event.payload.get("group_name") or "Компания")
+    try:
+        start = datetime.fromisoformat(str(event.payload["starts_at"]))
+        zone = display_timezone(str(event.payload.get("timezone") or "UTC"))
+        when = start.astimezone(zone).strftime("%d.%m в %H:%M")
+    except (KeyError, ValueError):
+        when = "скоро"
+    kind = "plan" if event.kind == "CONFIRMED_PLAN" else "offer"
+    identifier = event.payload.get("plan_id" if kind == "plan" else "offer_id")
+    link = f"\nhttps://max.ru/{settings.max_bot_username}?startapp={kind}_{identifier}" if settings.max_bot_username and identifier else ""
+    heading = "⚡ ДВИЖ СОБРАЛСЯ" if kind == "plan" else "🎮 Новый ДВИЖ"
+    return f"{heading}\n{title} · {when}\n{group}{link}"
 
 
 def dispatch_pending(session: Session, batch_size: int = 50) -> int:

@@ -51,14 +51,14 @@ Intent
 One-time “I am open to plans in this window”.
 
 MVP fields:
-- city;
+- one or more companies in one city; city comes from Company;
 - available window;
 - activity interests/categories;
 - optional max budget;
 - optional origin and radius km;
-- min/max people.
+- minimum people and optional explicit maximum.
 
-Signal expires.
+Signal expires after its availability window with a small server-side grace. The main UI offers quick time presets and lets a person send without opening optional conditions. A batch across several companies is created, edited and cancelled atomically.
 
 ## AutoSignal
 
@@ -68,6 +68,7 @@ Recurring “invite me if these conditions occur”. Examples:
 - PC club only if exactly 5 people.
 
 AutoSignal never means attendance. It only makes a user eligible for an Offer.
+The scheduler evaluates active rules every 30 minutes across a seven-day lookahead, and immediately after create, edit or resume.
 
 ## Compatibility
 
@@ -98,7 +99,7 @@ Concrete enough to accept/reject:
 - start/end;
 - price status;
 - min/max participants;
-- potential compatible users;
+- current accepted count and remaining capacity;
 - provenance/freshness.
 
 CandidatePlan is not a meeting yet.
@@ -133,13 +134,13 @@ Inputs:
 - N or more;
 - exactly N.
 
-If exactly 5 and 6 users are compatible, build a valid subset of 5. Remaining user is not publicly “excluded”; they may remain reserve/eligible elsewhere.
+The main presets are `Неважно` (min=2), `Хотя бы 3` and `Хотя бы 5`, all without an explicit maximum. In that case capacity is the current Company size. All compatible members receive Offers. The plan confirms at the accepted minimum and stays open until capacity or cutoff. `Ровно N` is advanced: the first N successful acceptances take places; later responses enter a private waitlist and the first eligible waitlisted person is promoted after a cancellation.
 
 ## Distance
 
 MVP uses user-owned origin coordinates + straight-line/geodesic km. No travel-time estimate.
 
-Origin choices: Home, University, Work, Current location, map/manual point.
+Saved places are optional and can be labelled Home, University, Work or Other. Creation uses real device geolocation; no default or fabricated coordinates. Without a saved place, radius matching is unavailable.
 
 Offer shows only that user's own distance.
 
@@ -150,20 +151,21 @@ MVP works in every city with sufficient provider data. Do not hardcode Kazan. Pi
 ## Leisure data
 
 Initial real provider: KudaGo, behind provider abstraction.
+Events and Places are distinct. Every verified Event occurrence is a separate concrete candidate. Places receive concrete two-hour slots on a 30-minute grid and visibly warn when opening hours cannot be verified.
 
 If provider does not cover a use case, do not fake live data. Explicit model/demo data is allowed only when clearly labeled.
 
 ## Price
 
 - authoritative free flag → 0;
-- safely parsed minimum may be approximate;
+- exact price and `от N ₽` price floor are distinct; the floor may allow an Offer but the UI warns that the final price can be higher;
 - unknown → omit price from the UI; it is Unverified only when the user set a budget limit;
 - preserve original source price text.
 
 ## User-facing state language
 
 Prefer:
-- «Есть потенциал»;
+- «Сигнал активен»;
 - «Собираем»;
 - «ДВИЖ СОБРАЛСЯ».
 

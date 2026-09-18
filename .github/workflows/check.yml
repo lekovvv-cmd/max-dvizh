@@ -51,7 +51,7 @@ jobs:
       - run: alembic upgrade head
         env:
           DATABASE_URL: postgresql+psycopg://max_dvizh:test_only_password@localhost:5432/max_dvizh
-      - run: test "$(alembic current | tail -n 1 | awk '{print $1}')" = "20260916_0005"
+      - run: test "$(alembic current | tail -n 1 | awk '{print $1}')" = "20260918_0009"
         env:
           DATABASE_URL: postgresql+psycopg://max_dvizh:test_only_password@localhost:5432/max_dvizh
       - run: ruff check .

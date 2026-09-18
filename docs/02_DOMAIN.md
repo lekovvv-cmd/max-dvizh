@@ -4,10 +4,10 @@
 MAX user mapped to internal user. Client-submitted identity is never trusted without server-side validation per current official MAX docs.
 
 ## Group
-Private friend-company context. May be associated with MAX chat context, but domain must work without it. Fallback: internal Group + invite deep link/start parameter.
+Private friend-company context with one provider-supported city and timezone. It may be bound to a group chat only from validated MAX launch context; private Company creation uses an invite deep link.
 
 ## Location
-User-owned origin point: label, lat/lon, city, kind (saved/current/manual), owner. Private by default.
+Optional user-owned place: label, real coordinates, optional address text, city, kind and owner. Private by default. Radius matching requires a saved place in the Company city.
 
 ## Intent
 User willingness under conditions.
@@ -15,7 +15,7 @@ User willingness under conditions.
 Types: `ONE_TIME`, `RECURRING`.
 Statuses: `ACTIVE`, `PAUSED`, `EXPIRED`, `CANCELLED`.
 
-Core constraints: city, activity/category, time/recurrence, optional budget_max, optional origin/radius_km, min_people, max_people. A radius requires an origin; both may be omitted.
+Core constraints: Company-inherited city, category set, time/recurrence, optional budget_max, optional origin/radius_km, min_people, nullable explicit max_people. A radius requires an origin; both may be omitted. One-time Signal rows may share a `signal_batch_id` across several same-city companies.
 
 ## AutoSignal recurrence
 Keep MVP simple: weekdays + local start/end + IANA timezone + optional date bounds. Do not build a full rules language. The weekday is the local day on which the window starts; an end not later than the start means an overnight window.
@@ -26,9 +26,9 @@ Normalized external/model content exists in the provider adapter and temporary R
 ## CandidatePlan
 Concrete feasible proposal being assembled.
 
-Statuses: `COLLECTING`, `CONFIRMED`, `EXPIRED`, `CANCELLED` (add READY only if implementation truly needs it).
+Statuses: `COLLECTING`, `CONFIRMED_OPEN`, `CONFIRMED`, `EXPIRED`, `CANCELLED`. `CONFIRMED` is full or past the joining cutoff.
 
-Contains a concrete source snapshot/activity/venue, concrete time, price representation, participant bounds and participant compatibility. For a collecting plan, `required_min_people == required_max_people == N`: every eventual participant must allow the selected minimum feasible final size N.
+Contains a concrete source snapshot/activity/venue, concrete time, price representation, minimum to confirm, effective capacity and private participant compatibility. Confirmation is permitted only when every accepted person's personal size range allows the count. A confirmed plan remains open until capacity or cutoff.
 
 ## Compatibility
 Enum: `EXACT`, `NEAR`, `CONFLICT`, `UNVERIFIED`.
@@ -42,7 +42,7 @@ Structured reason for Near. MVP required: `BUDGET_OVER_MAX` with actual/limit/de
 ## Offer
 Private invitation. A user's current pending Offer pool spans every group they belong to and is not product-capped.
 
-Statuses: `PENDING`, `ACCEPTED`, `REJECTED`, `EXPIRED`, `INVALIDATED`.
+Statuses: `PENDING`, `WAITING_CONDITION`, `ACCEPTED`, `WAITLISTED`, `REJECTED`, `EXPIRED`, `INVALIDATED`, `CANCELLED_BY_USER`. Conditional responders are shown privately as interested but are not confirmed participants until their minimum is met.
 
 Near Offer requires explicit exception confirmation.
 
@@ -58,7 +58,7 @@ A CandidatePlan is confirmed only when:
 Accepted Offer may reserve a user's time while plan finalizes. Overlapping offers/candidates must be recomputed transactionally.
 
 ## Waitlist
-SHOULD, not MUST. If implemented, never expose “you were excluded”.
+Required for exact N. All compatible users first receive Offers; response time determines admission, and later responders are privately waitlisted. Only the owner sees their waitlist state. Cancellation before cutoff promotes the first eligible waitlisted responder.
 
 ## Aggregate potential
-Product may show counts (exact active, compatible AutoSignals, potential total) without exposing identities before reveal/acceptance.
+Before confirmation, show only accepted/needed counts without identities. After confirmation, basic profiles of accepted participants may be shown; waitlisted identities and private constraints never appear.

@@ -66,7 +66,19 @@ Accepted. Absence of provider facts necessary to verify a user-set budget/radius
 Accepted. Budget and radius are opt-in hard constraints. Redis cache-aside keys represent the actual city/time/category query needed for an Intent, never a whole-city provider catalogue.
 
 ## ADR-022 — Exact final group size is selected deterministically
-Accepted. For N from 1 up to 12, select the first N with at least N compatible users whose own inclusive ranges contain N. This starts a feasible ДВИЖ as soon as possible without depending on Intent enumeration; a user requiring five people sets `min_people=5`. Private Offer ranking is deterministic: Exact before Near, known shorter distance, older Intent, then user ID.
+Superseded by ADR-024. A preliminary feasible size must never silently select which compatible friends receive Offers.
 
 ## ADR-023 — AutoSignal is local-time aware
 Accepted. Recurrence stores IANA timezone in its private JSON rule. A complete provider event interval must fit the weekday/window after UTC conversion. Overnight end times are supported as a window ending the following local day.
+
+## ADR-024 — Open plans and private waitlist
+Accepted. Every compatible member receives a private Offer. `Неважно` means min=2 and no explicit max; other primary presets mean min=3 or 5 with no explicit max. Effective max is the current company size. The plan confirms when enough accepting users satisfy every accepted member's range, then stays open for further compatible joins until capacity or cutoff. Explicit `Ровно N` admits the first N successful acceptances and privately waitlists later responses in response order. Cancellation before cutoff promotes the first eligible waitlisted member. Neither Offer ranking nor Intent enumeration decides who may respond.
+
+## ADR-025 — One Signal batch, one city
+Accepted. A one-time Signal may address multiple companies in the same provider-supported city. Creation, edit and cancellation are atomic for the whole batch. Company owns city; the client does not choose it per Signal. Signal expiry is derived server-side from the availability window. A saved location is optional; distance matching requires a real, user-owned location in that city.
+
+## ADR-026 — Recurring evaluation and concrete provider facts
+Accepted. Active AutoSignals are evaluated immediately when created, edited or resumed and periodically every 30 minutes over seven days. KudaGo Events and Places are separate normalized sources; a Place produces a concrete time slot. An Event without a verified end creates no normal Offer. `FROM` price is a floor with an explicit uncertainty label, while `UNKNOWN` is Unverified only when a budget was set. Provider catalogue data remains in query-scoped Redis; only CandidatePlan snapshots are persisted.
+## ADR-027 — Приглашение с необязательным сроком
+
+У ссылки Company есть nullable `invite_expires_at`. Отсутствие срока сохраняет действующее поведение уже выданных ссылок и не вводит скрытый период жизни. Если срок установлен и прошёл, backend возвращает `410` с отдельным состоянием «Приглашение истекло»; неизвестный токен возвращает `404` «Приглашение недействительно».

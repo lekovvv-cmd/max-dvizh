@@ -12,33 +12,38 @@ const weekdays = [
   { value: 3, label: 'Чт' }, { value: 4, label: 'Пт' }, { value: 5, label: 'Сб' }, { value: 6, label: 'Вс' },
 ]
 
-export function AutoSignals({ group, intents, locations, onChanged }: { group: Group; intents: Intent[]; locations: Location[]; onChanged: () => void }) {
+export function AutoSignals({ group, groups, intents, locations, onChanged }: { group: Group; groups: Group[]; intents: Intent[]; locations: Location[]; onChanged: () => void }) {
   const [creating, setCreating] = useState(false)
+  const [editing, setEditing] = useState<Intent | null>(null)
   const [error, setError] = useState('')
   const autos = intents.filter(intent => intent.type === 'RECURRING' && intent.status !== 'CANCELLED')
   async function toggle(intent: Intent) { setError(''); try { await api.autoAction(intent.id, intent.status === 'ACTIVE' ? 'pause' : 'resume'); onChanged() } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось изменить автосигнал') } }
-  if (creating) return <AutoSignalForm group={group} locations={locations} onDone={() => { setCreating(false); onChanged() }} onCancel={() => setCreating(false)} />
+  async function remove(intent: Intent) { setError(''); try { await api.autoAction(intent.id, 'cancel'); onChanged() } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось удалить автосигнал') } }
+  if (creating || editing) return <AutoSignalForm group={group} groups={groups} editing={editing} locations={locations} onDone={() => { setCreating(false); setEditing(null); onChanged() }} onCancel={() => { setCreating(false); setEditing(null) }} />
   return <section><p className="section-kicker">Автосигналы</p><h1>Позови меня, если…</h1><p className="screen-intro">Автосигнал приглашает, но никогда не записывает тебя сам.</p>{error ? <p className="form-error" role="alert">{error}</p> : null}
-    {autos.length ? <div className="autos-list">{autos.map(intent => <article className="autosignal-card" key={intent.id}><div><h2>⚡ {intent.name || 'Мой ДВИЖ'}</h2><p>{weekDays(intent.weekdays)}{intent.local_start && intent.local_end ? ` · ${intent.local_start}–${intent.local_end}` : ''}</p><p>{group.name}</p><p>{activityLabel(intent.activity_category)}{intent.budget_max !== null ? ` · до ${intent.budget_max} ₽` : ''}{intent.radius_km !== null ? ` · до ${intent.radius_km} км` : ''}</p></div><label className="switch-control"><span className="sr-only">{intent.status === 'ACTIVE' ? 'Поставить на паузу' : 'Возобновить'} {intent.name}</span><Switch checked={intent.status === 'ACTIVE'} onChange={() => void toggle(intent)} /></label></article>)}</div> : <EmptyState title="Автосигналов пока нет">Настрой один раз — и ДВИЖ позовёт, когда условия совпадут.</EmptyState>}
+    {autos.length ? <div className="autos-list">{autos.map(intent => <article className="autosignal-card" key={intent.id}><div><h2>⚡ {intent.name || 'Мой ДВИЖ'}</h2><p>{weekDays(intent.weekdays)}{intent.local_start && intent.local_end ? ` · ${intent.local_start}–${intent.local_end}` : ''}</p><p>{intent.group_name || groups.find(item => item.id === intent.group_id)?.name}</p><p>{(intent.activity_categories || [intent.activity_category]).map(activityLabel).join(', ')}{intent.budget_max !== null ? ` · до ${intent.budget_max} ₽` : ''}{intent.radius_km !== null ? ` · до ${intent.radius_km} км` : ''}</p><Button variant="secondary" onClick={() => setEditing(intent)}>Изменить</Button><Button variant="secondary" onClick={() => void remove(intent)}>Удалить</Button></div><label className="switch-control"><span className="sr-only">{intent.status === 'ACTIVE' ? 'Поставить на паузу' : 'Возобновить'} {intent.name}</span><Switch checked={intent.status === 'ACTIVE'} onChange={() => void toggle(intent)} /></label></article>)}</div> : <EmptyState title="Автосигналов пока нет">Настрой один раз — и ДВИЖ позовёт, когда условия совпадут.</EmptyState>}
     <Button className="new-auto" variant="secondary" stretched onClick={() => setCreating(true)}>+ Новый автосигнал</Button>
   </section>
 }
 
-function AutoSignalForm({ group, locations, onDone, onCancel }: { group: Group; locations: Location[]; onDone: () => void; onCancel: () => void }) {
-  const [name, setName] = useState('Пятничный ДВИЖ')
-  const [category, setCategory] = useState('other')
-  const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>([4])
-  const [localStart, setLocalStart] = useState('18:00')
-  const [localEnd, setLocalEnd] = useState('23:00')
-  const [people, setPeople] = useState<GroupSizeChoice>('3+')
-  const [budget, setBudget] = useState('')
-  const [locationId, setLocationId] = useState('')
-  const [radius, setRadius] = useState('')
+function AutoSignalForm({ group, groups, editing, locations, onDone, onCancel }: { group: Group; groups: Group[]; editing: Intent | null; locations: Location[]; onDone: () => void; onCancel: () => void }) {
+  const [name, setName] = useState(editing?.name || 'Пятничный ДВИЖ')
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(editing?.activity_categories || ['any'])
+  const [groupId, setGroupId] = useState(editing?.group_id || group.id)
+  const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>(editing?.weekdays || [4])
+  const [localStart, setLocalStart] = useState(editing?.local_start || '18:00')
+  const [localEnd, setLocalEnd] = useState(editing?.local_end || '23:00')
+  const [people, setPeople] = useState<GroupSizeChoice>(editing?.max_people === 5 && editing.min_people === 5 ? 'exactly-5' : editing?.min_people === 5 ? '5+' : editing?.min_people === 3 ? '3+' : 'any')
+  const [budget, setBudget] = useState(editing?.budget_max?.toString() || '')
+  const [locationId, setLocationId] = useState(editing?.origin_location_id || '')
+  const [radius, setRadius] = useState(editing?.radius_km?.toString() || '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const budgetValue = parseOptionalInteger(budget, 0, 100_000)
   const radiusValue = parseOptionalRadius(radius)
   const range = groupSizeRange(people)
+  const currentGroup = groups.find(item => item.id === groupId) || group
+  const availableLocations = locations.filter(item => item.city_slug === currentGroup.city_slug)
   const hasLocationForRadius = radiusValue === null || (radiusValue !== undefined && Boolean(locationId))
   const canSubmit = selectedWeekdays.length > 0 && /^\d{2}:\d{2}$/.test(localStart) && /^\d{2}:\d{2}$/.test(localEnd) && budgetValue !== undefined && radiusValue !== undefined && hasLocationForRadius
 
@@ -48,6 +53,9 @@ function AutoSignalForm({ group, locations, onDone, onCancel }: { group: Group; 
       return [...current, day].sort((left, right) => left - right)
     })
   }
+  function toggleCategory(category: string) {
+    setSelectedCategories(current => category === 'any' ? ['any'] : current.includes(category) ? (current.filter(item => item !== category).length ? current.filter(item => item !== category) : ['any']) : [...current.filter(item => item !== 'any'), category])
+  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
@@ -55,11 +63,11 @@ function AutoSignalForm({ group, locations, onDone, onCancel }: { group: Group; 
     setBusy(true)
     setError('')
     try {
-      await api.autosignal({
-        group_id: group.id,
-        city_slug: group.city_slug,
+      const body = {
+        group_id: groupId,
         name,
-        activity_category: category,
+        activity_category: selectedCategories[0],
+        activity_categories: selectedCategories,
         weekdays: selectedWeekdays,
         local_start: localStart,
         local_end: localEnd,
@@ -69,7 +77,9 @@ function AutoSignalForm({ group, locations, onDone, onCancel }: { group: Group; 
         radius_km: radiusValue,
         min_people: range[0],
         max_people: range[1],
-      })
+      }
+      if (editing) await api.editAutosignal(editing.id, body)
+      else await api.autosignal(body)
       onDone()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Не удалось сохранить автосигнал')
@@ -78,14 +88,16 @@ function AutoSignalForm({ group, locations, onDone, onCancel }: { group: Group; 
     }
   }
 
-  return <section className="auto-form"><button className="back-link" onClick={onCancel}>‹ Назад</button><p className="section-kicker">Новый автосигнал</p><h1>Когда тебя звать?</h1><p className="screen-intro">Можно изменить условия позже.</p><form onSubmit={submit}>
+  return <section className="auto-form"><button className="back-link" onClick={onCancel}>‹ Назад</button><h1>{editing ? 'Изменить автосигнал' : 'Когда тебя звать?'}</h1><form onSubmit={submit}>
     <label>Название<Input value={name} onChange={event => setName(event.target.value)} required /></label>
-    <label>Активность<select value={category} onChange={event => setCategory(event.target.value)}><option value="other">Всё равно</option><option value="games">🎮 Игры</option><option value="sport">🎳 Активности</option><option value="exhibition">🎭 Культура</option><option value="concert">🎵 Музыка</option></select></label>
+    <label>Компания<select value={groupId} onChange={event => { setGroupId(event.target.value); setLocationId(''); setRadius('') }}>{groups.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
+    <div className="wizard__block"><h2>Что ок?</h2><div className="choices">{['any', 'games', 'sport', 'exhibition', 'concert'].map(category => <button type="button" key={category} className={`choice ${selectedCategories.includes(category) ? 'choice--selected' : ''}`} aria-pressed={selectedCategories.includes(category)} onClick={() => toggleCategory(category)}>{activityLabel(category)}</button>)}</div></div>
     <div className="wizard__block"><h2>Дни недели</h2><div className="choices">{weekdays.map(day => <button key={day.value} type="button" className={`choice ${selectedWeekdays.includes(day.value) ? 'choice--selected' : ''}`} aria-pressed={selectedWeekdays.includes(day.value)} onClick={() => toggleWeekday(day.value)}>{day.label}</button>)}</div></div>
     <div className="form-row"><label>С <Input type="time" value={localStart} onChange={event => setLocalStart(event.target.value)} required /></label><label>До <Input type="time" value={localEnd} onChange={event => setLocalEnd(event.target.value)} required /></label></div>
-    <div className="wizard__block"><h2>Размер компании</h2><div className="choices"><button type="button" className={`choice ${people === 'any' ? 'choice--selected' : ''}`} onClick={() => setPeople('any')}>Неважно</button><button type="button" className={`choice ${people === '3+' ? 'choice--selected' : ''}`} onClick={() => setPeople('3+')}>3+</button><button type="button" className={`choice ${people === '5+' ? 'choice--selected' : ''}`} onClick={() => setPeople('5+')}>5+</button><button type="button" className={`choice ${people === 'exactly-5' ? 'choice--selected' : ''}`} onClick={() => setPeople('exactly-5')}>Ровно 5</button></div></div>
+    <div className="wizard__block"><h2>Пойдёшь, если соберётся…</h2><div className="choices"><button type="button" className={`choice ${people === 'any' ? 'choice--selected' : ''}`} aria-pressed={people === 'any'} onClick={() => setPeople('any')}>Неважно</button><button type="button" className={`choice ${people === '3+' ? 'choice--selected' : ''}`} aria-pressed={people === '3+'} onClick={() => setPeople('3+')}>Хотя бы 3</button><button type="button" className={`choice ${people === '5+' ? 'choice--selected' : ''}`} aria-pressed={people === '5+'} onClick={() => setPeople('5+')}>Хотя бы 5</button><button type="button" className={`choice ${people === 'exactly-5' ? 'choice--selected' : ''}`} aria-pressed={people === 'exactly-5'} onClick={() => setPeople('exactly-5')}>Ровно 5</button></div></div>
     <div className="form-row"><label>Бюджет, ₽ <Input aria-label="Бюджет" type="number" min="0" max="100000" step="1" placeholder="Неважно" value={budget} onChange={event => setBudget(event.target.value)} /></label><label>Радиус, км <Input aria-label="Радиус" type="number" min="0.1" max="100" step="0.1" placeholder="Неважно" value={radius} onChange={event => setRadius(event.target.value)} /></label></div>
-    {radiusValue !== null && radiusValue !== undefined ? <label>Точка отправления<select value={locationId} required onChange={event => setLocationId(event.target.value)}><option value="">Выбери точку</option>{locations.map(location => <option value={location.id} key={location.id}>{location.label}</option>)}</select></label> : null}
+    {radiusValue !== null && radiusValue !== undefined ? <label>Моё место<select value={locationId} required onChange={event => setLocationId(event.target.value)}><option value="">Выбери место</option>{availableLocations.map(location => <option value={location.id} key={location.id}>{location.label}</option>)}</select></label> : null}
+    {!availableLocations.length ? <p>Добавь место в «Компания», чтобы ограничивать расстояние.</p> : null}
     {budgetValue === undefined || radiusValue === undefined ? <p className="form-error">Проверь введённые бюджет или радиус.</p> : null}{radiusValue !== null && radiusValue !== undefined && !locationId ? <p className="form-error">Для радиуса выбери точку.</p> : null}{error ? <p className="form-error" role="alert">{error}</p> : null}
     <div className="form-actions"><Button variant="secondary" type="button" onClick={onCancel}>Отмена</Button><Button variant="primary" type="submit" loading={busy} disabled={busy || !canSubmit}>Сохранить</Button></div>
   </form></section>

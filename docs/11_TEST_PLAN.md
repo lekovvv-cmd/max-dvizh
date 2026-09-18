@@ -14,7 +14,10 @@
 - range;
 - exactly N;
 - pool > max;
-- reserve if implemented.
+- first-response admission and private waitlist for exact N;
+- all compatible users receive Offers even when their count exceeds capacity;
+- confirmation at minimum with further admission until effective maximum;
+- mixed minimums keep responders in collecting until all ranges allow final N;
 - deterministic mixed ranges, exact-5 below/at threshold and Intent-order independence.
 
 ### Budget
@@ -32,6 +35,8 @@
 
 ### Offers
 - create/accept/reject/expire/invalidate.
+- dynamic TTL: min(6 hours, half the time until start), with 10-minute cutoff;
+- cancellation and waitlist promotion before cutoff.
 
 ### Conflicts
 - accept one overlapping Offer;
@@ -44,6 +49,7 @@
 - paused;
 - timezone.
 - complete interval containment and overnight local windows.
+- periodic scheduler tick on an IANA local-time window; edit/pause/delete.
 
 ## Integration tests
 - PostgreSQL repositories;
@@ -56,6 +62,9 @@
 - no CandidatePlan/source snapshot when every evaluated user is Unverified/Conflict;
 - mocked MAX boundary;
 - KudaGo valid/missing/invalid/multiple-date normalization;
+- KudaGo Events and Places, pagination, occurrences, uncertain opening hours and FROM price;
+- atomic multi-company Signal batch with city validation;
+- provider-state persistence and owner-only retry for active Signal empty states;
 - outbox retry, claim and OFFER/CONFIRMED_PLAN delivery;
 - clean PostgreSQL Alembic upgrade to head.
 - identity validation adapter.
@@ -69,6 +78,10 @@ At minimum: session, groups/join, locations, Intents/AutoSignals, Offers list, e
 3. Five cross-group pending Offers (Exact and Near) are all accessible; overlapping recomputation still applies after acceptance.
 4. Provider outage with cache/freshness.
 5. Deep-link/group join.
+6. One-screen Signal across two companies; edit and cancel from Home.
+7. Eight compatible members receive Offers; three confirm a plan and later members join until capacity.
+8. Exact-five queue promotes first waiter after cancellation; mixed minimums never confirm early.
+9. AutoSignal scheduler creates an Offer without the user visiting the app.
 
 ## Manual real MAX QA
 - mobile;

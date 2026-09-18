@@ -30,12 +30,26 @@ checks:
     required_response_fields: [id, label]
   - id: create_signal
     method: POST
-    path: /api/v1/intents
+    path: /api/v1/signal-batches
     role: group_member
     headers: { X-Demo-User: anton }
-    body: "Use ids returned by create_group and create_location; timestamps must form a future window."
+    body: "Use group_ids from groups (same city), activity_categories, future available_from/available_to, min_people >= 2; budget/radius/location/max_people may be null."
     expected_statuses: [201, 422]
-    required_response_fields: [id, type, status]
+    required_response_fields: [signal_batch_id, intents]
+  - id: active_signals
+    method: GET
+    path: /api/v1/intents
+    role: authenticated_user
+    headers: { X-Demo-User: anton }
+    expected_statuses: [200]
+    required_response_fields: []
+  - id: retry_signal_search
+    method: POST
+    path: /api/v1/signal-batches/{batch_id}/refresh
+    role: signal_owner
+    headers: { X-Demo-User: anton }
+    expected_statuses: [200, 404]
+    required_response_fields: [signal_batch_id, intents]
   - id: offers
     method: GET
     path: /api/v1/offers
@@ -66,3 +80,10 @@ checks:
     headers: { X-Demo-User: anton }
     expected_statuses: [200]
     required_response_fields: []
+  - id: cancel_participation
+    method: POST
+    path: /api/v1/offers/{offer_id}/cancel
+    role: offer_owner
+    headers: { X-Demo-User: anton }
+    expected_statuses: [200, 409]
+    required_response_fields: [id, status]

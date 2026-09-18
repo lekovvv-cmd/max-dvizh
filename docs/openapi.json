@@ -1,1 +1,3145 @@
-{"openapi":"3.1.0","info":{"title":"MAX ДВИЖ API","description":"MAX ДВИЖ: private Signals become concrete, explicitly chosen leisure plans.","version":"1.0.0"},"paths":{"/api/v1/health":{"get":{"tags":["technical"],"summary":"Healthcheck","description":"Liveness endpoint intentionally independent from product modules.","operationId":"healthcheck_api_v1_health_get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"additionalProperties":{"type":"string"},"type":"object","title":"Response Healthcheck Api V1 Health Get"}}}}}}},"/api/v1/health/ready":{"get":{"tags":["technical"],"summary":"Readiness","description":"Readiness endpoint verifies the configured PostgreSQL connection.","operationId":"readiness_api_v1_health_ready_get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"additionalProperties":{"type":"string"},"type":"object","title":"Response Readiness Api V1 Health Ready Get"}}}}}}},"/api/v1/session":{"get":{"tags":["product"],"summary":"Get Session","operationId":"get_session_api_v1_session_get","parameters":[{"name":"x-max-init-data","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Max-Init-Data"}},{"name":"x-demo-user","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Demo-User"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/SessionOut"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/groups":{"get":{"tags":["product"],"summary":"List Groups","operationId":"list_groups_api_v1_groups_get","parameters":[{"name":"x-max-init-data","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Max-Init-Data"}},{"name":"x-demo-user","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Demo-User"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/GroupOut"},"title":"Response List Groups Api V1 Groups Get"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"post":{"tags":["product"],"summary":"Create Group","operationId":"create_group_api_v1_groups_post","parameters":[{"name":"x-max-init-data","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Max-Init-Data"}},{"name":"x-demo-user","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Demo-User"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/GroupCreate"}}}},"responses":{"201":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/GroupOut"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/groups/join/{token}":{"post":{"tags":["product"],"summary":"Join Group","operationId":"join_group_api_v1_groups_join__token__post","parameters":[{"name":"token","in":"path","required":true,"schema":{"type":"string","title":"Token"}},{"name":"x-max-init-data","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Max-Init-Data"}},{"name":"x-demo-user","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Demo-User"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/JoinOut"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/locations":{"get":{"tags":["product"],"summary":"List Locations","operationId":"list_locations_api_v1_locations_get","parameters":[{"name":"x-max-init-data","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Max-Init-Data"}},{"name":"x-demo-user","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Demo-User"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/LocationOut"},"title":"Response List Locations Api V1 Locations Get"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"post":{"tags":["product"],"summary":"Create Location","operationId":"create_location_api_v1_locations_post","parameters":[{"name":"x-max-init-data","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Max-Init-Data"}},{"name":"x-demo-user","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Demo-User"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/LocationIn"}}}},"responses":{"201":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/LocationOut"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/intents":{"post":{"tags":["product"],"summary":"Create Signal","operationId":"create_signal_api_v1_intents_post","parameters":[{"name":"x-max-init-data","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Max-Init-Data"}},{"name":"x-demo-user","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Demo-User"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/IntentIn"}}}},"responses":{"201":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/IntentOut"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"get":{"tags":["product"],"summary":"List Intents","operationId":"list_intents_api_v1_intents_get","parameters":[{"name":"group_id","in":"query","required":true,"schema":{"type":"string","title":"Group Id"}},{"name":"x-max-init-data","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Max-Init-Data"}},{"name":"x-demo-user","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Demo-User"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/IntentOut"},"title":"Response List Intents Api V1 Intents Get"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/autosignals":{"post":{"tags":["product"],"summary":"Create Auto Signal","operationId":"create_auto_signal_api_v1_autosignals_post","parameters":[{"name":"x-max-init-data","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Max-Init-Data"}},{"name":"x-demo-user","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Demo-User"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AutoSignalIn"}}}},"responses":{"201":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/IntentOut"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/autosignals/{intent_id}/{action}":{"post":{"tags":["product"],"summary":"Change Auto Signal","operationId":"change_auto_signal_api_v1_autosignals__intent_id___action__post","parameters":[{"name":"intent_id","in":"path","required":true,"schema":{"type":"string","title":"Intent Id"}},{"name":"action","in":"path","required":true,"schema":{"type":"string","title":"Action"}},{"name":"x-max-init-data","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Max-Init-Data"}},{"name":"x-demo-user","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Demo-User"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/IntentOut"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/offers":{"get":{"tags":["product"],"summary":"List Offers","operationId":"list_offers_api_v1_offers_get","parameters":[{"name":"x-max-init-data","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Max-Init-Data"}},{"name":"x-demo-user","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Demo-User"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/OfferOut"},"title":"Response List Offers Api V1 Offers Get"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/offers/{offer_id}/accept":{"post":{"tags":["product"],"summary":"Accept Offer","operationId":"accept_offer_api_v1_offers__offer_id__accept_post","parameters":[{"name":"offer_id","in":"path","required":true,"schema":{"type":"string","title":"Offer Id"}},{"name":"x-max-init-data","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Max-Init-Data"}},{"name":"x-demo-user","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Demo-User"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/OfferAction"}}}},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/OfferOut"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/offers/{offer_id}/reject":{"post":{"tags":["product"],"summary":"Reject Offer","operationId":"reject_offer_api_v1_offers__offer_id__reject_post","parameters":[{"name":"offer_id","in":"path","required":true,"schema":{"type":"string","title":"Offer Id"}},{"name":"x-max-init-data","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Max-Init-Data"}},{"name":"x-demo-user","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Demo-User"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/OfferOut"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/plans":{"get":{"tags":["product"],"summary":"List Plans","operationId":"list_plans_api_v1_plans_get","parameters":[{"name":"x-max-init-data","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Max-Init-Data"}},{"name":"x-demo-user","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Demo-User"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/PlanOut"},"title":"Response List Plans Api V1 Plans Get"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/plans/{plan_id}":{"get":{"tags":["product"],"summary":"Get Plan","operationId":"get_plan_api_v1_plans__plan_id__get","parameters":[{"name":"plan_id","in":"path","required":true,"schema":{"type":"string","title":"Plan Id"}},{"name":"x-max-init-data","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Max-Init-Data"}},{"name":"x-demo-user","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Demo-User"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/PlanOut"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/leisure/cities":{"get":{"tags":["product"],"summary":"Cities","operationId":"cities_api_v1_leisure_cities_get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"$ref":"#/components/schemas/CityOut"},"type":"array","title":"Response Cities Api V1 Leisure Cities Get"}}}}}}},"/api/v1/leisure/sync/{city_slug}":{"post":{"tags":["product"],"summary":"Sync","operationId":"sync_api_v1_leisure_sync__city_slug__post","parameters":[{"name":"city_slug","in":"path","required":true,"schema":{"type":"string","title":"City Slug"}},{"name":"x-max-init-data","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Max-Init-Data"}},{"name":"x-demo-user","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Demo-User"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"type":"object","additionalProperties":true,"title":"Response Sync Api V1 Leisure Sync  City Slug  Post"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/development/seed-demo/{group_id}":{"post":{"tags":["product"],"summary":"Seed Demo","operationId":"seed_demo_api_v1_development_seed_demo__group_id__post","parameters":[{"name":"group_id","in":"path","required":true,"schema":{"type":"string","title":"Group Id"}},{"name":"x-max-init-data","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Max-Init-Data"}},{"name":"x-demo-user","in":"header","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"X-Demo-User"}}],"responses":{"201":{"description":"Successful Response","content":{"application/json":{"schema":{"type":"object","additionalProperties":{"type":"string"},"title":"Response Seed Demo Api V1 Development Seed Demo  Group Id  Post"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}}},"components":{"schemas":{"AutoSignalIn":{"properties":{"group_id":{"type":"string","title":"Group Id"},"city_slug":{"type":"string","title":"City Slug"},"activity_category":{"type":"string","maxLength":64,"minLength":1,"title":"Activity Category"},"available_from":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Available From"},"available_to":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Available To"},"budget_max":{"type":"integer","maximum":100000.0,"minimum":0.0,"title":"Budget Max"},"origin_location_id":{"type":"string","title":"Origin Location Id"},"radius_km":{"type":"number","maximum":100.0,"exclusiveMinimum":0.0,"title":"Radius Km"},"min_people":{"type":"integer","maximum":12.0,"minimum":1.0,"title":"Min People"},"max_people":{"type":"integer","maximum":12.0,"minimum":1.0,"title":"Max People"},"expires_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Expires At"},"name":{"type":"string","maxLength":120,"minLength":1,"title":"Name"},"weekdays":{"items":{"type":"integer"},"type":"array","maxItems":7,"minItems":1,"title":"Weekdays"},"local_start":{"type":"string","pattern":"^([01]\\d|2[0-3]):[0-5]\\d$","title":"Local Start"},"local_end":{"type":"string","pattern":"^([01]\\d|2[0-3]):[0-5]\\d$","title":"Local End"}},"type":"object","required":["group_id","city_slug","activity_category","budget_max","origin_location_id","radius_km","min_people","max_people","name","weekdays","local_start","local_end"],"title":"AutoSignalIn"},"CityOut":{"properties":{"slug":{"type":"string","title":"Slug"},"name":{"type":"string","title":"Name"},"source":{"type":"string","title":"Source"},"cached":{"type":"boolean","title":"Cached","default":false}},"type":"object","required":["slug","name","source"],"title":"CityOut"},"GroupCreate":{"properties":{"name":{"type":"string","maxLength":120,"minLength":1,"title":"Name"},"city_slug":{"type":"string","maxLength":64,"minLength":2,"title":"City Slug"}},"type":"object","required":["name","city_slug"],"title":"GroupCreate"},"GroupOut":{"properties":{"id":{"type":"string","title":"Id"},"name":{"type":"string","title":"Name"},"city_slug":{"type":"string","title":"City Slug"},"member_count":{"type":"integer","title":"Member Count"},"invite_token":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Invite Token"},"invite_url":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Invite Url"}},"type":"object","required":["id","name","city_slug","member_count"],"title":"GroupOut"},"HTTPValidationError":{"properties":{"detail":{"items":{"$ref":"#/components/schemas/ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"},"IntentIn":{"properties":{"group_id":{"type":"string","title":"Group Id"},"city_slug":{"type":"string","title":"City Slug"},"activity_category":{"type":"string","maxLength":64,"minLength":1,"title":"Activity Category"},"available_from":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Available From"},"available_to":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Available To"},"budget_max":{"type":"integer","maximum":100000.0,"minimum":0.0,"title":"Budget Max"},"origin_location_id":{"type":"string","title":"Origin Location Id"},"radius_km":{"type":"number","maximum":100.0,"exclusiveMinimum":0.0,"title":"Radius Km"},"min_people":{"type":"integer","maximum":12.0,"minimum":1.0,"title":"Min People"},"max_people":{"type":"integer","maximum":12.0,"minimum":1.0,"title":"Max People"},"expires_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Expires At"}},"type":"object","required":["group_id","city_slug","activity_category","budget_max","origin_location_id","radius_km","min_people","max_people"],"title":"IntentIn"},"IntentOut":{"properties":{"id":{"type":"string","title":"Id"},"type":{"type":"string","title":"Type"},"status":{"type":"string","title":"Status"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"city_slug":{"type":"string","title":"City Slug"},"activity_category":{"type":"string","title":"Activity Category"},"budget_max":{"type":"integer","title":"Budget Max"},"min_people":{"type":"integer","title":"Min People"},"max_people":{"type":"integer","title":"Max People"},"expires_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Expires At"}},"type":"object","required":["id","type","status","name","city_slug","activity_category","budget_max","min_people","max_people","expires_at"],"title":"IntentOut"},"JoinOut":{"properties":{"group":{"$ref":"#/components/schemas/GroupOut"},"already_member":{"type":"boolean","title":"Already Member"}},"type":"object","required":["group","already_member"],"title":"JoinOut"},"LocationIn":{"properties":{"label":{"type":"string","maxLength":80,"minLength":1,"title":"Label"},"latitude":{"type":"number","maximum":90.0,"minimum":-90.0,"title":"Latitude"},"longitude":{"type":"number","maximum":180.0,"minimum":-180.0,"title":"Longitude"},"city_slug":{"type":"string","maxLength":64,"minLength":2,"title":"City Slug"},"kind":{"type":"string","pattern":"^(SAVED|CURRENT|MANUAL)$","title":"Kind","default":"SAVED"},"is_ephemeral":{"type":"boolean","title":"Is Ephemeral","default":false}},"type":"object","required":["label","latitude","longitude","city_slug"],"title":"LocationIn"},"LocationOut":{"properties":{"id":{"type":"string","title":"Id"},"label":{"type":"string","title":"Label"},"city_slug":{"type":"string","title":"City Slug"},"kind":{"type":"string","title":"Kind"}},"type":"object","required":["id","label","city_slug","kind"],"title":"LocationOut"},"OfferAction":{"properties":{"confirm_near_exception":{"type":"boolean","title":"Confirm Near Exception","default":false}},"type":"object","title":"OfferAction"},"OfferOut":{"properties":{"id":{"type":"string","title":"Id"},"status":{"type":"string","title":"Status"},"is_near":{"type":"boolean","title":"Is Near"},"title":{"type":"string","title":"Title"},"venue_name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Venue Name"},"starts_at":{"type":"string","format":"date-time","title":"Starts At"},"ends_at":{"type":"string","format":"date-time","title":"Ends At"},"price_text":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Price Text"},"price_min":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Price Min"},"is_demo":{"type":"boolean","title":"Is Demo"},"source_url":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Source Url"},"source_fetched_at":{"type":"string","format":"date-time","title":"Source Fetched At"},"distance_km":{"type":"number","title":"Distance Km"},"potential_count":{"type":"integer","title":"Potential Count"},"required_min_people":{"type":"integer","title":"Required Min People"},"required_max_people":{"type":"integer","title":"Required Max People"},"expires_at":{"type":"string","format":"date-time","title":"Expires At"},"budget_delta":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Budget Delta"}},"type":"object","required":["id","status","is_near","title","venue_name","starts_at","ends_at","price_text","price_min","is_demo","source_url","source_fetched_at","distance_km","potential_count","required_min_people","required_max_people","expires_at"],"title":"OfferOut"},"PlanOut":{"properties":{"id":{"type":"string","title":"Id"},"status":{"type":"string","title":"Status"},"title":{"type":"string","title":"Title"},"venue_name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Venue Name"},"starts_at":{"type":"string","format":"date-time","title":"Starts At"},"ends_at":{"type":"string","format":"date-time","title":"Ends At"},"price_text":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Price Text"},"source_url":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Source Url"},"participant_count":{"type":"integer","title":"Participant Count"},"required_min_people":{"type":"integer","title":"Required Min People"},"required_max_people":{"type":"integer","title":"Required Max People"},"share_text":{"type":"string","title":"Share Text"}},"type":"object","required":["id","status","title","venue_name","starts_at","ends_at","price_text","source_url","participant_count","required_min_people","required_max_people","share_text"],"title":"PlanOut"},"SessionOut":{"properties":{"id":{"type":"string","title":"Id"},"display_name":{"type":"string","title":"Display Name"},"max_mode":{"type":"string","title":"Max Mode"}},"type":"object","required":["id","display_name","max_mode"],"title":"SessionOut"},"ValidationError":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"}}}}
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "MAX ДВИЖ API",
+    "description": "MAX ДВИЖ: private Signals become concrete, explicitly chosen leisure plans.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "technical"
+        ],
+        "summary": "Healthcheck",
+        "description": "Liveness endpoint intentionally independent from product modules.",
+        "operationId": "healthcheck_api_v1_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Healthcheck Api V1 Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/health/ready": {
+      "get": {
+        "tags": [
+          "technical"
+        ],
+        "summary": "Readiness",
+        "description": "Readiness endpoint verifies the configured PostgreSQL connection.",
+        "operationId": "readiness_api_v1_health_ready_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Readiness Api V1 Health Ready Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/session": {
+      "get": {
+        "tags": [
+          "product"
+        ],
+        "summary": "Get Session",
+        "operationId": "get_session_api_v1_session_get",
+        "parameters": [
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/groups": {
+      "get": {
+        "tags": [
+          "product"
+        ],
+        "summary": "List Groups",
+        "operationId": "list_groups_api_v1_groups_get",
+        "parameters": [
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GroupOut"
+                  },
+                  "title": "Response List Groups Api V1 Groups Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "product"
+        ],
+        "summary": "Create Group",
+        "operationId": "create_group_api_v1_groups_post",
+        "parameters": [
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/groups/join/{token}": {
+      "post": {
+        "tags": [
+          "product"
+        ],
+        "summary": "Join Group",
+        "operationId": "join_group_api_v1_groups_join__token__post",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          },
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/locations": {
+      "get": {
+        "tags": [
+          "product"
+        ],
+        "summary": "List Locations",
+        "operationId": "list_locations_api_v1_locations_get",
+        "parameters": [
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LocationOut"
+                  },
+                  "title": "Response List Locations Api V1 Locations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "product"
+        ],
+        "summary": "Create Location",
+        "operationId": "create_location_api_v1_locations_post",
+        "parameters": [
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocationIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocationOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/intents": {
+      "post": {
+        "tags": [
+          "product"
+        ],
+        "summary": "Create Signal",
+        "operationId": "create_signal_api_v1_intents_post",
+        "parameters": [
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntentIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntentOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "product"
+        ],
+        "summary": "List Intents",
+        "operationId": "list_intents_api_v1_intents_get",
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IntentOut"
+                  },
+                  "title": "Response List Intents Api V1 Intents Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/signal-batches/{batch_id}/refresh": {
+      "post": {
+        "tags": [
+          "product"
+        ],
+        "summary": "Refresh Signal Batch",
+        "operationId": "refresh_signal_batch_api_v1_signal_batches__batch_id__refresh_post",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Batch Id"
+            }
+          },
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignalBatchOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/signal-batches": {
+      "post": {
+        "tags": [
+          "product"
+        ],
+        "summary": "Create Signal Batch",
+        "operationId": "create_signal_batch_api_v1_signal_batches_post",
+        "parameters": [
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignalBatchIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignalBatchOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/signal-batches/{batch_id}": {
+      "put": {
+        "tags": [
+          "product"
+        ],
+        "summary": "Edit Signal Batch",
+        "operationId": "edit_signal_batch_api_v1_signal_batches__batch_id__put",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Batch Id"
+            }
+          },
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignalBatchIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignalBatchOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "product"
+        ],
+        "summary": "Cancel Signal Batch",
+        "operationId": "cancel_signal_batch_api_v1_signal_batches__batch_id__delete",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Batch Id"
+            }
+          },
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Cancel Signal Batch Api V1 Signal Batches  Batch Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/autosignals": {
+      "post": {
+        "tags": [
+          "product"
+        ],
+        "summary": "Create Auto Signal",
+        "operationId": "create_auto_signal_api_v1_autosignals_post",
+        "parameters": [
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutoSignalIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntentOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/autosignals/{intent_id}": {
+      "put": {
+        "tags": [
+          "product"
+        ],
+        "summary": "Edit Auto Signal",
+        "operationId": "edit_auto_signal_api_v1_autosignals__intent_id__put",
+        "parameters": [
+          {
+            "name": "intent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Intent Id"
+            }
+          },
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutoSignalIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntentOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/autosignals/{intent_id}/{action}": {
+      "post": {
+        "tags": [
+          "product"
+        ],
+        "summary": "Change Auto Signal",
+        "operationId": "change_auto_signal_api_v1_autosignals__intent_id___action__post",
+        "parameters": [
+          {
+            "name": "intent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Intent Id"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Action"
+            }
+          },
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntentOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/offers": {
+      "get": {
+        "tags": [
+          "product"
+        ],
+        "summary": "List Offers",
+        "operationId": "list_offers_api_v1_offers_get",
+        "parameters": [
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OfferOut"
+                  },
+                  "title": "Response List Offers Api V1 Offers Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/offers/{offer_id}/accept": {
+      "post": {
+        "tags": [
+          "product"
+        ],
+        "summary": "Accept Offer",
+        "operationId": "accept_offer_api_v1_offers__offer_id__accept_post",
+        "parameters": [
+          {
+            "name": "offer_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Offer Id"
+            }
+          },
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OfferAction"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/offers/{offer_id}/cancel": {
+      "post": {
+        "tags": [
+          "product"
+        ],
+        "summary": "Cancel Accepted Offer",
+        "operationId": "cancel_accepted_offer_api_v1_offers__offer_id__cancel_post",
+        "parameters": [
+          {
+            "name": "offer_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Offer Id"
+            }
+          },
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/offers/{offer_id}/reject": {
+      "post": {
+        "tags": [
+          "product"
+        ],
+        "summary": "Reject Offer",
+        "operationId": "reject_offer_api_v1_offers__offer_id__reject_post",
+        "parameters": [
+          {
+            "name": "offer_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Offer Id"
+            }
+          },
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/plans": {
+      "get": {
+        "tags": [
+          "product"
+        ],
+        "summary": "List Plans",
+        "operationId": "list_plans_api_v1_plans_get",
+        "parameters": [
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlanOut"
+                  },
+                  "title": "Response List Plans Api V1 Plans Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/plans/{plan_id}": {
+      "get": {
+        "tags": [
+          "product"
+        ],
+        "summary": "Get Plan",
+        "operationId": "get_plan_api_v1_plans__plan_id__get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/leisure/cities": {
+      "get": {
+        "tags": [
+          "product"
+        ],
+        "summary": "Cities",
+        "operationId": "cities_api_v1_leisure_cities_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CityOut"
+                  },
+                  "type": "array",
+                  "title": "Response Cities Api V1 Leisure Cities Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/leisure/sync/{city_slug}": {
+      "post": {
+        "tags": [
+          "product"
+        ],
+        "summary": "Sync",
+        "operationId": "sync_api_v1_leisure_sync__city_slug__post",
+        "parameters": [
+          {
+            "name": "city_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "City Slug"
+            }
+          },
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Sync Api V1 Leisure Sync  City Slug  Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/development/seed-demo/{group_id}": {
+      "post": {
+        "tags": [
+          "product"
+        ],
+        "summary": "Seed Demo",
+        "operationId": "seed_demo_api_v1_development_seed_demo__group_id__post",
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Seed Demo Api V1 Development Seed Demo  Group Id  Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AutoSignalIn": {
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "title": "Group Id"
+          },
+          "city_slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City Slug"
+          },
+          "activity_category": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Activity Category",
+            "default": "any"
+          },
+          "activity_categories": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activity Categories"
+          },
+          "available_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available From"
+          },
+          "available_to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available To"
+          },
+          "budget_max": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Max"
+          },
+          "origin_location_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Location Id"
+          },
+          "radius_km": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Radius Km"
+          },
+          "min_people": {
+            "type": "integer",
+            "maximum": 12.0,
+            "minimum": 1.0,
+            "title": "Min People"
+          },
+          "max_people": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 12.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max People"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "weekdays": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 7,
+            "minItems": 1,
+            "title": "Weekdays"
+          },
+          "local_start": {
+            "type": "string",
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "Local Start"
+          },
+          "local_end": {
+            "type": "string",
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "Local End"
+          },
+          "timezone": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Timezone"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group_id",
+          "min_people",
+          "name",
+          "weekdays",
+          "local_start",
+          "local_end",
+          "timezone"
+        ],
+        "title": "AutoSignalIn"
+      },
+      "CityOut": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "cached": {
+            "type": "boolean",
+            "title": "Cached",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name",
+          "source"
+        ],
+        "title": "CityOut"
+      },
+      "GroupCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "city_slug": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 2,
+            "title": "City Slug"
+          },
+          "bind_current_chat": {
+            "type": "boolean",
+            "title": "Bind Current Chat",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "city_slug"
+        ],
+        "title": "GroupCreate"
+      },
+      "GroupOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "city_slug": {
+            "type": "string",
+            "title": "City Slug"
+          },
+          "member_count": {
+            "type": "integer",
+            "title": "Member Count"
+          },
+          "invite_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invite Token"
+          },
+          "invite_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invite Url"
+          },
+          "max_chat_bound": {
+            "type": "boolean",
+            "title": "Max Chat Bound",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "city_slug",
+          "member_count"
+        ],
+        "title": "GroupOut"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "IntentIn": {
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "title": "Group Id"
+          },
+          "city_slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City Slug"
+          },
+          "activity_category": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Activity Category",
+            "default": "any"
+          },
+          "activity_categories": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activity Categories"
+          },
+          "available_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available From"
+          },
+          "available_to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available To"
+          },
+          "budget_max": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Max"
+          },
+          "origin_location_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Location Id"
+          },
+          "radius_km": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Radius Km"
+          },
+          "min_people": {
+            "type": "integer",
+            "maximum": 12.0,
+            "minimum": 1.0,
+            "title": "Min People"
+          },
+          "max_people": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 12.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max People"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group_id",
+          "min_people"
+        ],
+        "title": "IntentIn"
+      },
+      "IntentOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "provider_state": {
+            "type": "string",
+            "title": "Provider State"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "city_slug": {
+            "type": "string",
+            "title": "City Slug"
+          },
+          "activity_category": {
+            "type": "string",
+            "title": "Activity Category"
+          },
+          "activity_categories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Activity Categories"
+          },
+          "signal_batch_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signal Batch Id"
+          },
+          "group_id": {
+            "type": "string",
+            "title": "Group Id"
+          },
+          "group_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Name"
+          },
+          "budget_max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Max"
+          },
+          "radius_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Radius Km"
+          },
+          "origin_location_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Location Id"
+          },
+          "min_people": {
+            "type": "integer",
+            "title": "Min People"
+          },
+          "max_people": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max People"
+          },
+          "available_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available From"
+          },
+          "available_to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available To"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "weekdays": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weekdays"
+          },
+          "local_start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Local Start"
+          },
+          "local_end": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Local End"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "status",
+          "provider_state",
+          "name",
+          "city_slug",
+          "activity_category",
+          "activity_categories",
+          "signal_batch_id",
+          "group_id",
+          "budget_max",
+          "radius_km",
+          "min_people",
+          "max_people",
+          "expires_at"
+        ],
+        "title": "IntentOut"
+      },
+      "JoinOut": {
+        "properties": {
+          "group": {
+            "$ref": "#/components/schemas/GroupOut"
+          },
+          "already_member": {
+            "type": "boolean",
+            "title": "Already Member"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group",
+          "already_member"
+        ],
+        "title": "JoinOut"
+      },
+      "LocationIn": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "address_text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 250
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address Text"
+          },
+          "latitude": {
+            "type": "number",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Latitude"
+          },
+          "longitude": {
+            "type": "number",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Longitude"
+          },
+          "city_slug": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 2,
+            "title": "City Slug"
+          },
+          "kind": {
+            "type": "string",
+            "pattern": "^(SAVED|CURRENT|MANUAL)$",
+            "title": "Kind",
+            "default": "SAVED"
+          },
+          "is_ephemeral": {
+            "type": "boolean",
+            "title": "Is Ephemeral",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "latitude",
+          "longitude",
+          "city_slug"
+        ],
+        "title": "LocationIn"
+      },
+      "LocationOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "city_slug": {
+            "type": "string",
+            "title": "City Slug"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "city_slug",
+          "kind"
+        ],
+        "title": "LocationOut"
+      },
+      "OfferAction": {
+        "properties": {
+          "confirm_near_exception": {
+            "type": "boolean",
+            "title": "Confirm Near Exception",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "OfferAction"
+      },
+      "OfferOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "is_near": {
+            "type": "boolean",
+            "title": "Is Near"
+          },
+          "group_id": {
+            "type": "string",
+            "title": "Group Id"
+          },
+          "group_name": {
+            "type": "string",
+            "title": "Group Name"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "venue_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Venue Name"
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Starts At"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ends At"
+          },
+          "price_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Text"
+          },
+          "price_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Min"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "source_fetched_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Source Fetched At"
+          },
+          "distance_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Km"
+          },
+          "potential_count": {
+            "type": "integer",
+            "title": "Potential Count"
+          },
+          "required_min_people": {
+            "type": "integer",
+            "title": "Required Min People"
+          },
+          "required_max_people": {
+            "type": "integer",
+            "title": "Required Max People"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "budget_delta": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Delta"
+          },
+          "accepted_count": {
+            "type": "integer",
+            "title": "Accepted Count",
+            "default": 0
+          },
+          "effective_max": {
+            "type": "integer",
+            "title": "Effective Max",
+            "default": 0
+          },
+          "remaining_to_confirm": {
+            "type": "integer",
+            "title": "Remaining To Confirm",
+            "default": 0
+          },
+          "remaining_capacity": {
+            "type": "integer",
+            "title": "Remaining Capacity",
+            "default": 0
+          },
+          "waitlist_count": {
+            "type": "integer",
+            "title": "Waitlist Count",
+            "default": 0
+          },
+          "price_kind": {
+            "type": "string",
+            "title": "Price Kind",
+            "default": "UNKNOWN"
+          },
+          "opening_hours_unverified": {
+            "type": "boolean",
+            "title": "Opening Hours Unverified",
+            "default": false
+          },
+          "address_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "is_near",
+          "group_id",
+          "group_name",
+          "title",
+          "venue_name",
+          "starts_at",
+          "ends_at",
+          "price_text",
+          "price_min",
+          "is_demo",
+          "source_url",
+          "source_fetched_at",
+          "distance_km",
+          "potential_count",
+          "required_min_people",
+          "required_max_people",
+          "expires_at"
+        ],
+        "title": "OfferOut"
+      },
+      "PlanOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "venue_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Venue Name"
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Starts At"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ends At"
+          },
+          "price_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Text"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "participant_count": {
+            "type": "integer",
+            "title": "Participant Count"
+          },
+          "required_min_people": {
+            "type": "integer",
+            "title": "Required Min People"
+          },
+          "required_max_people": {
+            "type": "integer",
+            "title": "Required Max People"
+          },
+          "share_text": {
+            "type": "string",
+            "title": "Share Text"
+          },
+          "group_id": {
+            "type": "string",
+            "title": "Group Id"
+          },
+          "group_name": {
+            "type": "string",
+            "title": "Group Name"
+          },
+          "remaining_to_confirm": {
+            "type": "integer",
+            "title": "Remaining To Confirm",
+            "default": 0
+          },
+          "remaining_capacity": {
+            "type": "integer",
+            "title": "Remaining Capacity",
+            "default": 0
+          },
+          "participants": {
+            "items": {
+              "$ref": "#/components/schemas/PlanParticipantOut"
+            },
+            "type": "array",
+            "title": "Participants",
+            "default": []
+          },
+          "my_offer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "My Offer Id"
+          },
+          "my_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "My Status"
+          },
+          "price_kind": {
+            "type": "string",
+            "title": "Price Kind",
+            "default": "UNKNOWN"
+          },
+          "opening_hours_unverified": {
+            "type": "boolean",
+            "title": "Opening Hours Unverified",
+            "default": false
+          },
+          "address_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "title",
+          "venue_name",
+          "starts_at",
+          "ends_at",
+          "price_text",
+          "source_url",
+          "participant_count",
+          "required_min_people",
+          "required_max_people",
+          "share_text",
+          "group_id",
+          "group_name"
+        ],
+        "title": "PlanOut"
+      },
+      "PlanParticipantOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "display_name"
+        ],
+        "title": "PlanParticipantOut"
+      },
+      "SessionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "max_mode": {
+            "type": "string",
+            "title": "Max Mode"
+          },
+          "max_chat_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Chat Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "display_name",
+          "max_mode"
+        ],
+        "title": "SessionOut"
+      },
+      "SignalBatchIn": {
+        "properties": {
+          "group_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "minItems": 1,
+            "title": "Group Ids"
+          },
+          "activity_categories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Activity Categories"
+          },
+          "available_from": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Available From"
+          },
+          "available_to": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Available To"
+          },
+          "budget_max": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Max"
+          },
+          "origin_location_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Location Id"
+          },
+          "radius_km": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Radius Km"
+          },
+          "min_people": {
+            "type": "integer",
+            "maximum": 12.0,
+            "minimum": 2.0,
+            "title": "Min People",
+            "default": 2
+          },
+          "max_people": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 12.0,
+                "minimum": 2.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max People"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group_ids",
+          "available_from",
+          "available_to"
+        ],
+        "title": "SignalBatchIn"
+      },
+      "SignalBatchOut": {
+        "properties": {
+          "signal_batch_id": {
+            "type": "string",
+            "title": "Signal Batch Id"
+          },
+          "intents": {
+            "items": {
+              "$ref": "#/components/schemas/IntentOut"
+            },
+            "type": "array",
+            "title": "Intents"
+          }
+        },
+        "type": "object",
+        "required": [
+          "signal_batch_id",
+          "intents"
+        ],
+        "title": "SignalBatchOut"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

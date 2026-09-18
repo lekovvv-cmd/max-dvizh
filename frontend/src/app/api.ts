@@ -1,8 +1,8 @@
-export type Group = { id: string; name: string; city_slug: string; member_count: number; invite_token?: string | null; invite_url?: string | null }
+export type Group = { id: string; name: string; city_slug: string; member_count: number; max_chat_bound: boolean; invite_token?: string | null; invite_url?: string | null }
 export type Location = { id: string; label: string; city_slug: string; kind: string }
-export type Intent = { id: string; type: string; status: string; name: string | null; city_slug: string; activity_category: string; budget_max: number | null; radius_km: number | null; min_people: number; max_people: number; expires_at: string | null; weekdays: number[] | null; local_start: string | null; local_end: string | null }
-export type Offer = { id: string; status: string; is_near: boolean; group_id: string; group_name: string; title: string; venue_name: string | null; starts_at: string; ends_at: string; price_text: string | null; price_min: number | null; is_demo: boolean; source_url: string | null; source_fetched_at: string; distance_km: number | null; potential_count: number; required_min_people: number; required_max_people: number; expires_at: string; budget_delta: number | null }
-export type Plan = { id: string; status: string; title: string; venue_name: string | null; starts_at: string; ends_at: string; price_text: string | null; source_url: string | null; participant_count: number; required_min_people: number; required_max_people: number; share_text: string }
+export type Intent = { id: string; type: string; status: string; provider_state: string; name: string | null; city_slug: string; group_id: string; group_name: string | null; signal_batch_id: string | null; activity_category: string; activity_categories: string[]; available_from: string | null; available_to: string | null; budget_max: number | null; radius_km: number | null; origin_location_id: string | null; min_people: number; max_people: number | null; expires_at: string | null; weekdays: number[] | null; local_start: string | null; local_end: string | null }
+export type Offer = { id: string; status: string; is_near: boolean; group_id: string; group_name: string; title: string; venue_name: string | null; starts_at: string; ends_at: string; price_text: string | null; price_min: number | null; price_kind: string; address_text: string | null; opening_hours_unverified: boolean; is_demo: boolean; source_url: string | null; source_fetched_at: string; distance_km: number | null; potential_count: number; required_min_people: number; required_max_people: number; accepted_count: number; effective_max: number; remaining_to_confirm: number; remaining_capacity: number; waitlist_count: number; expires_at: string; budget_delta: number | null }
+export type Plan = { id: string; status: string; title: string; venue_name: string | null; starts_at: string; ends_at: string; price_text: string | null; price_kind: string; address_text: string | null; opening_hours_unverified: boolean; source_url: string | null; participant_count: number; required_min_people: number; required_max_people: number; group_id: string; group_name: string; remaining_to_confirm: number; remaining_capacity: number; participants: { id: string; display_name: string }[]; my_offer_id: string | null; my_status: string | null; share_text: string }
 
 declare global {
   interface Window { WebApp?: { initData?: string; shareMaxContent?: (params: { text?: string; link?: string }) => void; openMaxLink?: (url: string) => void } }
@@ -29,19 +29,26 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  session: () => request<{ id: string; display_name: string }>('/session'),
+  session: () => request<{ id: string; display_name: string; max_mode: string; max_chat_id: string | null }>('/session'),
   groups: () => request<Group[]>('/groups'),
-  createGroup: (body: { name: string; city_slug: string }) => request<Group>('/groups', { method: 'POST', body: JSON.stringify(body) }),
-  join: (token: string) => request<{ group: Group }>(`/groups/join/${token}`, { method: 'POST' }),
+  createGroup: (body: { name: string; city_slug: string; bind_current_chat?: boolean }) => request<Group>('/groups', { method: 'POST', body: JSON.stringify(body) }),
+  join: (token: string) => request<{ group: Group; already_member: boolean }>(`/groups/join/${token}`, { method: 'POST' }),
   locations: () => request<Location[]>('/locations'),
   createLocation: (body: object) => request<Location>('/locations', { method: 'POST', body: JSON.stringify(body) }),
-  intents: (groupId: string) => request<Intent[]>(`/intents?group_id=${encodeURIComponent(groupId)}`),
+  intents: () => request<Intent[]>('/intents'),
   signal: (body: object) => request<Intent>('/intents', { method: 'POST', body: JSON.stringify(body) }),
+  signalBatch: (body: object) => request<{ signal_batch_id: string; intents: Intent[] }>('/signal-batches', { method: 'POST', body: JSON.stringify(body) }),
+  editSignalBatch: (id: string, body: object) => request<{ signal_batch_id: string; intents: Intent[] }>(`/signal-batches/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  refreshSignalBatch: (id: string) => request<{ signal_batch_id: string; intents: Intent[] }>(`/signal-batches/${id}/refresh`, { method: 'POST' }),
+  cancelSignalBatch: (id: string) => request<{ status: string }>(`/signal-batches/${id}`, { method: 'DELETE' }),
   autosignal: (body: object) => request<Intent>('/autosignals', { method: 'POST', body: JSON.stringify(body) }),
+  editAutosignal: (id: string, body: object) => request<Intent>(`/autosignals/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   autoAction: (id: string, action: string) => request<Intent>(`/autosignals/${id}/${action}`, { method: 'POST' }),
   offers: () => request<Offer[]>('/offers'),
   accept: (id: string, near: boolean) => request<Offer>(`/offers/${id}/accept`, { method: 'POST', body: JSON.stringify({ confirm_near_exception: near }) }),
   reject: (id: string) => request<Offer>(`/offers/${id}/reject`, { method: 'POST' }),
+  cancelAcceptance: (id: string) => request<Offer>(`/offers/${id}/cancel`, { method: 'POST' }),
   plans: () => request<Plan[]>('/plans'),
+  cities: () => request<{ slug: string; name: string }[]>('/leisure/cities'),
   seedDemo: (groupId: string) => request<{ status: string }>(`/development/seed-demo/${groupId}`, { method: 'POST' }),
 }

@@ -111,6 +111,27 @@ The MAX Bridge is loaded from the official CDN `https://st.max.ru/js/max-web-app
 
 To complete real MAX verification, the owner must create/register the bot and Mini App in MAX Business, deploy this app to HTTPS, set the token only in deployment, configure a HTTPS webhook and run the mobile/web walkthrough. This repository does not claim that external account step is complete.
 
+## Product refactor verification (2026-09-18)
+
+Current official MAX [Bridge](https://dev.max.ru/docs/webapps/bridge) documents signed `initData` with optional `chat: {id,type}`, `shareMaxContent`, and `start_param`. The [validation guide](https://dev.max.ru/docs/webapps/validation) still requires server-side two-stage HMAC. Chat binding accepts only a signed `CHAT` context and verifies bot access with [GET /chats/{chatId}](https://dev.max.ru/docs-api/methods/GET/chats/-chatId-/); raw frontend chat IDs are never trusted. The [member endpoint](https://dev.max.ru/docs-api/methods/GET/chats/-chatId-/members) requires the bot to be a chat administrator, so the app does not claim member sync when the bot lacks that permission. MAX [Mini App deep links](https://dev.max.ru/docs/webapps/introduction) support `startapp` payloads with Latin letters, digits, underscore and hyphen up to 512 characters. Offer and plan notifications use opaque UUID payloads and direct Mini App links. `GET /chats` is unavailable since June 2026 per [MAX changelog](https://dev.max.ru/docs-api/changelog-api); the implementation never relies on it.
+
+The official [KudaGo API](https://docs.kudago.com/api/) documents `events` with `expand=place`, distinct `places`, event/place category lists, city `timezone`, `next` pagination, place `timetable`, `is_closed` and coordinates. The adapter requests bounded event and place pages for each query slice. It does not infer an Event end or assert that free-text place opening hours are verified.
+
+### Added own API contracts
+
+- `POST /api/v1/signal-batches`, `PUT /api/v1/signal-batches/{id}`, `DELETE /api/v1/signal-batches/{id}`: atomic one-time Signal batch for same-city Companies.
+- `GET /api/v1/intents`: current user's own Intents across Companies, including safe owner-only display fields.
+- `PUT /api/v1/autosignals/{id}` and existing pause/resume/cancel action route: recurrence management.
+- AutoSignal create, edit and resume persist the rule and return immediately; a response background task evaluates the saved rule against the current seven-day provider slice with a separate database session. The periodic scheduler remains the fallback for later matching and provider recovery.
+- `POST /api/v1/offers/{id}/cancel`: withdraw before cutoff and recompute affected plans.
+- Offer/Plan responses now include accepted counts, remaining capacity, Company context, price kind and place opening-hours warning. Plan participant profiles are visible only after confirmation.
+
 ## Runtime configuration
 
 `APP_ENV=development` is the only mode that accepts `X-Demo-User`; every other value requires validated MAX init data. Compose passes all used backend settings, including MAX URLs/token, KudaGo settings, matching thresholds, TTLs and outbox retry/poll settings. Production must set `APP_ENV=production` and deployment secrets externally.
+## Provider state and retry
+
+`GET /api/v1/intents` returns each user's `provider_state`. `POST /api/v1/signal-batches/{batch_id}/refresh` reruns the saved one-time Signal's provider query and matching; it is owner-only and does not create a new Signal. The Mini App presents distinct source-unavailable, no-source, and no-feasible-plan states with a retry action.
+## Invite states
+
+`POST /api/v1/groups/join/{token}` returns `404` for an unknown token and `410` for a known token whose optional `invite_expires_at` has passed. Existing and newly created links have no automatic expiry until a separate product policy sets one.

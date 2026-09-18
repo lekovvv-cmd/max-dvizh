@@ -3,139 +3,69 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from './App'
 
 const group = { id: 'group', name: 'Друзья', city_slug: 'ekb', member_count: 4 }
-const offer = (id: string, overrides = {}) => ({ id, status: 'PENDING', is_near: false, group_id: 'group', group_name: 'Друзья', title: `ДВИЖ ${id}`, venue_name: 'CyberX', starts_at: '2026-09-17T18:00:00Z', ends_at: '2026-09-17T20:00:00Z', price_text: '400 ₽', price_min: 400, is_demo: false, source_url: null, source_fetched_at: '2026-09-16T18:00:00Z', distance_km: 2.4, potential_count: 4, required_min_people: 3, required_max_people: 5, expires_at: '2026-09-17T17:00:00Z', budget_delta: null, ...overrides })
+const city = { slug: 'ekb', name: 'Екатеринбург' }
+const offer = { id: 'offer', status: 'PENDING', is_near: false, group_id: 'group', group_name: 'Друзья', title: 'Квиз', venue_name: 'Клуб', starts_at: '2027-09-17T18:00:00Z', ends_at: '2027-09-17T20:00:00Z', price_text: '400 ₽', price_min: 400, is_demo: false, source_url: null, source_fetched_at: '2026-09-16T18:00:00Z', distance_km: null, accepted_count: 2, remaining_capacity: 3, required_min_people: 3, required_max_people: 5, expires_at: '2027-09-17T17:00:00Z', budget_delta: null }
 
-function mockApi(overrides: Record<string, unknown> = {}) {
-  vi.stubGlobal('fetch', vi.fn((url: string) => {
-    const body = url.includes('/session') ? { id: '1', display_name: 'Антон' }
-      : url.includes('/groups') ? [group]
-        : url.includes('/offers') ? []
-          : url.includes('/plans') || url.includes('/locations') || url.includes('/intents') ? []
-            : []
-    const selected = url.includes('/offers') ? overrides.offers ?? body
-      : url.includes('/intents') ? overrides.intents ?? body
-        : body
-    return Promise.resolve({ ok: true, json: async () => selected })
-  }))
+function mockApi(data: { groups?: typeof group[]; offers?: typeof offer[]; intents?: object[] } = {}) {
+  const requests = vi.fn((url: string, init?: RequestInit) => {
+    const result = url.includes('/session') ? { id: '1', display_name: 'Антон', max_mode: 'DEV', max_chat_id: null }
+      : url.includes('/cities') ? [city]
+        : url.includes('/groups') ? data.groups ?? [group]
+          : url.includes('/offers') ? data.offers ?? []
+            : url.includes('/intents') ? data.intents ?? []
+            : url.includes('/signal-batches') ? { batch_id: 'batch', intents: [] }
+              : []
+    void init
+    return Promise.resolve({ ok: true, json: async () => result })
+  })
+  vi.stubGlobal('fetch', requests)
+  return requests
 }
 
 describe('App', () => {
   afterEach(() => cleanup())
-  beforeEach(() => { localStorage.clear(); mockApi() })
+  beforeEach(() => { localStorage.clear(); sessionStorage.clear(); mockApi() })
 
-  it('guides a first MAX visitor to create a private group', async () => {
-    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve({ ok: true, json: async () => url.includes('/session') ? { id: '1', display_name: 'Антон' } : [] })))
+  it('asks a first visitor to name a company and choose its city', async () => {
+    mockApi({ groups: [] })
     render(<App />)
-    expect(await screen.findByRole('heading', { name: 'С кем собираем ДВИЖ?' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Новая компания' })).toBeInTheDocument()
+    expect(await screen.findByRole('option', { name: 'Екатеринбург' })).toBeInTheDocument()
   })
 
-  it('renders the full cross-group offer pool and clear Near action', async () => {
-    mockApi({ offers: [offer('1'), offer('2', { group_name: 'Универ', is_near: true, title: 'Боулинг', budget_delta: 100 })] })
+  it('shows the full offer pool and accepted count', async () => {
+    mockApi({ offers: [offer, { ...offer, id: 'second', title: 'Боулинг', group_name: 'Универ' }] })
     render(<App />)
-    expect(await screen.findByText('ДВИЖ 1')).toBeInTheDocument()
+    expect(await screen.findByText('Квиз')).toBeInTheDocument()
     expect(screen.getByText('Боулинг')).toBeInTheDocument()
     expect(screen.getByText('Универ')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Всё равно впишусь' })).toBeInTheDocument()
   })
 
-  it('omits absent price and distance rows from an offer', async () => {
-    mockApi({ offers: [offer('без данных', { venue_name: null, price_text: null, price_min: null, distance_km: null })] })
-    render(<App />)
-    expect(await screen.findByText('ДВИЖ без данных')).toBeInTheDocument()
-    expect(screen.queryByText(/Цена неизвестна|Цена не указана|км от твоей точки/)).not.toBeInTheDocument()
-  })
-
-  it('opens the progressive Signal wizard from the empty home state', async () => {
+  it('creates one Signal batch with optional conditions unset', async () => {
+    const requests = mockApi()
     render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: 'Подать сигнал ⚡' }))
-    expect(screen.getByRole('heading', { name: 'Когда и что?' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Дальше' }))
-    expect(screen.getByRole('heading', { name: 'Условия' })).toBeInTheDocument()
-    expect(screen.getAllByText('Неважно')).toHaveLength(2)
-  })
-
-  it('submits null budget and radius when their “Неважно” presets remain selected', async () => {
-    const fetchMock = vi.fn((url: string, _init?: RequestInit) => {
-      void _init
-      const body = url.includes('/session') ? { id: '1', display_name: 'Антон' }
-        : url.includes('/groups') ? [group]
-          : []
-      return Promise.resolve({ ok: true, json: async () => body })
-    })
-    vi.stubGlobal('fetch', fetchMock)
-    render(<App />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Подать сигнал ⚡' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Дальше' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Дальше' }))
+    expect(screen.getByRole('heading', { name: 'Когда свободен?' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Подать сигнал ⚡' }))
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/v1/intents', expect.objectContaining({ method: 'POST', body: expect.any(String) })))
-    const signalCall = fetchMock.mock.calls.find(([url]) => url === '/api/v1/intents')
-    expect(signalCall).toBeDefined()
-    const request = signalCall?.[1]
-    expect(request).toBeDefined()
-    if (!request) throw new Error('Signal request was not sent')
-    expect(JSON.parse(String(request.body))).toMatchObject({ budget_max: null, radius_km: null, origin_location_id: null })
+    await waitFor(() => expect(requests.mock.calls.some(([url]) => url === '/api/v1/signal-batches')).toBe(true))
+    const call = requests.mock.calls.find(([url]) => url === '/api/v1/signal-batches')
+    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ group_ids: ['group'], activity_categories: ['any'], budget_max: null, radius_km: null, origin_location_id: null, min_people: 2, max_people: null })
   })
 
-  it('keeps a custom zero budget instead of converting it to null', async () => {
-    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
-      void init
-      return Promise.resolve({ ok: true, json: async () => url.includes('/session') ? { id: '1', display_name: 'Антон' } : url.includes('/groups') ? [group] : [] })
-    })
-    vi.stubGlobal('fetch', fetchMock)
+  it('keeps AutoSignal and plan navigation reachable', async () => {
     render(<App />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Подать сигнал ⚡' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Дальше' }))
-    fireEvent.click(screen.getAllByRole('button', { name: 'Свой' })[0])
-    fireEvent.change(screen.getByLabelText('Свой бюджет'), { target: { value: '0' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Дальше' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Ровно 5' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Подать сигнал ⚡' }))
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/v1/intents', expect.anything()))
-    const signalCall = fetchMock.mock.calls.find(([url]) => url === '/api/v1/intents')
-    const request = signalCall?.[1]
-    expect(JSON.parse(String(request?.body))).toMatchObject({ budget_max: 0, radius_km: null, min_people: 5, max_people: 5 })
-  })
-
-  it('sends selected AutoSignal weekdays, time, timezone, and group size', async () => {
-    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
-      void init
-      return Promise.resolve({ ok: true, json: async () => url.includes('/session') ? { id: '1', display_name: 'Антон' } : url.includes('/groups') ? [group] : [] })
-    })
-    vi.stubGlobal('fetch', fetchMock)
-    render(<App />)
-    await screen.findByText('Пока тихо')
-    fireEvent.click(screen.getByRole('button', { name: 'Авто' }))
-    fireEvent.click(screen.getByRole('button', { name: '+ Новый автосигнал' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Пн' }))
-    fireEvent.change(screen.getByDisplayValue('18:00'), { target: { value: '22:00' } })
-    fireEvent.change(screen.getByDisplayValue('23:00'), { target: { value: '02:00' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Ровно 5' }))
-    fireEvent.change(screen.getByLabelText('Бюджет'), { target: { value: '0' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }))
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/v1/autosignals', expect.anything()))
-    const autoCall = fetchMock.mock.calls.find(([url]) => url === '/api/v1/autosignals')
-    const request = autoCall?.[1]
-    expect(JSON.parse(String(request?.body))).toMatchObject({
-      weekdays: [0, 4], local_start: '22:00', local_end: '02:00',
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, budget_max: 0, min_people: 5, max_people: 5,
-    })
-  })
-
-  it('shows the actual recurring schedule stored for an AutoSignal', async () => {
-    mockApi({ intents: [{ id: 'auto', type: 'RECURRING', status: 'ACTIVE', name: 'Ночной ДВИЖ', city_slug: 'ekb', activity_category: 'games', budget_max: null, radius_km: null, min_people: 3, max_people: 12, expires_at: null, weekdays: [0, 4], local_start: '22:00', local_end: '02:00' }] })
-    render(<App />)
-    await screen.findByText('Пока тихо')
-    fireEvent.click(screen.getByRole('button', { name: 'Авто' }))
-    expect(await screen.findByText('Пн · Пт · 22:00–02:00')).toBeInTheDocument()
-  })
-
-  it('keeps navigation available for AutoSignals and plans', async () => {
-    render(<App />)
-    await screen.findByText('Пока тихо')
+    await screen.findByText('Сигнала пока нет')
     fireEvent.click(screen.getByRole('button', { name: 'Авто' }))
     expect(screen.getByRole('heading', { name: 'Позови меня, если…' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Планы' }))
     expect(screen.getByRole('heading', { name: 'Ближайшие ДВИЖи' })).toBeInTheDocument()
+  })
+
+  it('shows a provider outage distinctly and offers a retry', async () => {
+    const requests = mockApi({ intents: [{ id: 'intent', type: 'ONE_TIME', status: 'ACTIVE', provider_state: 'PROVIDER_UNAVAILABLE', signal_batch_id: 'batch', group_id: 'group', group_name: 'Друзья', activity_categories: ['any'], available_from: '2027-09-17T18:00:00Z', expires_at: '2027-09-18T00:00:00Z' }] })
+    render(<App />)
+    expect(await screen.findByText('Источник сейчас недоступен')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить поиск' }))
+    await waitFor(() => expect(requests.mock.calls.some(([url]) => url === '/api/v1/signal-batches/batch/refresh')).toBe(true))
   })
 })

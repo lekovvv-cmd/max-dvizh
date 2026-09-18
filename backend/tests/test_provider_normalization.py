@@ -1,14 +1,41 @@
 from datetime import UTC, datetime
 
-from app.modules.leisure.provider import normalize_event
+from app.modules.leisure.provider import (
+    ProviderQuery,
+    normalize_event,
+    normalize_events,
+    normalize_place,
+    price_kind,
+)
 
 
-def test_provider_end_is_preserved_and_missing_end_uses_two_hour_fallback() -> None:
+def test_provider_end_is_preserved_and_missing_end_is_unverified() -> None:
     fetched = datetime(2026, 9, 16, tzinfo=UTC)
     explicit = normalize_event({"id": 1, "dates": [{"start": 1_789_600_000, "end": 1_789_603_600}]}, "ekb", fetched)
     fallback = normalize_event({"id": 2, "dates": [{"start": 1_789_600_000}]}, "ekb", fetched)
     assert explicit is not None and explicit.ends_at.timestamp() == 1_789_603_600
-    assert fallback is not None and fallback.ends_at.timestamp() == 1_789_607_200
+    assert fallback is None
+
+
+def test_every_documented_occurrence_becomes_concrete_item() -> None:
+    fetched = datetime(2026, 9, 16, tzinfo=UTC)
+    raw = {"id": 42, "categories": ["quest", "concert"], "place": {"title": "Клуб", "coords": {"lat": 56.8, "lon": 60.6}}, "dates": [{"start": 1_789_600_000, "end": 1_789_603_600}, {"start": 1_789_686_400, "end": 1_789_690_000}]}
+    items = normalize_events(raw, "ekb", fetched)
+    assert len(items) == 2
+    assert items[0].starts_at != items[1].starts_at
+    assert set(items[0].categories) == {"games", "concert"}
+    assert items[0].latitude == 56.8
+
+
+def test_place_and_price_floor_are_explicitly_uncertain() -> None:
+    fetched = datetime(2026, 9, 16, tzinfo=UTC)
+    query = ProviderQuery("ekb", fetched, fetched.replace(day=17))
+    place = normalize_place({"id": 1, "title": "Антикафе", "categories": ["anticafe"], "site_url": "https://kudago.com/place/1/", "address": "Улица 1", "coords": {"lat": 56.8, "lon": 60.6}}, query, fetched)
+    assert place is not None and place.item_type == "PLACE"
+    assert place.opening_hours_unverified and place.address_text == "Улица 1"
+    assert place.categories == ("games",)
+    assert price_kind("от 400 ₽", False) == ("FROM", 400)
+    assert price_kind(None, False) == ("UNKNOWN", None)
 
 
 def test_provider_discards_missing_or_invalid_dates_and_uses_first_valid_entry() -> None:

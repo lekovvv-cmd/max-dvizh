@@ -7,6 +7,7 @@ Keep MVP small: Home, AutoSignals, Plans, Profile/Locations. Avoid admin-dashboa
 
 ## Home
 Primary CTA: `⚡ Подать сигнал`.
+Signal creation remains available when the private Offer pool is populated. Offer acceptance keeps the stronger card-level action; its full label must fit on narrow screens, including Near confirmation.
 Also show active Signal, AutoSignals and relevant Offer/ConfirmedPlan.
 
 ## Signal form
@@ -69,6 +70,13 @@ Always provide next action: retry/back/edit/use cached result.
 
 ## Accessibility
 Focus, touch targets, contrast, semantic controls, no color-only meaning, reduced motion.
+AutoSignal group-size choices expose their selected state with `aria-pressed`. Personal conditions are described as private; company selection scopes new signals, not the global Offer pool.
 
 ## MAX
 Use official current MAX UI where helpful; verify mobile + web.
+
+## Product rework (2026-09-18)
+
+Home is a working screen: active Signal batches, plans still collecting and the full pending Offer pool appear before marketing copy. A Signal uses one short form: time preset, multi-category choice, one or more same-city Companies, and collapsed optional conditions. The primary group-size labels are `Неважно`, `Хотя бы 3`, `Хотя бы 5`; exact size is advanced. Distance controls are unavailable until a real saved place exists. Saving a place asks for device geolocation permission and a user label; no raw coordinates are the main UI.
+
+Offer cards show accepted count, remaining people/capacity and explicit Near action. Confirmed plans can remain open to joins. A collecting responder sees the plan on Home and can withdraw before cutoff. Exact-N overflow is shown privately as a waitlist response. Place plans without verified opening hours state `Режим работы лучше проверить` and link to the source. A FROM price states that final price may be higher. Production does not mount development tools.

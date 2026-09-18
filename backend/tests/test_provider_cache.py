@@ -89,7 +89,7 @@ def test_cache_keys_partition_city_time_and_category_queries() -> None:
 
 
 def test_kudago_request_uses_the_same_city_time_category_slice(monkeypatch: object) -> None:
-    captured: dict[str, object] = {}
+    captured: list[tuple[str, dict[str, object]]] = []
 
     class Response:
         def raise_for_status(self) -> None:
@@ -98,8 +98,8 @@ def test_kudago_request_uses_the_same_city_time_category_slice(monkeypatch: obje
         def json(self) -> dict[str, list[object]]:
             return {"results": []}
 
-    def fake_get(_: str, *, params: dict[str, object], timeout: float) -> Response:
-        captured.update(params)
+    def fake_get(url: str, *, params: dict[str, object], timeout: float) -> Response:
+        captured.append((url, dict(params)))
         assert timeout > 0
         return Response()
 
@@ -107,7 +107,11 @@ def test_kudago_request_uses_the_same_city_time_category_slice(monkeypatch: obje
     requested = query()
     KudaGoProvider().items(requested)
 
-    assert captured["location"] == "ekb"
-    assert captured["actual_since"] == int(requested.starts_at.timestamp())
-    assert captured["actual_until"] == int(requested.ends_at.timestamp())
-    assert captured["categories"] == "concert"
+    assert len(captured) == 2
+    events, places = captured
+    assert events[0].endswith("/events/") and places[0].endswith("/places/")
+    assert events[1]["location"] == places[1]["location"] == "ekb"
+    assert events[1]["actual_since"] == int(requested.starts_at.timestamp())
+    assert events[1]["actual_until"] == int(requested.ends_at.timestamp())
+    assert events[1]["categories"] == "concert"
+    assert places[1]["categories"] == "clubs,concert-hall"

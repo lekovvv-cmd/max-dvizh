@@ -10,11 +10,13 @@ class SessionOut(BaseModel):
     id: str
     display_name: str
     max_mode: str
+    max_chat_id: str | None = None
 
 
 class GroupCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     city_slug: str = Field(min_length=2, max_length=64)
+    bind_current_chat: bool = False
 
 
 class GroupOut(BaseModel):
@@ -24,6 +26,7 @@ class GroupOut(BaseModel):
     member_count: int
     invite_token: str | None = None
     invite_url: str | None = None
+    max_chat_bound: bool = False
 
 
 class JoinOut(BaseModel):
@@ -33,6 +36,7 @@ class JoinOut(BaseModel):
 
 class LocationIn(BaseModel):
     label: str = Field(min_length=1, max_length=80)
+    address_text: str | None = Field(default=None, max_length=250)
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
     city_slug: str = Field(min_length=2, max_length=64)
@@ -49,22 +53,56 @@ class LocationOut(BaseModel):
 
 class IntentIn(BaseModel):
     group_id: str
-    city_slug: str
-    activity_category: str = Field(min_length=1, max_length=64)
+    city_slug: str | None = None
+    activity_category: str = Field(default="any", min_length=1, max_length=64)
+    activity_categories: list[str] | None = None
     available_from: datetime | None = None
     available_to: datetime | None = None
     budget_max: int | None = Field(default=None, ge=0, le=100000)
     origin_location_id: str | None = None
     radius_km: float | None = Field(default=None, gt=0, le=100)
     min_people: int = Field(ge=1, le=12)
-    max_people: int = Field(ge=1, le=12)
+    max_people: int | None = Field(default=None, ge=1, le=12)
     expires_at: datetime | None = None
 
     @model_validator(mode="after")
     def validate_optional_radius(self) -> IntentIn:
         if self.radius_km is not None and self.origin_location_id is None:
             raise ValueError("Для радиуса выберите точку отправления")
+        if self.max_people is not None and self.min_people > self.max_people:
+            raise ValueError("Минимум участников больше максимума")
+        if self.activity_categories is not None and (not self.activity_categories or len(self.activity_categories) > 8 or any(not item or len(item) > 64 for item in self.activity_categories)):
+            raise ValueError("Выберите категории")
         return self
+
+
+class SignalBatchIn(BaseModel):
+    group_ids: list[str] = Field(min_length=1, max_length=12)
+    activity_categories: list[str] = Field(default_factory=lambda: ["any"], min_length=1, max_length=8)
+    available_from: datetime
+    available_to: datetime
+    budget_max: int | None = Field(default=None, ge=0, le=100000)
+    origin_location_id: str | None = None
+    radius_km: float | None = Field(default=None, gt=0, le=100)
+    min_people: int = Field(default=2, ge=2, le=12)
+    max_people: int | None = Field(default=None, ge=2, le=12)
+
+    @model_validator(mode="after")
+    def validate_batch(self) -> SignalBatchIn:
+        if len(set(self.group_ids)) != len(self.group_ids):
+            raise ValueError("Компания выбрана несколько раз")
+        if self.available_from >= self.available_to:
+            raise ValueError("Укажите корректное окно времени")
+        if self.max_people is not None and self.max_people < self.min_people:
+            raise ValueError("Минимум участников больше максимума")
+        if self.radius_km is not None and not self.origin_location_id:
+            raise ValueError("Для радиуса выберите место")
+        return self
+
+
+class SignalBatchOut(BaseModel):
+    signal_batch_id: str
+    intents: list[IntentOut]
 
 
 class AutoSignalIn(IntentIn):
@@ -89,13 +127,21 @@ class IntentOut(BaseModel):
     id: str
     type: str
     status: str
+    provider_state: str
     name: str | None
     city_slug: str
     activity_category: str
+    activity_categories: list[str]
+    signal_batch_id: str | None
+    group_id: str
+    group_name: str | None = None
     budget_max: int | None
     radius_km: float | None
+    origin_location_id: str | None = None
     min_people: int
-    max_people: int
+    max_people: int | None
+    available_from: datetime | None = None
+    available_to: datetime | None = None
     expires_at: datetime | None
     weekdays: list[int] | None = None
     local_start: str | None = None
@@ -123,6 +169,14 @@ class OfferOut(BaseModel):
     required_max_people: int
     expires_at: datetime
     budget_delta: int | None = None
+    accepted_count: int = 0
+    effective_max: int = 0
+    remaining_to_confirm: int = 0
+    remaining_capacity: int = 0
+    waitlist_count: int = 0
+    price_kind: str = "UNKNOWN"
+    opening_hours_unverified: bool = False
+    address_text: str | None = None
 
 
 class OfferAction(BaseModel):
@@ -142,6 +196,21 @@ class PlanOut(BaseModel):
     required_min_people: int
     required_max_people: int
     share_text: str
+    group_id: str
+    group_name: str
+    remaining_to_confirm: int = 0
+    remaining_capacity: int = 0
+    participants: list[PlanParticipantOut] = []
+    my_offer_id: str | None = None
+    my_status: str | None = None
+    price_kind: str = "UNKNOWN"
+    opening_hours_unverified: bool = False
+    address_text: str | None = None
+
+
+class PlanParticipantOut(BaseModel):
+    id: str
+    display_name: str
 
 
 class CityOut(BaseModel):

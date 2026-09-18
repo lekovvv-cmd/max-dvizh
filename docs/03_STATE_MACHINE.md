@@ -18,9 +18,14 @@ Recurring intent remains active across occurrences until paused/cancelled.
 
 ```text
 COLLECTING
-├─ enough valid accepted users → CONFIRMED
+├─ enough valid accepted users → CONFIRMED_OPEN
 ├─ source/time invalid → CANCELLED
 └─ ttl ends → EXPIRED
+
+CONFIRMED_OPEN
+├─ reaches effective capacity → CONFIRMED
+├─ joining cutoff → CONFIRMED
+└─ accepted cancellation below minimum → COLLECTING
 ```
 
 ## Offer
@@ -29,11 +34,16 @@ A CandidatePlan may be created only after at least one Exact or Near eligible us
 
 ```text
 PENDING
-├─ accept exact → ACCEPTED
-├─ explicitly accept Near exception → ACCEPTED
+├─ accept while personal minimum unmet → WAITING_CONDITION
+├─ accept with sufficient valid count → ACCEPTED
+├─ exact N already full → WAITLISTED
 ├─ reject → REJECTED
 ├─ ttl ends → EXPIRED
 └─ candidate/user conflict changes → INVALIDATED
+
+WAITING_CONDITION → ACCEPTED when a valid accepted set satisfies every personal range
+WAITLISTED → WAITING_CONDITION / ACCEPTED when an admitted place opens
+WAITING_CONDITION / ACCEPTED / WAITLISTED → CANCELLED_BY_USER before cutoff
 ```
 
 ## Accept Offer transaction
@@ -44,15 +54,15 @@ PENDING
 4. Recheck user's overlapping accepted/confirmed plans.
 5. Recompute stale constraints as needed.
 6. If Near, require explicit exception confirmation.
-7. Mark ACCEPTED.
+7. Record the response; admit within capacity or privately waitlist for exact N.
 8. Invalidate/recompute overlapping pending Offers for user; all other pending Offers remain in the user's global pool.
 9. Recompute CandidatePlan and affected overlapping CandidatePlans from persisted source snapshots; no new provider call is needed.
-10. If constraints satisfied, CONFIRMED.
+10. If all accepted constraints fit, mark CONFIRMED_OPEN at minimum; keep joining until capacity/cutoff.
 11. Queue outbound MAX notification/share task.
 
 ## Reject Offer
 
-Mark REJECTED, recompute feasibility, invite reserve if implemented or continue collecting/end according to policy. Never reveal rejection identity to others.
+Mark REJECTED and recompute from the source snapshot. The plan remains available to other eligible members. Never reveal rejection identity to others.
 
 ## Near
 

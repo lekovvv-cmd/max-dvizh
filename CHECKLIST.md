@@ -7,6 +7,11 @@
 - [x] AutoSignal
 - [x] Near budget
 - [x] multiple overlapping Offers
+- [x] all compatible users receive Offers; confirmation stays open until maximum
+- [x] exact-N waitlist and cancellation before cutoff
+- [x] atomic multi-company Signal batch and active Signal controls
+- [x] periodic AutoSignal scheduler and edit/pause/delete
+- [x] Events and Places with occurrence/price provenance
 - [x] user chooses Offer
 - [x] exact group-size constraints
 - [x] individual km distance
@@ -37,14 +42,15 @@
 - [x] Postgres migrations
 - [ ] no secrets
 - [x] dependency locks
-- [ ] unit/integration/E2E — domain and API smoke included; full browser/MAX matrix remains
+- [x] unit and PostgreSQL integration tests
+- [ ] full browser/MAX E2E matrix
 - [x] concurrency locking strategy and PostgreSQL migration CI
 - [x] error recovery
 - [x] Docker one-command
 - [ ] build <=5 min target
 
 ## Submission
-- [x] README complete
+- [x] README updated for product rework
 - [ ] OpenAPI exported — run after deployed image refresh
 - [x] DATA-API.yaml
 - [ ] test accounts/data

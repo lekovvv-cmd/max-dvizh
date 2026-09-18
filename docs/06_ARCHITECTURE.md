@@ -18,7 +18,8 @@ FastAPI backend
 ├─ matching/plans/offers
 ├─ leisure provider adapters
 ├─ provenance/cache
-└─ notifications/share + same-image outbox worker
+├─ notifications/share + same-image outbox worker
+└─ same-image AutoSignal scheduler (30-minute poll, PostgreSQL advisory lock)
      ↓
 PostgreSQL ← CandidatePlans, snapshots and domain entities
      ↑
@@ -48,16 +49,16 @@ matching engine ← Redis (parameterized TTL cache) ← KudaGo public API
 API/router → application service → domain logic → repository/provider.
 
 ## Matching engine
-Pure normalized inputs, no HTTP/SQL/KudaGo DTOs. Returns compatibility, feasible subsets, deviations, ranking data.
+Pure normalized inputs, no HTTP/SQL/KudaGo DTOs. Returns compatibility, time containment and participant-range feasibility. The application service sends Offers to all eligible users and manages confirmed-open capacity and private waitlist.
 
-## Candidate subset
-Target group 4–12. Bounded subset enumeration is acceptable if measured/tested. Do not add solver before simple deterministic logic proves insufficient.
+## Participant size
+Target group 4–12. Effective capacity uses current Company membership unless accepted participants specify a lower explicit maximum. No advance social cohort is selected.
 
 ## Distance
 Haversine/geodesic from user's origin to venue/event coords.
 
 ## Cache and provider data
-Redis holds short-lived normalized KudaGo responses through cache-aside under actual query keys such as `kudago:events:{city}:{start-unix}-{end-unix}:{categories-hash}`. The adapter requests only the Intent's city/time/category slice; a cache hit avoids KudaGo, while a miss fetches and stores that same slice. PostgreSQL never mirrors the provider catalogue: a CandidatePlan alone gets a durable provider-item snapshot.
+Redis holds short-lived normalized KudaGo Event and Place responses through cache-aside under actual query keys such as `kudago:items:{city}:{start-unix}-{end-unix}:{categories-hash}`. The adapter requests only the Intent's city/time/category slice; a cache hit avoids KudaGo, while a miss fetches and stores that same slice. PostgreSQL never mirrors the provider catalogue: a CandidatePlan alone gets a durable provider-item snapshot.
 
 ## Bot
 Prefer backend-owned bot integration; no separate bot microservice unless needed.
@@ -70,4 +71,4 @@ Compose runs a small `worker` process from the backend image. It claims PostgreS
 Own backend API → expose/export OpenAPI and maintain DATA-API.yaml.
 
 ## Docker
-Local: frontend, backend, worker, PostgreSQL and Redis. Target `docker compose up --build`. Build <=5 minutes excluding initial base image downloads.
+Local: frontend, backend, worker, scheduler, PostgreSQL and Redis. Target `docker compose up --build`. Build <=5 minutes excluding initial base image downloads.

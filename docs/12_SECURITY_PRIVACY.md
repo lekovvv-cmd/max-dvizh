@@ -7,9 +7,11 @@
 - rejection;
 - Near reason;
 - private compatibility.
+- waitlist identity and membership before a plan is confirmed.
 
 ## MAX identity
 Validate server-side using current official MAX docs. Do not authorize from client-submitted user_id.
+Chat-bound Company creation uses only the signed launch chat context and verifies bot access to that chat. A client-supplied chat ID is never authoritative.
 
 ## Authorization
 Every route checks authenticated user and group/resource membership/ownership.
@@ -23,7 +25,7 @@ Never commit MAX token, DB password, API keys, signing secrets. `.env.example` o
 Do not log tokens/full auth payloads or unnecessary exact coordinates/private rules.
 
 ## Location
-Saved locations are user-owned; current location should be ephemeral where possible; never show friend locations on maps.
+Saved locations are user-owned and require a real user-provided GPS point. No hardcoded coordinates are submitted. Radius matching is disabled until a point exists; never show friend locations on maps.
 
 ## Concurrency/idempotency
 Offer state changes use PostgreSQL row locks in User → CandidatePlan → Offer order. Repeating the same final action is idempotent; an opposite final action conflicts. Outbox dedupe keys prevent duplicate logical notifications.
@@ -35,4 +37,4 @@ Protect join/invites, Offer actions, provider sync and bot webhook as appropriat
 Use maintained OSS with suitable licenses; case forbids unauthorized closed/private code.
 
 ## User controls
-If time permits: delete location, pause/delete AutoSignal, leave group. Document retention limitations.
+Users can delete saved locations, edit/cancel one-time Signal batches, pause/edit/delete AutoSignals, and cancel accepted participation before cutoff. Document retention limitations.

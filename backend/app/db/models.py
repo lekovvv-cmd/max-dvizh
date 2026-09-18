@@ -43,8 +43,10 @@ class Group(Base):
     name: Mapped[str] = mapped_column(String(120))
     max_chat_id: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
     default_city_slug: Mapped[str] = mapped_column(String(64))
+    timezone_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_by: Mapped[str] = mapped_column(ForeignKey("users.id"))
     invite_token: Mapped[str] = mapped_column(String(64), unique=True, default=lambda: uuid4().hex)
+    invite_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -63,6 +65,7 @@ class Location(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     label: Mapped[str] = mapped_column(String(80))
+    address_text: Mapped[str | None] = mapped_column(String(250), nullable=True)
     latitude: Mapped[float] = mapped_column(Float)
     longitude: Mapped[float] = mapped_column(Float)
     city_slug: Mapped[str] = mapped_column(String(64))
@@ -82,6 +85,9 @@ class Intent(Base):
     name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     city_slug: Mapped[str] = mapped_column(String(64))
     activity_category: Mapped[str] = mapped_column(String(64))
+    activity_categories: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    signal_batch_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    provider_state: Mapped[str] = mapped_column(String(24), default="NOT_CHECKED")
     available_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     available_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     recurrence_json: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
@@ -89,7 +95,7 @@ class Intent(Base):
     origin_location_id: Mapped[str | None] = mapped_column(ForeignKey("locations.id"), nullable=True)
     radius_km: Mapped[float | None] = mapped_column(Float, nullable=True)
     min_people: Mapped[int] = mapped_column(Integer)
-    max_people: Mapped[int] = mapped_column(Integer)
+    max_people: Mapped[int | None] = mapped_column(Integer, nullable=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -135,6 +141,7 @@ class CandidatePlanSourceSnapshot(Base):
     image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
+    source_metadata: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
 
 
 class CandidatePlanMember(Base):
@@ -171,6 +178,7 @@ class Offer(Base):
     exception_confirmed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

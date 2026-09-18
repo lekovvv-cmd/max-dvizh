@@ -54,7 +54,11 @@ def validate_init_data(init_data: str) -> tuple[str, str, str | None]:
         " ".join(part for part in [user.get("first_name"), user.get("last_name")] if part)
         or "Участник"
     )
-    chat_id = str(json.loads(values["chat"])["id"]) if values.get("chat") else None
+    try:
+        chat = json.loads(values["chat"]) if values.get("chat") else None
+        chat_id = str(chat["id"]) if isinstance(chat, dict) and chat.get("type") == "CHAT" else None
+    except (TypeError, ValueError, KeyError, json.JSONDecodeError) as error:
+        raise _fail("Malformed MAX chat data") from error
     return max_user_id, name, chat_id
 
 

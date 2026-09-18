@@ -19,9 +19,9 @@ describe('signal form values', () => {
   })
 
   it('maps every group-size choice to the backend range', () => {
-    expect(groupSizeRange('any')).toEqual([1, 12])
-    expect(groupSizeRange('3+')).toEqual([3, 12])
-    expect(groupSizeRange('5+')).toEqual([5, 12])
+    expect(groupSizeRange('any')).toEqual([2, null])
+    expect(groupSizeRange('3+')).toEqual([3, null])
+    expect(groupSizeRange('5+')).toEqual([5, null])
     expect(groupSizeRange('exactly-5')).toEqual([5, 5])
   })
 })

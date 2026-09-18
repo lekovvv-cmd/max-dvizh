@@ -25,7 +25,7 @@ UI uses km and never claims minute travel estimate in MVP.
 min=max=5 → ConfirmedPlan participant count exactly 5.
 
 ## AC-009 More compatible than max
-6 compatible, max=5 → valid subset of 5; sixth is not publicly labelled excluded.
+7 compatible, exact max=5 → all seven receive Offers; first five responses take places, later responders privately waitlist.
 
 ## AC-010 Multiple overlapping Offers
 Bowling + PC Club overlap; user may see both with any other pending offers in the unrestricted global pool; system does not choose automatically.
@@ -85,4 +85,19 @@ No domain rule hardcodes Kazan-only. Cities derive from provider/config/data pol
 Exactly-N users are never confirmed below N; fixed events fit full one-time availability; AutoSignal evaluates weekday/time/timezone; and a real KudaGo end timestamp is not extended.
 
 ## AC-029 Atomic choice and recovery
-Concurrent accepts cannot exceed the selected N or accept overlapping Offers for one user. Reject/invalidation recomputes from the persisted source snapshot and fills an eligible reserve without re-offering a rejected user.
+Concurrent accepts cannot exceed effective capacity or accept overlapping Offers for one user. Exact-N overflow is privately waitlisted in response order. Reject/invalidation/cancellation recomputes from the persisted source snapshot without re-offering a rejected user.
+
+## AC-030 Confirmed but open
+Eight compatible members with min=3 all receive Offers. Three valid responses confirm the plan; the remaining five can join until Company capacity or cutoff.
+
+## AC-031 Signal batch and saved places
+Multi-company Signal creation/edit/cancel is atomic and rejects mixed cities. No saved place is required for a Signal; a radius requires a real user-owned location in the Company city. No fake coordinates are generated.
+
+## AC-032 AutoSignal periodic matching
+Active recurring rules are evaluated immediately at create/edit/resume and at least every 30 minutes over seven days, with idempotent plan/Offer/outbox creation under concurrent scheduler instances.
+
+## AC-033 Provider facts
+KudaGo Events and Places are normalized separately. Every verified Event occurrence has a distinct CandidatePlan identity; missing Event end blocks normal Offers. Place slots fit complete availability and visibly warn when opening hours cannot be verified. FROM price remains a floor with explicit uncertainty.
+
+## AC-034 Empty-source and invitation states
+An active Signal distinguishes provider outage, empty provider result and no feasible plan; its owner can retry the saved query. A missing invite token yields an invalid state, while an explicitly expired known token yields a distinct expired state. The initial join result remains visible even before the user has a Company.

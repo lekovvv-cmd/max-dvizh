@@ -1,7 +1,7 @@
 # 13 — Data provenance and external data policy
 
 ## Provenance required
-Every CandidatePlan stores a source snapshot with provider, provider ID/type, provider URL if available, fetch timestamp, original price text, parsed price and demo/model flag. Browsed provider items do not become database rows.
+Every CandidatePlan stores a source snapshot with provider, provider ID/type, provider URL if available, fetch timestamp, original price text, parsed price, address/category/price-kind metadata and demo/model flag. Browsed provider items do not become database rows.
 
 ## Distinguish
 - provider fact;
@@ -29,4 +29,4 @@ KudaGo is a practical initial integration, not an official government source. Pr
 Distance km, compatibility, Near delta, ranking are product calculations, not provider facts.
 
 ## Price parser
-Conservative. Low confidence → numeric null and original/source-safe text.
+Conservative. Low confidence → numeric null and original/source-safe text. FROM is a lower bound, labelled in the UI; an unknown price cannot satisfy a personal budget cap. Event occurrences are separate time slots; missing event end is not treated as verified. Place opening hours remain unverified unless a concrete slot can be checked.

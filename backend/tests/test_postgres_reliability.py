@@ -106,8 +106,9 @@ def test_last_slot_and_same_user_overlap_are_atomic(engine: Engine) -> None:
     [thread.join() for thread in threads]
     with Session(engine) as session:
         assert len(list(session.scalars(select(Offer).where(Offer.status == "ACCEPTED")))) == 1
+        assert len(list(session.scalars(select(Offer).where(Offer.status == "WAITLISTED")))) == 1
         assert session.get(CandidatePlan, "one").status == "CONFIRMED"  # type: ignore[union-attr]
-    assert sorted(outcomes) == [200, 409]
+    assert sorted(outcomes) == [200, 200]
 
     with Session(engine) as session:
         solo = User(id="solo", max_user_id="max-solo", display_name="Solo")
@@ -163,7 +164,7 @@ def test_overlapping_invalidation_recomputes_reserve_and_confirmed_never_collect
         assert session.get(Offer, second_by_user[people[1].id].id).status == "PENDING"  # type: ignore[union-attr]
         confirmed = session.get(CandidatePlan, "first")
         assert confirmed is not None and confirmed.status == "CONFIRMED"
-        assert not recompute_candidate_plan(session, confirmed)
+        assert recompute_candidate_plan(session, confirmed)
         assert confirmed.status == "CONFIRMED"
 
 

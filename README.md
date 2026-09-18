@@ -6,13 +6,13 @@ MAX Mini App + chatbot backend для компаний друзей 18–25: п�
 
 `MAX entry → private group/invite → Signal or AutoSignal → KudaGo/Redis CandidatePlan → Exact/Near/Conflict → complete private cross-group Offer pool → explicit choice → overlap invalidation/recompute → ConfirmedPlan → independently dispatched bot outbox → MAX share`.
 
-Signal и AutoSignal содержат город, временное окно, категорию, необязательные бюджет и радиус с личной точкой, а также размер группы. AutoSignal сохраняет browser IANA timezone и проверяет полный local interval. Финальный размер выбирается детерминированно и должен находиться в диапазоне каждого участника. Координаты, бюджет, причины Near, отклонения и отказ никогда не возвращаются другим участникам. Near поддержан только для бюджета и требует отдельного подтверждения.
+Город принадлежит Company. Одностраничный Signal может охватывать несколько компаний одного города и несколько категорий; его условия необязательны. «Неважно» для размера означает минимум двое и отсутствие личного верхнего предела. AutoSignal сохраняет IANA timezone, проверяет полный local interval и обрабатывается отдельным периодическим scheduler. Все совместимые участники получают Offer. План подтверждается, когда каждый принявший допускает текущее число участников, и остаётся открытым до верхнего предела. Для «Ровно N» действует очередь по времени ответа. Координаты, бюджет, причины Near, отклонения и отказ никогда не возвращаются другим участникам. Near поддержан только для бюджета и требует отдельного подтверждения.
 
 ## Architecture
 
 `React/Vite Mini App → FastAPI modular monolith → PostgreSQL`, with Redis between KudaGo and matching for short-lived query-specific provider data.
 
-Backend verifies `WebApp.initData` server-side according to MAX HMAC rules, owns authorization/matching/locks, uses KudaGo only server-side, cache-asides only the city/time/category DTO slice needed by an Intent, persists a source snapshot only after at least one Exact/Near eligible user creates a CandidatePlan, and stores bot notifications in an outbox. Missing facts for a user-set hard constraint are `UNVERIFIED`, not a hidden match or Conflict. `frontend/src/app/api.ts` is the typed API boundary. The pure functions in `backend/app/modules/matching/domain.py` perform Haversine, compatibility and interval overlap.
+Backend verifies `WebApp.initData` server-side according to MAX HMAC rules, owns authorization/matching/locks, uses KudaGo Events and Places only server-side, cache-asides city/time/category provider slices, persists a source snapshot only for a CandidatePlan, and stores bot notifications in an outbox. A second backend service polls AutoSignals. Missing facts for a user-set hard constraint are `UNVERIFIED`, not an Offer. Place opening hours remain explicitly unverified when KudaGo cannot establish a specific slot. `frontend/src/app/api.ts` is the typed API boundary. The pure functions in `backend/app/modules/matching/domain.py` perform Haversine, compatibility and interval overlap.
 
 ## Start
 
@@ -30,15 +30,15 @@ Local development accepts `X-Demo-User` only when `APP_ENV=development`. In MAX,
 
 Copy `.env.example` to `.env` for deployment values. Do not commit it. Runtime ports: frontend `8080`, backend `8000`, PostgreSQL `5432`.
 
-`MAX_BOT_TOKEN` is required for a real MAX entry identity and Bot API notifications. `MAX_MINI_APP_URL` must be the public HTTPS Mini App URL registered for the bot. `MAX_BOT_USERNAME` is used to form public `startapp` links in deployment. `REDIS_URL` configures the provider cache. The Compose `worker` independently dispatches the PostgreSQL outbox and remains idle when the token is absent. KudaGo needs no secret.
+`MAX_BOT_TOKEN` is required for real MAX identity, chat-bound Company creation and Bot API notifications. `MAX_MINI_APP_URL` must be the public HTTPS Mini App URL registered for the bot. `MAX_BOT_USERNAME` forms public `startapp` links. `REDIS_URL` configures the provider cache. Compose runs an outbox `worker` and an AutoSignal `scheduler`. KudaGo needs no secret.
 
 ## Verification walkthrough
 
 1. Start Compose and create a company in the web Mini App.
-2. In **Компания**, copy the invite token/link. In local QA use the explicitly labelled **Локальная проверка** control to switch to a second demo user, then open the invite link.
-3. For each demo user, add a location from **Подать сигнал**, seed the explicitly labelled model data once, then submit a matching Signal. KudaGo is also queried and its events remain source-labelled.
+2. In **Компания**, copy the invite link. In local QA use the explicitly labelled **Локальная проверка** control to switch to a second demo user, then open the link. A chat-bound Company can also be created from a signed MAX chat launch.
+3. Optionally save a real GPS point in **Компания**. Submit a Signal on one screen, optionally selecting multiple companies and categories. KudaGo Events and Places are queried. Model data, if seeded explicitly for QA, is labelled.
 4. Each member sees a private Offer. An Exact price can be accepted directly; for a 300→400 Near Offer the UI requires `Всё равно пойду` and only then counts the member.
-5. Accepting an Offer invalidates that user's pending Offers that overlap its interval. When the minimum is reached, **ДВИЖ СОБРАЛСЯ** appears in Plans and can be shared through `WebApp.shareMaxContent`.
+5. Accepting an Offer invalidates that user's pending Offers that overlap its interval. Before the minimum, **Собираем** is visible. At the minimum, the plan is confirmed and remains open for additional eligible participants until its effective maximum. Exact-N overflow joins a private waitlist. Users can cancel participation before cutoff; MAX sharing uses `WebApp.shareMaxContent`.
 6. To exercise unavailable-provider recovery, block `kudago.com` after one successful sync; the backend serves the still-valid Redis cache when present and otherwise returns an honest unavailable state. It never uses fake live data or a PostgreSQL provider catalogue.
 
 `DATA-API.yaml` contains reviewer API calls. `scripts/export-openapi.ps1` exports the generated contract. The full product/API/integration limitations are in `docs/08_API_AND_INTEGRATIONS.md` and `docs/18_RISKS_NON_GOALS.md`.
@@ -66,11 +66,11 @@ The repository contains the live adapter and Bridge integration but cannot creat
 ## Limitations
 
 - A MAX bot/account, HTTPS deployment and manual MAX mobile/web verification remain external-account work; no token is committed.
-- KudaGo coverage and price quality vary by city. Missing optional metadata is omitted from UI; an unknown price cannot satisfy a budget-constrained match. Model data is always labelled.
+- KudaGo coverage and price quality vary by city. Unknown prices cannot satisfy a budget-constrained match; FROM prices are shown as lower bounds. Place opening hours are marked unverified when a concrete slot cannot be established. Model data is always labelled.
 - The MVP has no booking, payments, travel-time estimates, chat reading, public feed, AI, or post-confirmation rescheduling engine.
 
 Stop with `docker compose down`; `docker compose down -v` also deletes local PostgreSQL data.
 
 ## Development database reset after provider-cache refactor
 
-Migration `20260916_0003` copies each existing CandidatePlan's source facts into `candidate_plan_source_snapshots` and removes the old provider catalogue tables. Migration `20260916_0004` makes budget/origin/radius and member distance nullable for optional constraints. For disposable local/demo data, reset explicitly with `docker compose down -v`, then run `docker compose up --build`; never use this procedure against a deployment database.
+Migration `20260916_0003` copies each existing CandidatePlan's source facts into `candidate_plan_source_snapshots` and removes the old provider catalogue tables. Migration `20260916_0004` makes budget/origin/radius and member distance nullable for optional constraints. Revisions `20260918_0006` through `0009` add Signal batches, provider and invitation states, place metadata and Company timezone. A fresh PostgreSQL upgrade to head is part of verification. For disposable local/demo data, reset explicitly with `docker compose down -v`, then run `docker compose up --build`; never use this procedure against a deployment database.
