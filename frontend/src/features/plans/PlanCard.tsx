@@ -27,6 +27,6 @@ export function PlanCard({ plan, onChanged }: { plan: Plan; onChanged: () => voi
     <p className="confirmed-plan__people">{waitlisted ? 'Если место освободится до начала, мы сообщим тебе' : collecting ? `${plan.participant_count} из ${plan.required_min_people} · нужен ещё ${plan.remaining_to_confirm}` : `${plan.participant_count} в деле${plan.remaining_capacity > 0 ? ' · можно присоединиться' : ''}`}</p>
     {!collecting && plan.participants.length ? <p>{plan.participants.map(person => person.display_name).join(', ')}</p> : null}
     {error ? <p className="form-error" role="alert">{error}</p> : null}
-    <div className="confirmed-plan__actions">{plan.source_url ? <Button variant="secondary" onClick={() => window.open(plan.source_url ?? '', '_blank', 'noopener,noreferrer')}>Открыть источник</Button> : null}{!collecting && !waitlisted ? <Button variant="primary" onClick={share}>Поделиться в MAX</Button> : null}{plan.my_offer_id ? <Button variant="secondary" loading={busy} disabled={busy} onClick={() => void cancel()}>Передумал</Button> : null}</div>
+    <div className="confirmed-plan__actions">{plan.source_url ? <Button variant="secondary" onClick={() => window.open(plan.source_url ?? '', '_blank', 'noopener,noreferrer')}>Открыть источник</Button> : null}{!collecting && !waitlisted ? <Button variant="primary" onClick={share}>Поделиться</Button> : null}{plan.my_offer_id ? <Button variant="secondary" loading={busy} disabled={busy} onClick={() => void cancel()}>Передумал</Button> : null}</div>
   </article>
 }

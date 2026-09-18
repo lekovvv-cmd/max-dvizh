@@ -6,12 +6,13 @@ const group = { id: 'group', name: 'Друзья', city_slug: 'ekb', member_coun
 const city = { slug: 'ekb', name: 'Екатеринбург' }
 const offer = { id: 'offer', status: 'PENDING', is_near: false, group_id: 'group', group_name: 'Друзья', title: 'Квиз', venue_name: 'Клуб', starts_at: '2027-09-17T18:00:00Z', ends_at: '2027-09-17T20:00:00Z', price_text: '400 ₽', price_min: 400, is_demo: false, source_url: null, source_fetched_at: '2026-09-16T18:00:00Z', distance_km: null, accepted_count: 2, remaining_capacity: 3, required_min_people: 3, required_max_people: 5, expires_at: '2027-09-17T17:00:00Z', budget_delta: null }
 
-function mockApi(data: { groups?: typeof group[]; offers?: typeof offer[]; intents?: object[]; mode?: string } = {}) {
+function mockApi(data: { groups?: typeof group[]; offers?: typeof offer[]; plans?: object[]; intents?: object[]; mode?: string } = {}) {
   const requests = vi.fn((url: string, init?: RequestInit) => {
     const result = url.includes('/session') ? { id: '1', display_name: 'Антон', max_mode: data.mode ?? 'development', max_chat_id: null }
       : url.includes('/cities') ? [city]
         : url.includes('/groups') ? data.groups ?? [group]
           : url.includes('/offers') ? data.offers ?? []
+            : url.includes('/plans') ? data.plans ?? []
             : url.includes('/intents') ? data.intents ?? []
             : url.includes('/signal-batches') ? { batch_id: 'batch', intents: [] }
               : []
@@ -39,6 +40,13 @@ describe('App', () => {
     expect(await screen.findByText('Квиз')).toBeInTheDocument()
     expect(screen.getByText('Боулинг')).toBeInTheDocument()
     expect(screen.getByText('Универ')).toBeInTheDocument()
+  })
+
+  it('shows a newly confirmed plan on Home', async () => {
+    mockApi({ plans: [{ id: 'plan', status: 'CONFIRMED', title: 'Квиз', group_name: 'Друзья', starts_at: '2027-09-17T18:00:00Z', ends_at: '2027-09-17T20:00:00Z', price_text: null, price_kind: 'UNKNOWN', address_text: null, venue_name: 'Клуб', opening_hours_unverified: false, source_url: null, participant_count: 2, required_min_people: 2, required_max_people: 2, remaining_to_confirm: 0, remaining_capacity: 0, participants: [{ id: '1', display_name: 'Антон' }], my_offer_id: 'offer', my_status: 'ACCEPTED', share_text: 'Квиз' }] })
+    render(<App />)
+    expect(await screen.findByText('ДВИЖ СОБРАЛСЯ')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Квиз' })).toBeInTheDocument()
   })
 
   it('creates one Signal batch with optional conditions unset', async () => {
