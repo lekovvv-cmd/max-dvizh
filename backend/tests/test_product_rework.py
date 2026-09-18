@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.api.routes import product
 from app.api.schemas import AutoSignalIn, OfferAction, SignalBatchIn
+from app.core.config import settings
 from app.core.timezones import display_timezone
 from app.db.models import (
     Base,
@@ -23,6 +24,7 @@ from app.db.models import (
     User,
 )
 from app.modules.leisure.provider import NormalizedLeisureItem, ProviderResult
+from app.modules.matching import scheduler
 from app.modules.matching.domain import offer_expiry
 from app.modules.matching.scheduler import evaluate_active_autosignals
 from app.modules.matching.service import regenerate_group
@@ -179,6 +181,23 @@ def test_scheduler_uses_active_recurring_rules_without_visiting_app(monkeypatch:
         assert evaluate_active_autosignals(session) == 1
         assert [(query.city_slug, query.categories) for query in queries] == [("ekb", ("games",))]
         assert refreshed == [(group.id, "ekb", [])]
+
+
+def test_scheduler_poll_interval_includes_evaluation_time(monkeypatch: pytest.MonkeyPatch) -> None:
+    ticks = iter((100.0, 125.0))
+    monkeypatch.setattr(scheduler, "settings", replace(settings, autosignal_poll_seconds=1800))
+    monkeypatch.setattr(scheduler, "monotonic", lambda: next(ticks))
+    monkeypatch.setattr(scheduler, "run_once", lambda: 1)
+    observed: list[float] = []
+
+    def stop_after_sleep(delay: float) -> None:
+        observed.append(delay)
+        raise StopIteration
+
+    monkeypatch.setattr(scheduler, "sleep", stop_after_sleep)
+    with pytest.raises(StopIteration):
+        scheduler.main()
+    assert observed == [1775.0]
 
 
 def test_auto_signal_save_returns_before_provider_evaluation(monkeypatch: pytest.MonkeyPatch) -> None:

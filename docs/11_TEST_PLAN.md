@@ -84,6 +84,7 @@ At minimum: session, groups/join, locations, Intents/AutoSignals, Offers list, e
 9. AutoSignal scheduler creates an Offer without the user visiting the app.
 10. One eligible member receives an Offer before enough people signal to reach the minimum.
 11. Two concurrent regenerations for one Company produce one plan, one Offer and one notification in PostgreSQL.
+12. Scheduler poll delay accounts for evaluation duration; two instances do not evaluate concurrently under the advisory lock.
 
 ## Manual real MAX QA
 - mobile;

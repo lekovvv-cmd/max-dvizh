@@ -26,6 +26,8 @@ PostgreSQL ← CandidatePlans, snapshots and domain entities
 matching engine ← Redis (parameterized TTL cache) ← KudaGo public API
 ```
 
+The scheduler subtracts evaluation duration from the next poll delay, so the configured 30-minute interval is measured between run starts when a run completes within that interval. A second instance skips a run while the PostgreSQL advisory lock is held.
+
 ## Suggested repo after bootstrap
 ```text
 /

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime, timedelta
-from time import sleep
+from time import monotonic, sleep
 
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
@@ -85,11 +85,13 @@ def run_once() -> int:
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
     while True:
+        started = monotonic()
         try:
             logger.info("AutoSignal scheduler refreshed %s companies", run_once())
         except Exception:
             logger.exception("AutoSignal scheduler run failed")
-        sleep(max(60, settings.autosignal_poll_seconds))
+        interval = max(60, settings.autosignal_poll_seconds)
+        sleep(max(1, interval - (monotonic() - started)))
 
 
 if __name__ == "__main__":
