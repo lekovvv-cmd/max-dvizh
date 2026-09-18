@@ -48,12 +48,19 @@ jobs:
         with:
           python-version: '3.13'
       - run: pip install -r requirements.lock
-      - run: alembic upgrade head
+      - name: Upgrade a populated pre-rework database
+        run: |
+          alembic upgrade 20260916_0005
+          python scripts/verify_migration_paths.py seed-legacy
+          alembic upgrade head
+          python scripts/verify_migration_paths.py verify-upgrade
+      - name: Upgrade a clean PostgreSQL database
+        run: |
+          python scripts/verify_migration_paths.py create-clean-database
+          alembic upgrade head
+          test "$(alembic current | tail -n 1 | awk '{print $1}')" = "20260918_0009"
         env:
-          DATABASE_URL: postgresql+psycopg://max_dvizh:test_only_password@localhost:5432/max_dvizh
-      - run: test "$(alembic current | tail -n 1 | awk '{print $1}')" = "20260918_0009"
-        env:
-          DATABASE_URL: postgresql+psycopg://max_dvizh:test_only_password@localhost:5432/max_dvizh
+          DATABASE_URL: postgresql+psycopg://max_dvizh:test_only_password@localhost:5432/max_dvizh_clean
       - run: ruff check .
       - run: mypy app scripts
       - run: pytest

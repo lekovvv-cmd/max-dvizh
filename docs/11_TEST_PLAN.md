@@ -66,7 +66,7 @@
 - atomic multi-company Signal batch with city validation;
 - provider-state persistence and owner-only retry for active Signal empty states;
 - outbox retry, claim and OFFER/CONFIRMED_PLAN delivery;
-- clean PostgreSQL Alembic upgrade to head.
+- clean PostgreSQL Alembic upgrade to head and upgrade of populated revision `20260916_0005` to head, checking preservation and backfill of a legacy user, Company, location and Intent.
 - identity validation adapter.
 
 ## API tests
