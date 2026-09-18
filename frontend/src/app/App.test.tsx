@@ -42,6 +42,27 @@ describe('App', () => {
     expect(screen.getByText('Универ')).toBeInTheDocument()
   })
 
+  it('groups the complete Offer pool by local day', async () => {
+    const localDate = (offset: number) => {
+      const date = new Date()
+      date.setDate(date.getDate() + offset)
+      date.setHours(23, 59, 0, 0)
+      return date.toISOString()
+    }
+    mockApi({ offers: [
+      { ...offer, id: 'today', title: 'Сегодняшний квиз', starts_at: localDate(0) },
+      { ...offer, id: 'tomorrow', title: 'Завтрашний квиз', starts_at: localDate(1) },
+      { ...offer, id: 'later', title: 'Поздний квиз', starts_at: localDate(3) },
+    ] })
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Сегодня' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Завтра' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Позже' })).toBeInTheDocument()
+    expect(screen.getByText('Сегодняшний квиз')).toBeInTheDocument()
+    expect(screen.getByText('Завтрашний квиз')).toBeInTheDocument()
+    expect(screen.getByText('Поздний квиз')).toBeInTheDocument()
+  })
+
   it('shows a newly confirmed plan on Home', async () => {
     mockApi({ plans: [{ id: 'plan', status: 'CONFIRMED', title: 'Квиз', group_name: 'Друзья', starts_at: '2027-09-17T18:00:00Z', ends_at: '2027-09-17T20:00:00Z', price_text: null, price_kind: 'UNKNOWN', address_text: null, venue_name: 'Клуб', opening_hours_unverified: false, source_url: null, participant_count: 2, required_min_people: 2, required_max_people: 2, remaining_to_confirm: 0, remaining_capacity: 0, participants: [{ id: '1', display_name: 'Антон' }], my_offer_id: 'offer', my_status: 'ACCEPTED', share_text: 'Квиз' }] })
     render(<App />)

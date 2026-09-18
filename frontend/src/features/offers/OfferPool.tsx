@@ -12,11 +12,25 @@ export function OfferPool({ offers, onSignal, onChanged, hasActiveSignal = false
     const description = !hasActiveSignal ? 'Подай сигнал, когда будешь готов пойти.' : unavailable ? 'Не удалось проверить KudaGo. Сигнал сохранён — попробуй поиск ещё раз.' : noSource ? 'Сигнал сохранён. Попробуй другое время или категории.' : noFeasible ? 'Мы проверили события и места, но твои условия пока не совпали.' : 'Сигнал активен. Когда появится подходящий конкретный план, мы пригласим тебя.'
     return <EmptyState title={title} action={!hasActiveSignal ? { label: 'Подать сигнал ⚡', onClick: onSignal } : onRetry ? { label: 'Повторить поиск', onClick: onRetry } : undefined}>{description}</EmptyState>
   }
+  const dayKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+  const today = new Date()
+  const tomorrow = new Date(today)
+  tomorrow.setDate(today.getDate() + 1)
+  const buckets = [
+    { id: 'today', title: 'Сегодня', offers: [] as Offer[] },
+    { id: 'tomorrow', title: 'Завтра', offers: [] as Offer[] },
+    { id: 'later', title: 'Позже', offers: [] as Offer[] },
+  ]
+  for (const offer of offers) {
+    const key = dayKey(new Date(offer.starts_at))
+    const bucket = key === dayKey(today) ? buckets[0] : key === dayKey(tomorrow) ? buckets[1] : buckets[2]
+    bucket.offers.push(offer)
+  }
   return <section className="offer-pool" aria-labelledby="offer-pool-title">
     <p className="section-kicker">Тебя зовут</p>
     <h1 id="offer-pool-title">Выбери свой ДВИЖ</h1>
     <p className="screen-intro">Все актуальные предложения из твоих компаний — решение всегда за тобой.</p>
     <Button variant="secondary" onClick={onSignal}>Подать сигнал ⚡</Button>
-    <div className="offer-list">{offers.map(offer => <OfferCard key={offer.id} offer={offer} onChanged={onChanged} />)}</div>
+    <div className="offer-day-groups">{buckets.filter(bucket => bucket.offers.length).map(bucket => <section key={bucket.id} aria-labelledby={`offers-${bucket.id}`}><h2 id={`offers-${bucket.id}`}>{bucket.title}</h2><div className="offer-list">{bucket.offers.map(offer => <OfferCard key={offer.id} offer={offer} onChanged={onChanged} />)}</div></section>)}</div>
   </section>
 }
