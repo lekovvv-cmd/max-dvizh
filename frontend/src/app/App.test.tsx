@@ -6,9 +6,9 @@ const group = { id: 'group', name: 'Друзья', city_slug: 'ekb', member_coun
 const city = { slug: 'ekb', name: 'Екатеринбург' }
 const offer = { id: 'offer', status: 'PENDING', is_near: false, group_id: 'group', group_name: 'Друзья', title: 'Квиз', venue_name: 'Клуб', starts_at: '2027-09-17T18:00:00Z', ends_at: '2027-09-17T20:00:00Z', price_text: '400 ₽', price_min: 400, is_demo: false, source_url: null, source_fetched_at: '2026-09-16T18:00:00Z', distance_km: null, accepted_count: 2, remaining_capacity: 3, required_min_people: 3, required_max_people: 5, expires_at: '2027-09-17T17:00:00Z', budget_delta: null }
 
-function mockApi(data: { groups?: typeof group[]; offers?: typeof offer[]; intents?: object[] } = {}) {
+function mockApi(data: { groups?: typeof group[]; offers?: typeof offer[]; intents?: object[]; mode?: string } = {}) {
   const requests = vi.fn((url: string, init?: RequestInit) => {
-    const result = url.includes('/session') ? { id: '1', display_name: 'Антон', max_mode: 'DEV', max_chat_id: null }
+    const result = url.includes('/session') ? { id: '1', display_name: 'Антон', max_mode: data.mode ?? 'development', max_chat_id: null }
       : url.includes('/cities') ? [city]
         : url.includes('/groups') ? data.groups ?? [group]
           : url.includes('/offers') ? data.offers ?? []
@@ -67,5 +67,14 @@ describe('App', () => {
     expect(await screen.findByText('Источник сейчас недоступен')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Повторить поиск' }))
     await waitFor(() => expect(requests.mock.calls.some(([url]) => url === '/api/v1/signal-batches/batch/refresh')).toBe(true))
+  })
+
+  it('keeps demo user switching out of MAX mode', async () => {
+    mockApi({ mode: 'MAX' })
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Компания' }))
+    expect(screen.getByRole('heading', { name: 'Компании' })).toBeInTheDocument()
+    expect(screen.queryByText('Dev / demo tools')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Сменить пользователя' })).not.toBeInTheDocument()
   })
 })
