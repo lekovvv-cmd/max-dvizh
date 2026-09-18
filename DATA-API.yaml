@@ -25,9 +25,31 @@ checks:
     path: /api/v1/locations
     role: authenticated_user
     headers: { X-Demo-User: anton }
-    body: { label: "Моя точка", latitude: 56.8389, longitude: 60.6057, city_slug: "ekb", kind: "SAVED" }
+    body: "Use label and real coordinates returned by device geolocation; city_slug must match a Company joined by this user."
     expected_statuses: [201]
-    required_response_fields: [id, label]
+    required_response_fields: [id, label, city_slug, address_text, is_default]
+  - id: rename_location
+    method: PATCH
+    path: /api/v1/locations/{location_id}
+    role: location_owner
+    headers: { X-Demo-User: anton }
+    body: { label: "Дом" }
+    expected_statuses: [200, 404]
+    required_response_fields: [id, label, is_default]
+  - id: default_location
+    method: POST
+    path: /api/v1/locations/{location_id}/default
+    role: location_owner
+    headers: { X-Demo-User: anton }
+    expected_statuses: [200, 404]
+    required_response_fields: [id, is_default]
+  - id: delete_location
+    method: DELETE
+    path: /api/v1/locations/{location_id}
+    role: location_owner
+    headers: { X-Demo-User: anton }
+    expected_statuses: [200, 404, 409]
+    required_response_fields: [status]
   - id: create_signal
     method: POST
     path: /api/v1/signal-batches

@@ -44,7 +44,8 @@ function AutoSignalForm({ group, groups, editing, locations, onDone, onCancel }:
   const range = groupSizeRange(people)
   const currentGroup = groups.find(item => item.id === groupId) || group
   const availableLocations = locations.filter(item => item.city_slug === currentGroup.city_slug)
-  const hasLocationForRadius = radiusValue === null || (radiusValue !== undefined && Boolean(locationId))
+  const selectedLocationId = availableLocations.some(item => item.id === locationId) ? locationId : availableLocations.find(item => item.is_default)?.id || availableLocations[0]?.id || ''
+  const hasLocationForRadius = radiusValue === null || (radiusValue !== undefined && Boolean(selectedLocationId))
   const canSubmit = selectedWeekdays.length > 0 && /^\d{2}:\d{2}$/.test(localStart) && /^\d{2}:\d{2}$/.test(localEnd) && budgetValue !== undefined && radiusValue !== undefined && hasLocationForRadius
 
   function toggleWeekday(day: number) {
@@ -73,7 +74,7 @@ function AutoSignalForm({ group, groups, editing, locations, onDone, onCancel }:
         local_end: localEnd,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         budget_max: budgetValue,
-        origin_location_id: radiusValue === null ? null : locationId,
+        origin_location_id: radiusValue === null ? null : selectedLocationId,
         radius_km: radiusValue,
         min_people: range[0],
         max_people: range[1],
@@ -91,14 +92,14 @@ function AutoSignalForm({ group, groups, editing, locations, onDone, onCancel }:
   return <section className="auto-form"><button className="back-link" onClick={onCancel}>‹ Назад</button><h1>{editing ? 'Изменить автосигнал' : 'Когда тебя звать?'}</h1><form onSubmit={submit}>
     <label>Название<Input value={name} onChange={event => setName(event.target.value)} required /></label>
     <label>Компания<select value={groupId} onChange={event => { setGroupId(event.target.value); setLocationId(''); setRadius('') }}>{groups.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
-    <div className="wizard__block"><h2>Что ок?</h2><div className="choices">{['any', 'games', 'sport', 'exhibition', 'concert'].map(category => <button type="button" key={category} className={`choice ${selectedCategories.includes(category) ? 'choice--selected' : ''}`} aria-pressed={selectedCategories.includes(category)} onClick={() => toggleCategory(category)}>{activityLabel(category)}</button>)}</div></div>
+    <div className="wizard__block"><h2>Что ок?</h2><div className="choices">{['any', 'games', 'sport', 'exhibition', 'concert', 'wellness'].map(category => <button type="button" key={category} className={`choice ${selectedCategories.includes(category) ? 'choice--selected' : ''}`} aria-pressed={selectedCategories.includes(category)} onClick={() => toggleCategory(category)}>{activityLabel(category)}</button>)}</div></div>
     <div className="wizard__block"><h2>Дни недели</h2><div className="choices">{weekdays.map(day => <button key={day.value} type="button" className={`choice ${selectedWeekdays.includes(day.value) ? 'choice--selected' : ''}`} aria-pressed={selectedWeekdays.includes(day.value)} onClick={() => toggleWeekday(day.value)}>{day.label}</button>)}</div></div>
     <div className="form-row"><label>С <Input type="time" value={localStart} onChange={event => setLocalStart(event.target.value)} required /></label><label>До <Input type="time" value={localEnd} onChange={event => setLocalEnd(event.target.value)} required /></label></div>
     <div className="wizard__block"><h2>Пойдёшь, если соберётся…</h2><div className="choices"><button type="button" className={`choice ${people === 'any' ? 'choice--selected' : ''}`} aria-pressed={people === 'any'} onClick={() => setPeople('any')}>Неважно</button><button type="button" className={`choice ${people === '3+' ? 'choice--selected' : ''}`} aria-pressed={people === '3+'} onClick={() => setPeople('3+')}>Хотя бы 3</button><button type="button" className={`choice ${people === '5+' ? 'choice--selected' : ''}`} aria-pressed={people === '5+'} onClick={() => setPeople('5+')}>Хотя бы 5</button><button type="button" className={`choice ${people === 'exactly-5' ? 'choice--selected' : ''}`} aria-pressed={people === 'exactly-5'} onClick={() => setPeople('exactly-5')}>Ровно 5</button></div></div>
     <div className="form-row"><label>Бюджет, ₽ <Input aria-label="Бюджет" type="number" min="0" max="100000" step="1" placeholder="Неважно" value={budget} onChange={event => setBudget(event.target.value)} /></label><label>Радиус, км <Input aria-label="Радиус" type="number" min="0.1" max="100" step="0.1" placeholder="Неважно" value={radius} onChange={event => setRadius(event.target.value)} /></label></div>
-    {radiusValue !== null && radiusValue !== undefined ? <label>Моё место<select value={locationId} required onChange={event => setLocationId(event.target.value)}><option value="">Выбери место</option>{availableLocations.map(location => <option value={location.id} key={location.id}>{location.label}</option>)}</select></label> : null}
+    {radiusValue !== null && radiusValue !== undefined ? <label>Моё место<select value={selectedLocationId} required onChange={event => setLocationId(event.target.value)}><option value="">Выбери место</option>{availableLocations.map(location => <option value={location.id} key={location.id}>{location.label}{location.address_text ? ` · ${location.address_text}` : ''}</option>)}</select></label> : null}
     {!availableLocations.length ? <p>Добавь место в «Компания», чтобы ограничивать расстояние.</p> : null}
-    {budgetValue === undefined || radiusValue === undefined ? <p className="form-error">Проверь введённые бюджет или радиус.</p> : null}{radiusValue !== null && radiusValue !== undefined && !locationId ? <p className="form-error">Для радиуса выбери точку.</p> : null}{error ? <p className="form-error" role="alert">{error}</p> : null}
+    {budgetValue === undefined || radiusValue === undefined ? <p className="form-error">Проверь введённые бюджет или радиус.</p> : null}{radiusValue !== null && radiusValue !== undefined && !selectedLocationId ? <p className="form-error">Для радиуса выбери точку.</p> : null}{error ? <p className="form-error" role="alert">{error}</p> : null}
     <div className="form-actions"><Button variant="secondary" type="button" onClick={onCancel}>Отмена</Button><Button variant="primary" type="submit" loading={busy} disabled={busy || !canSubmit}>Сохранить</Button></div>
   </form></section>
 }

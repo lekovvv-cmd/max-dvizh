@@ -85,6 +85,10 @@ At minimum: session, groups/join, locations, Intents/AutoSignals, Offers list, e
 9. AutoSignal scheduler creates an Offer without the user visiting the app.
 10. One eligible member receives an Offer before enough people signal to reach the minimum.
 11. Two concurrent regenerations for one Company produce one plan, one Offer and one notification in PostgreSQL.
+12. A confirmed min=2 core survives a concurrent high-minimum response; the high-minimum user stays conditional until their own threshold is feasible. Cancellation preserves any still feasible core.
+13. Exact-only waitlist action and full non-exact no-action states agree between backend DTO and UI.
+14. Place/day selection ranks all bounded slots by feasible participants and chooses the earlier slot on a tie; live KudaGo place slugs map into the small product taxonomy without unrelated salons matching wellness.
+15. Saved place rename/default/delete and city/owner validation; one-time Signal origins follow selected Companies. Failure during batch recompute rolls back mutation, and repeated refresh creates no duplicates.
 12. Scheduler poll delay accounts for evaluation duration; two instances do not evaluate concurrently under the advisory lock.
 
 ## Manual real MAX QA

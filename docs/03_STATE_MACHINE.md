@@ -44,8 +44,8 @@ PENDING
 ├─ ttl ends → EXPIRED
 └─ candidate/user conflict changes → INVALIDATED
 
-WAITING_CONDITION → ACCEPTED when a valid accepted set satisfies every personal range
-ACCEPTED → WAITING_CONDITION if cancellation or a changed constraint breaks the valid set before cutoff
+WAITING_CONDITION → ACCEPTED when a feasible set including this user satisfies their personal range
+ACCEPTED → WAITING_CONDITION if cancellation or a changed constraint breaks this user's range before cutoff; preserve any remaining feasible accepted core
 WAITLISTED → WAITING_CONDITION / ACCEPTED when an admitted place opens
 WAITING_CONDITION / ACCEPTED / WAITLISTED → CANCELLED_BY_USER before cutoff
 ```
@@ -83,3 +83,5 @@ Plans without shared time/user conflict may proceed simultaneously.
 
 ## Post-confirm changes
 Prefer a simple documented MVP policy. Do not fake a robust rescheduling/cancellation engine if not implemented end-to-end.
+
+Mixed minimum example: A+B with min=2 become `ACCEPTED` and `CONFIRMED_OPEN`. C responds with min=5 and remains `WAITING_CONDITION`; the plan stays `CONFIRMED_OPEN`. C's private view shows three responders toward their own five-person condition. Further compatible responses can promote C. Public accepted and participant counts include A+B only until promotion.

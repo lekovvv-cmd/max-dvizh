@@ -84,3 +84,15 @@ Accepted. Active AutoSignals are evaluated immediately when created, edited or r
 ## ADR-027 — Приглашение с необязательным сроком
 
 У ссылки Company есть nullable `invite_expires_at`. Отсутствие срока сохраняет действующее поведение уже выданных ссылок и не вводит скрытый период жизни. Если срок установлен и прошёл, backend возвращает `410` с отдельным состоянием «Приглашение истекло»; неизвестный токен возвращает `404` «Приглашение недействительно».
+
+## ADR-028 — Confirmed core and conditional responders
+
+Accepted. An already feasible confirmed core remains confirmed when a new responder has a stricter personal minimum. That responder is `WAITING_CONDITION` until a feasible set including them exists. Recompute prefers retaining existing accepted participants, then the largest feasible set, with response order as the deterministic tie-breaker. Cancellation may demote participants whose personal conditions are no longer satisfied, while retaining the remaining feasible core. `accepted_count` and visible participant identities include only `ACCEPTED`; each conditional user's own required minimum and progress are owner-only.
+
+## ADR-029 — Place slot and wellness taxonomy
+
+Accepted. For each bounded Place and local day, choose the slot with the largest feasible group, then the most compatible members, then the earliest start. Materialize one CandidatePlan per Place/day. KudaGo's live v1.4 place categories have no dedicated bath/sauna/spa slug; the small internal `wellness` category uses real `salons`, `suburb`, `recreation`, and `amusement` source slugs plus a bath/spa term in the place's title or description. Raw provider slugs are never a main UI selector.
+
+## ADR-030 — Saved origin and Signal batch consistency
+
+Accepted. Saved places are private, city-scoped GPS points. The user may rename, delete an unused point, and set one default per city. A location used by an active Signal cannot be deleted until the distance condition is removed. Signal batch provider I/O finishes before the database mutation; Intent changes, plan recomputation and provider state commit together. A failed recomputation rolls the mutation back, and owner refresh is idempotent.

@@ -49,6 +49,12 @@ class LocationOut(BaseModel):
     label: str
     city_slug: str
     kind: str
+    address_text: str | None = None
+    is_default: bool = False
+
+
+class LocationRenameIn(BaseModel):
+    label: str = Field(min_length=1, max_length=80)
 
 
 class IntentIn(BaseModel):
@@ -170,10 +176,13 @@ class OfferOut(BaseModel):
     expires_at: datetime
     budget_delta: int | None = None
     accepted_count: int = 0
+    conditional_count: int = 0
     effective_max: int = 0
     remaining_to_confirm: int = 0
     remaining_capacity: int = 0
     waitlist_count: int = 0
+    can_waitlist: bool = False
+    can_accept: bool = True
     price_kind: str = "UNKNOWN"
     opening_hours_unverified: bool = False
     address_text: str | None = None
@@ -193,6 +202,9 @@ class PlanOut(BaseModel):
     price_text: str | None
     source_url: str | None
     participant_count: int
+    conditional_count: int = 0
+    personal_response_count: int | None = None
+    personal_required_min: int | None = None
     required_min_people: int
     required_max_people: int
     share_text: str

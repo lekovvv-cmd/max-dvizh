@@ -71,6 +71,7 @@ class Location(Base):
     city_slug: Mapped[str] = mapped_column(String(64))
     kind: Mapped[str] = mapped_column(String(20), default="SAVED")
     is_ephemeral: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

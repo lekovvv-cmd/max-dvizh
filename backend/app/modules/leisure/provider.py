@@ -103,6 +103,8 @@ PLACE_CATEGORY_MAP = {
     "art-space": ("exhibition",), "theatre": ("exhibition",),
     "concert-hall": ("concert",),
 }
+WELLNESS_PLACE_CATEGORIES = {"salons", "suburb", "recreation", "amusement"}
+WELLNESS_WORDS = re.compile(r"бан[яиеюьн]|саун|(?<![а-яёa-z])(?:спа|spa)(?![а-яёa-z])|терм[ыа]|парн[аяоы]", re.I)
 
 
 def mapped_categories(raw: list[str], category_map: Mapping[str, tuple[str, ...]]) -> tuple[str, ...]:
@@ -180,7 +182,10 @@ def normalize_events(raw: dict[str, Any], city: str, fetched_at: datetime) -> li
 def normalize_place(raw: dict[str, Any], query: ProviderQuery, fetched_at: datetime) -> NormalizedLeisureItem | None:
     if not raw.get("id") or raw.get("is_closed") is True or not raw.get("site_url"):
         return None
-    categories = mapped_categories(raw.get("categories") or [], PLACE_CATEGORY_MAP)
+    raw_categories = raw.get("categories") or []
+    categories = mapped_categories(raw_categories, PLACE_CATEGORY_MAP)
+    if WELLNESS_PLACE_CATEGORIES.intersection(raw_categories) and WELLNESS_WORDS.search(f"{raw.get('title') or ''} {raw.get('description') or ''}"):
+        categories = tuple(sorted({*categories, "wellness"}))
     coords = raw.get("coords") or {}
     return NormalizedLeisureItem(
         provider="KUDAGO", provider_id=str(raw["id"]), item_type="PLACE",
@@ -240,17 +245,19 @@ class KudaGoProvider:
         fetched_at = utcnow()
         result: list[NormalizedLeisureItem] = []
         event_filters = {"games": "quest", "sport": "recreation", "exhibition": "exhibition", "concert": "concert"}
-        place_filters = {"games": "anticafe,questroom,amusement,clubs", "sport": "recreation,amusement,stable", "exhibition": "museums,art-centers,art-space,theatre", "concert": "concert-hall,clubs"}
+        place_filters = {"games": "anticafe,questroom,amusement,clubs", "sport": "recreation,amusement,stable", "exhibition": "museums,art-centers,art-space,theatre", "concert": "concert-hall,clubs", "wellness": "salons,suburb,recreation,amusement"}
         for kind in ("events", "places"):
+            if kind == "events" and query.categories and all(category == "wellness" for category in query.categories):
+                continue
             params: dict[str, str | int] = {"location": query.city_slug, "page_size": 100}
             if kind == "events":
                 params.update({"actual_since": int(query.starts_at.timestamp()), "actual_until": int(query.ends_at.timestamp()), "fields": "id,title,dates,place,categories,price,is_free,site_url,images", "expand": "place"})
                 selected = sorted({event_filters[category] for category in query.categories if category in event_filters})
             else:
-                params["fields"] = "id,title,address,location,site_url,is_closed,coords,categories,timetable,images"
+                params["fields"] = "id,title,description,address,location,site_url,is_closed,coords,categories,timetable,images"
                 selected = sorted({slug for category in query.categories for slug in place_filters.get(category, "").split(",") if slug})
             known = event_filters if kind == "events" else place_filters
-            if selected and all(category in known for category in query.categories):
+            if selected and all(category in known or (kind == "events" and category == "wellness") for category in query.categories):
                 params["categories"] = ",".join(selected)
             for page in range(1, max(1, settings.kudago_max_pages) + 1):
                 params["page"] = page

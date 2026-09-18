@@ -4,13 +4,14 @@ import { App } from './App'
 
 const group = { id: 'group', name: 'Друзья', city_slug: 'ekb', member_count: 4 }
 const city = { slug: 'ekb', name: 'Екатеринбург' }
-const offer = { id: 'offer', status: 'PENDING', is_near: false, group_id: 'group', group_name: 'Друзья', title: 'Квиз', venue_name: 'Клуб', starts_at: '2027-09-17T18:00:00Z', ends_at: '2027-09-17T20:00:00Z', price_text: '400 ₽', price_min: 400, is_demo: false, source_url: null, source_fetched_at: '2026-09-16T18:00:00Z', distance_km: null, accepted_count: 2, remaining_capacity: 3, required_min_people: 3, required_max_people: 5, expires_at: '2027-09-17T17:00:00Z', budget_delta: null }
+const offer = { id: 'offer', status: 'PENDING', is_near: false, group_id: 'group', group_name: 'Друзья', title: 'Квиз', venue_name: 'Клуб', starts_at: '2027-09-17T18:00:00Z', ends_at: '2027-09-17T20:00:00Z', price_text: '400 ₽', price_min: 400, is_demo: false, source_url: null, source_fetched_at: '2026-09-16T18:00:00Z', distance_km: null, accepted_count: 2, conditional_count: 0, remaining_capacity: 3, required_min_people: 3, required_max_people: 5, effective_max: 5, remaining_to_confirm: 1, waitlist_count: 0, can_accept: true, can_waitlist: false, expires_at: '2027-09-17T17:00:00Z', budget_delta: null }
 
-function mockApi(data: { groups?: typeof group[]; offers?: typeof offer[]; plans?: object[]; intents?: object[]; mode?: string } = {}) {
+function mockApi(data: { groups?: typeof group[]; locations?: object[]; offers?: typeof offer[]; plans?: object[]; intents?: object[]; mode?: string } = {}) {
   const requests = vi.fn((url: string, init?: RequestInit) => {
     const result = url.includes('/session') ? { id: '1', display_name: 'Антон', max_mode: data.mode ?? 'development', max_chat_id: null }
       : url.includes('/cities') ? [city]
         : url.includes('/groups') ? data.groups ?? [group]
+          : url.includes('/locations') ? data.locations ?? []
           : url.includes('/offers') ? data.offers ?? []
             : url.includes('/plans') ? data.plans ?? []
             : url.includes('/intents') ? data.intents ?? []
@@ -68,6 +69,37 @@ describe('App', () => {
     render(<App />)
     expect(await screen.findByText('ДВИЖ СОБРАЛСЯ')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Квиз' })).toBeInTheDocument()
+  })
+
+  it('shows the personal condition while keeping confirmed people separate', async () => {
+    mockApi({ plans: [{ id: 'plan', status: 'CONFIRMED_OPEN', title: 'Квиз', group_name: 'Друзья', starts_at: '2027-09-17T18:00:00Z', ends_at: '2027-09-17T20:00:00Z', price_text: null, price_kind: 'UNKNOWN', address_text: null, venue_name: 'Клуб', opening_hours_unverified: false, source_url: null, participant_count: 2, conditional_count: 1, personal_response_count: 3, personal_required_min: 5, required_min_people: 2, required_max_people: 5, remaining_to_confirm: 0, remaining_capacity: 2, participants: [], my_offer_id: 'offer', my_status: 'WAITING_CONDITION', share_text: 'Квиз' }] })
+    render(<App />)
+    expect(await screen.findByText(/Сейчас 3 из 5/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Поделиться' })).not.toBeInTheDocument()
+  })
+
+  it('does not offer a waitlist for a full range-based plan', async () => {
+    mockApi({ offers: [{ ...offer, accepted_count: 3, remaining_capacity: 0, effective_max: 3, can_accept: false, can_waitlist: false, remaining_to_confirm: 0 }] })
+    render(<App />)
+    expect(await screen.findByText(/мест нет/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Встать в лист ожидания' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Я в деле' })).not.toBeInTheDocument()
+  })
+
+  it('uses the selected companies city for saved origins and blocks mixed cities', async () => {
+    const requests = mockApi({ groups: [group, { id: 'msk-group', name: 'Московские', city_slug: 'msk', member_count: 3 }], locations: [{ id: 'msk-place', label: 'Дом в Москве', city_slug: 'msk', kind: 'SAVED', address_text: 'Улица 1', is_default: true }] })
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Подать сигнал ⚡' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Московские' }))
+    expect(screen.getByText('Выбери компании из одного города')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Друзья' }))
+    fireEvent.click(screen.getByText('Условия'))
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Расстояние до, км' }), { target: { value: '5' } })
+    expect(screen.getByRole('option', { name: 'Дом в Москве · Улица 1' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Подать сигнал ⚡' }))
+    await waitFor(() => expect(requests.mock.calls.some(([url]) => url === '/api/v1/signal-batches')).toBe(true))
+    const call = requests.mock.calls.find(([url]) => url === '/api/v1/signal-batches')
+    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ group_ids: ['msk-group'], origin_location_id: 'msk-place', radius_km: 5 })
   })
 
   it('creates one Signal batch with optional conditions unset', async () => {

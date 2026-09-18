@@ -38,6 +38,17 @@ def test_place_and_price_floor_are_explicitly_uncertain() -> None:
     assert price_kind(None, False) == ("UNKNOWN", None)
 
 
+def test_wellness_taxonomy_uses_verified_place_categories_and_content() -> None:
+    fetched = datetime(2026, 9, 16, tzinfo=UTC)
+    query = ProviderQuery("msk", fetched, fetched.replace(day=17), ("wellness",))
+    bath = normalize_place({"id": 2, "title": "GREMM-курорт", "categories": ["amusement", "salons"], "description": "Панорамная баня и термы", "site_url": "https://kudago.com/msk/place/gremm/"}, query, fetched)
+    manicure = normalize_place({"id": 3, "title": "Маникюр", "categories": ["salons"], "description": "Ногти", "site_url": "https://kudago.com/msk/place/nails/"}, query, fetched)
+    bedroom = normalize_place({"id": 4, "title": "Дом вверх дном", "categories": ["amusement"], "description": "В доме есть спальня", "site_url": "https://kudago.com/ekb/place/house/"}, query, fetched)
+    assert bath is not None and "wellness" in bath.categories
+    assert manicure is not None and "wellness" not in manicure.categories
+    assert bedroom is not None and "wellness" not in bedroom.categories
+
+
 def test_provider_discards_missing_or_invalid_dates_and_uses_first_valid_entry() -> None:
     fetched = datetime(2026, 9, 16, tzinfo=UTC)
     assert normalize_event({"id": 1, "dates": []}, "ekb", fetched) is None

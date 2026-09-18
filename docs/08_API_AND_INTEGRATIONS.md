@@ -126,6 +126,16 @@ The official [KudaGo API](https://docs.kudago.com/api/) documents `events` with 
 - `POST /api/v1/offers/{id}/cancel`: withdraw before cutoff and recompute affected plans.
 - Offer/Plan responses now include accepted counts, remaining capacity, Company context, price kind and place opening-hours warning. Plan participant profiles are visible only after confirmation.
 
+### Correctness update (2026-09-18)
+
+The [official KudaGo category API](https://docs.kudago.com/api/) documents `/public-api/v1.4/place-categories/`. A live request to [the v1.4 list](https://kudago.com/public-api/v1.4/place-categories/?lang=ru&fields=slug,name) returned 54 place categories, including `salons`, `suburb`, `recreation`, and `amusement`, with no dedicated sauna/bath/spa slug. A live `salons` query in Moscow returned both a bath resort and unrelated beauty salons. The adapter therefore filters the internal `wellness` category by source category plus bath/spa wording in the title or description. The UI shows five small product categories and never exposes raw KudaGo slugs.
+
+`GET /offers` and action responses distinguish `accepted_count` from `conditional_count`. `remaining_capacity` accounts for both accepted and conditional responders because both occupy an admission slot. `can_accept` and `can_waitlist` explicitly control the primary action; only exact-size overflow can waitlist. `GET /plans` reports `participant_count` for accepted members only and gives a conditional owner `personal_response_count` and `personal_required_min`. Other members never receive that personal minimum.
+
+Saved place routes are `GET/POST /locations`, `PATCH /locations/{id}`, `POST /locations/{id}/default`, and `DELETE /locations/{id}`. Responses include the saved address text and default marker, never coordinates. A point can be created only for a city in one of the owner's Companies. Deleting a point referenced by an active Signal returns `409` with recovery guidance.
+
+One-time Signal batch create/edit fetches the provider slice before opening the mutation transaction. Intent rows, CandidatePlan/Offer recomputation and provider state commit together. Cancel also recomputes in the same transaction. Refresh re-fetches outside a write transaction, checks the batch is still current and applies an idempotent recompute. Place slots are evaluated on a bounded 30-minute grid and only the best feasible slot per Place/local day is materialized.
+
 ## Runtime configuration
 
 `APP_ENV=development` is the only mode that accepts `X-Demo-User`; every other value requires validated MAX init data. Compose passes all used backend settings, including MAX URLs/token, KudaGo settings, matching thresholds, TTLs and outbox retry/poll settings. Production must set `APP_ENV=production` and deployment secrets externally.

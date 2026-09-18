@@ -12,7 +12,7 @@ id, name, optional max_chat_id, default_city_slug, timezone_name, invite_token, 
 group_id, user_id, role, joined_at; unique(group_id,user_id).
 
 ## locations
-id, user_id, label, optional address_text, real latitude/longitude, city_slug, kind SAVED/CURRENT/MANUAL, is_ephemeral, created_at. Never create fabricated coordinates or expose other users' coordinates.
+id, user_id, label, optional address_text, real latitude/longitude, city_slug, kind SAVED/CURRENT/MANUAL, is_ephemeral, is_default, created_at. Defaults are set per owner and city under a user lock. Never create fabricated coordinates or expose other users' coordinates.
 
 ## intents
 id, user_id, group_id, signal_batch_id nullable, type ONE_TIME/RECURRING, status, name, city_slug inherited from Company, legacy activity_category plus activity_categories JSON, available_from/to, recurrence_json, budget_max nullable, origin_location_id nullable, radius_km nullable, min_people, max_people nullable, expires_at, timestamps. NULL max means current Company size. Radius requires a real user-owned same-city location.

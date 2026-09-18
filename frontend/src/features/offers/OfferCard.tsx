@@ -38,8 +38,8 @@ export function OfferCard({ offer, onChanged }: { offer: Offer; onChanged: () =>
     </aside> : null}
     {error ? <p className="form-error" role="alert">{error}</p> : null}
     <div className="offer-card__actions">
-      <Button variant="primary" loading={busy} disabled={busy} onClick={() => void act(true)}>{offer.remaining_capacity === 0 ? 'Встать в лист ожидания' : offer.is_near ? 'Всё равно впишусь' : 'Я в деле'}</Button>
-      <Button variant="secondary" disabled={busy} onClick={() => void act(false)}>{offer.is_near ? 'Пас' : 'Пас'}</Button>
+      {offer.can_accept || offer.can_waitlist ? <Button variant="primary" loading={busy} disabled={busy} onClick={() => void act(true)}>{offer.can_waitlist ? 'Встать в лист ожидания' : offer.is_near ? 'Всё равно впишусь' : 'Я в деле'}</Button> : null}
+      <Button variant="secondary" disabled={busy} onClick={() => void act(false)}>Пас</Button>
     </div>
     <footer>{offer.is_demo ? 'Демонстрационные данные' : `KudaGo · обновлено ${formatDateTime(offer.source_fetched_at)}`}{offer.source_url ? <a href={offer.source_url} target="_blank" rel="noreferrer">Источник</a> : null}</footer>
   </article>

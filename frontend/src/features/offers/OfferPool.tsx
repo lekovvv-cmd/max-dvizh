@@ -27,9 +27,7 @@ export function OfferPool({ offers, onSignal, onChanged, hasActiveSignal = false
     bucket.offers.push(offer)
   }
   return <section className="offer-pool" aria-labelledby="offer-pool-title">
-    <p className="section-kicker">Тебя зовут</p>
-    <h1 id="offer-pool-title">Выбери свой ДВИЖ</h1>
-    <p className="screen-intro">Все актуальные предложения из твоих компаний — решение всегда за тобой.</p>
+    <h1 id="offer-pool-title">Приглашения</h1>
     <Button variant="secondary" onClick={onSignal}>Подать сигнал ⚡</Button>
     <div className="offer-day-groups">{buckets.filter(bucket => bucket.offers.length).map(bucket => <section key={bucket.id} aria-labelledby={`offers-${bucket.id}`}><h2 id={`offers-${bucket.id}`}>{bucket.title}</h2><div className="offer-list">{bucket.offers.map(offer => <OfferCard key={offer.id} offer={offer} onChanged={onChanged} />)}</div></section>)}</div>
   </section>

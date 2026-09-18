@@ -18,6 +18,10 @@
 .offer-day-groups { display: grid; gap: var(--space-5); margin-top: var(--space-5); }
 .offer-day-groups h2 { margin: 0; font-size: 18px; }
 .offer-day-groups .offer-list { margin-top: var(--space-3); }
+.saved-places { display: grid; gap: var(--space-3); margin: var(--space-4) 0; }
+.saved-place { padding: var(--space-3); border: 1px solid var(--dvizh-line); border-radius: var(--radius-md); }
+.saved-place p { margin: var(--space-2) 0; overflow-wrap: anywhere; }
+.saved-place__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
 @media (min-width: 600px) { .home-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }.home-summary > section, .home-summary > [role="status"] { grid-column: 1 / -1; } }
 @media (min-width: 600px) { .app-shell { padding: 28px var(--space-6) 96px; }.topbar { margin-bottom: 34px; }.offer-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }.offer-card { height: 100%; }.autos-list, .plans-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }.home-summary .plans-list { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }.autosignal-card, .confirmed-plan { height: 100%; } }
 @media (prefers-color-scheme: dark) { :root { --dvizh-bg: #111318; --dvizh-surface: #1b1f27; --dvizh-ink: #f3f5f8; --dvizh-muted: #aab1bc; --dvizh-line: #2d333d; --dvizh-blue-soft: #172a47; } .offer-card--near { background: #291f14; }.near-note { background: #3a2916; color: #ffd5a3; }.confirmed-plan { background: linear-gradient(145deg, #172a47, #1b1f27); }.dev-tools { background: #181c22; }.group-cell--active { color: #e8f1ff; }.topbar__user { color: var(--dvizh-muted); } }

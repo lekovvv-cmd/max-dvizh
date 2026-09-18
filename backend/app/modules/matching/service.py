@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.timezones import display_timezone
 from app.db.models import (
     CandidatePlan,
     CandidatePlanMember,
@@ -91,7 +92,7 @@ def place_slots(item: NormalizedLeisureItem) -> list[NormalizedLeisureItem]:
     if minute_overhang or start.second or start.microsecond:
         start += timedelta(minutes=30 - minute_overhang, seconds=-start.second, microseconds=-start.microsecond)
     result: list[NormalizedLeisureItem] = []
-    while start + duration <= item.ends_at:
+    while start + duration <= item.ends_at and len(result) < 7 * 48:
         result.append(replace(item, starts_at=start, ends_at=start + duration))
         start += timedelta(minutes=30)
     return result
@@ -159,15 +160,46 @@ def response_count(session: Session, plan_id: str) -> int:
     return session.scalar(select(func.count()).select_from(Offer).where(Offer.candidate_plan_id == plan_id, Offer.status.in_(("ACCEPTED", "WAITING_CONDITION")))) or 0
 
 
+def confirmed_count(session: Session, plan_id: str) -> int:
+    return session.scalar(select(func.count()).select_from(Offer).where(Offer.candidate_plan_id == plan_id, Offer.status == "ACCEPTED")) or 0
+
+
 def group_capacity(session: Session, group_id: str) -> int:
     return session.scalar(select(func.count()).select_from(GroupMember).where(GroupMember.group_id == group_id)) or 0
 
 
 def effective_capacity(session: Session, plan: CandidatePlan) -> int:
-    """Accepted people's explicit caps bound further admission; NULL uses company size."""
+    """A conditional responder cannot reduce an already confirmed core's cap."""
     capacity = group_capacity(session, plan.group_id)
-    members = session.scalars(select(Intent.max_people).join(CandidatePlanMember, CandidatePlanMember.intent_id == Intent.id).join(Offer, (Offer.candidate_plan_id == CandidatePlanMember.candidate_plan_id) & (Offer.user_id == CandidatePlanMember.user_id)).where(CandidatePlanMember.candidate_plan_id == plan.id, Offer.status.in_(("ACCEPTED", "WAITING_CONDITION")), Intent.max_people.is_not(None)))
+    statuses = ("ACCEPTED",) if confirmed_count(session, plan.id) else ("ACCEPTED", "WAITING_CONDITION")
+    members = session.scalars(select(Intent.max_people).join(CandidatePlanMember, CandidatePlanMember.intent_id == Intent.id).join(Offer, (Offer.candidate_plan_id == CandidatePlanMember.candidate_plan_id) & (Offer.user_id == CandidatePlanMember.user_id)).where(CandidatePlanMember.candidate_plan_id == plan.id, Offer.status.in_(statuses), Intent.max_people.is_not(None)))
     return min((capacity, *members)) if capacity else 0
+
+
+def _feasible_core(responders: list[Offer], eligible_by_user: dict[str, EvaluatedCandidate], capacity: int) -> set[str]:
+    """Choose the largest feasible core while retaining existing confirmed users."""
+    confirmed = {offer.user_id for offer in responders if offer.status == "ACCEPTED"}
+    ordered = sorted(responders, key=lambda offer: (aware(offer.responded_at or offer.created_at), offer.id))
+    best: set[str] = set()
+    best_score = (-1, -1)
+    for size in range(1, min(len(ordered), capacity) + 1):
+        suitable = [offer for offer in ordered if (candidate := eligible_by_user.get(offer.user_id)) is not None and candidate.intent.min_people <= size <= (candidate.intent.max_people or capacity)]
+        if len(suitable) < size:
+            continue
+        chosen = [offer.user_id for offer in suitable if offer.user_id in confirmed]
+        chosen.extend(offer.user_id for offer in suitable if offer.user_id not in confirmed)
+        selected = set(chosen[:size])
+        score = (len(selected & confirmed), size)
+        if score > best_score:
+            best, best_score = selected, score
+    return best
+
+
+def _feasible_size(candidates: list[EvaluatedCandidate], capacity: int) -> int:
+    for size in range(min(len(candidates), capacity), 1, -1):
+        if sum(candidate.intent.min_people <= size <= (candidate.intent.max_people or capacity) for candidate in candidates) >= size:
+            return size
+    return 0
 
 
 def recompute_candidate_plan(session: Session, plan: CandidatePlan, *, intents: list[Intent] | None = None, locations: dict[str, Location] | None = None) -> bool:
@@ -211,19 +243,20 @@ def recompute_candidate_plan(session: Session, plan: CandidatePlan, *, intents: 
             group = session.get(Group, plan.group_id)
             _enqueue(session, kind="OFFER", user_id=user_id, payload={"offer_id": offer.id, "title": snapshot.title, "group_name": group.name if group else "Компания", "starts_at": plan.starts_at.isoformat(), "timezone": group.timezone_name if group else "UTC"}, key=f"OFFER:{offer.id}")
     responders = [offer for offer in statuses.values() if offer.status in {"ACCEPTED", "WAITING_CONDITION"}]
-    count = len(responders)
-    plan.required_max_people = effective_capacity(session, plan)
+    capacity = effective_capacity(session, plan)
+    core = _feasible_core(responders, eligible_by_user, capacity)
+    plan.required_max_people = capacity
     if eligible:
         plan.required_min_people = min(candidate.intent.min_people for candidate in eligible)
-    if count >= plan.required_min_people and all(
-        eligible_by_user[offer.user_id].intent.min_people <= count <= (eligible_by_user[offer.user_id].intent.max_people or group_capacity(session, plan.group_id))
-        for offer in responders if offer.user_id in eligible_by_user
-    ) and all(offer.user_id in eligible_by_user for offer in responders):
+    if len(core) >= plan.required_min_people:
         for offer in responders:
-            offer.status = "ACCEPTED"
-            group = session.get(Group, plan.group_id)
-            _enqueue(session, kind="CONFIRMED_PLAN", user_id=offer.user_id, payload={"plan_id": plan.id, "title": snapshot.title, "group_name": group.name if group else "Компания", "starts_at": plan.starts_at.isoformat(), "timezone": group.timezone_name if group else "UTC"}, key=f"CONFIRMED_PLAN:{plan.id}:{offer.user_id}")
-        plan.status = "CONFIRMED" if count >= plan.required_max_people else "CONFIRMED_OPEN"
+            offer.status = "ACCEPTED" if offer.user_id in core else "WAITING_CONDITION"
+            if offer.status == "ACCEPTED":
+                group = session.get(Group, plan.group_id)
+                _enqueue(session, kind="CONFIRMED_PLAN", user_id=offer.user_id, payload={"plan_id": plan.id, "title": snapshot.title, "group_name": group.name if group else "Компания", "starts_at": plan.starts_at.isoformat(), "timezone": group.timezone_name if group else "UTC"}, key=f"CONFIRMED_PLAN:{plan.id}:{offer.user_id}")
+        core_caps = [limit for user_id in core if (limit := eligible_by_user[user_id].intent.max_people) is not None]
+        plan.required_max_people = min((group_capacity(session, plan.group_id), *core_caps))
+        plan.status = "CONFIRMED" if len(core) >= plan.required_max_people else "CONFIRMED_OPEN"
     else:
         for offer in responders:
             offer.status = "WAITING_CONDITION"
@@ -231,7 +264,7 @@ def recompute_candidate_plan(session: Session, plan: CandidatePlan, *, intents: 
     return True
 
 
-def regenerate_group(session: Session, group_id: str, city: str, items: list[NormalizedLeisureItem]) -> list[CandidatePlan]:
+def regenerate_group(session: Session, group_id: str, city: str, items: list[NormalizedLeisureItem], *, commit: bool = True) -> list[CandidatePlan]:
     """Create/update plans for provider items and commit the request flow once."""
     cleanup_expired(session)
     session.flush()
@@ -246,11 +279,31 @@ def regenerate_group(session: Session, group_id: str, city: str, items: list[Nor
     capacity = group_capacity(session, group_id)
     plans: list[CandidatePlan] = []
     used_place_days: set[tuple[str, str]] = set()
-    expanded = (slot for source in items for slot in (place_slots(source) if source.item_type == "PLACE" else [source]))
+    group = session.get(Group, group_id)
+    timezone = display_timezone(group.timezone_name or "UTC") if group else UTC
+    expanded: list[NormalizedLeisureItem] = []
+    for source in items:
+        if source.item_type != "PLACE":
+            expanded.append(source)
+            continue
+        best_by_day: dict[str, tuple[tuple[int, int], NormalizedLeisureItem]] = {}
+        for slot in place_slots(source):
+            if slot.starts_at - timedelta(minutes=10) <= utcnow():
+                continue
+            eligible, _ = _evaluate_item(session, group_id, city, slot, intents=intents, locations=locations)
+            eligible = [candidate for candidate in eligible if candidate.intent.min_people <= capacity]
+            if not eligible:
+                continue
+            day = slot.starts_at.astimezone(timezone).date().isoformat()
+            score = (_feasible_size(eligible, capacity), len(eligible))
+            previous = best_by_day.get(day)
+            if previous is None or score > previous[0]:
+                best_by_day[day] = (score, slot)
+        expanded.extend(slot for _, slot in best_by_day.values())
     for item in expanded:
         if item.starts_at - timedelta(minutes=10) <= utcnow():
             continue
-        place_day = (item.provider_id, item.starts_at.date().isoformat())
+        place_day = (item.provider_id, item.starts_at.astimezone(timezone).date().isoformat())
         if item.item_type == "PLACE" and place_day in used_place_days:
             continue
         eligible, _ = _evaluate_item(session, group_id, city, item, intents=intents, locations=locations)
@@ -269,5 +322,6 @@ def regenerate_group(session: Session, group_id: str, city: str, items: list[Nor
             session.add(CandidatePlanSourceSnapshot(candidate_plan_id=plan.id, provider=item.provider, provider_item_id=item.provider_id, provider_item_type=item.item_type, title=item.title, category=item.category, venue_name=item.venue_name, starts_at=item.starts_at, ends_at=item.ends_at, latitude=item.latitude, longitude=item.longitude, price_text=item.price_text, parsed_price=item.price_min, source_url=item.source_url, image_url=item.image_url, source_fetched_at=item.source_fetched_at, is_demo=item.is_demo, source_metadata={"categories": item.categories, "price_kind": item.price_kind, "address_text": item.address_text, "opening_hours_unverified": item.opening_hours_unverified, "timetable": item.timetable}))
         recompute_candidate_plan(session, plan, intents=intents, locations=locations)
         plans.append(plan)
-    session.commit()
+    if commit:
+        session.commit()
     return plans

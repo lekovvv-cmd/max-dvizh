@@ -85,6 +85,46 @@ def users(session: Session, count: int) -> list[User]:
     return result
 
 
+def test_concurrent_mixed_minimum_responses_keep_confirmed_core(engine: Engine) -> None:
+    current = datetime.now(UTC)
+    with Session(engine) as session:
+        people = users(session, 5)
+        group = Group(id="group", name="Друзья", default_city_slug="ekb", created_by=people[0].id)
+        session.add(group)
+        session.flush()
+        for person, minimum in zip(people, [2, 2, 5, 2, 2], strict=True):
+            session.add(GroupMember(group_id=group.id, user_id=person.id))
+            session.add(Intent(user_id=person.id, group_id=group.id, type="ONE_TIME", status="ACTIVE", city_slug="ekb", activity_category="games", activity_categories=["games"], available_from=current, available_to=current + timedelta(hours=5), min_people=minimum))
+        session.commit()
+        item = NormalizedLeisureItem(provider="MODEL", provider_id="mixed-race", item_type="EVENT", city_slug="ekb", title="Квиз", category="games", venue_name="Клуб", starts_at=current + timedelta(hours=2), ends_at=current + timedelta(hours=3), latitude=None, longitude=None, price_text=None, price_min=None, source_url=None, image_url=None, source_fetched_at=current, is_demo=True)
+        plan = regenerate_group(session, group.id, "ekb", [item])[0]
+        offer_ids = {offer.user_id: offer.id for offer in session.scalars(select(Offer).where(Offer.candidate_plan_id == plan.id))}
+        people_ids = [person.id for person in people]
+        plan_id = plan.id
+        for person in people[:2]:
+            accept_offer(offer_ids[person.id], OfferAction(), session, SimpleNamespace(id=person.id))
+        assert plan.status == "CONFIRMED_OPEN"
+    barrier = Barrier(2)
+    outcomes: list[object] = []
+
+    def accept(person_id: str) -> None:
+        with Session(engine) as session:
+            barrier.wait()
+            try:
+                outcomes.append(accept_offer(offer_ids[person_id], OfferAction(), session, SimpleNamespace(id=person_id)).status)
+            except Exception as failure:
+                outcomes.append(failure)
+
+    threads = [Thread(target=accept, args=(person_id,)) for person_id in people_ids[2:4]]
+    [thread.start() for thread in threads]
+    [thread.join() for thread in threads]
+    assert all(isinstance(outcome, str) for outcome in outcomes)
+    with Session(engine) as session:
+        assert session.get(CandidatePlan, plan_id).status == "CONFIRMED_OPEN"  # type: ignore[union-attr]
+        statuses = {offer.user_id: offer.status for offer in session.scalars(select(Offer).where(Offer.candidate_plan_id == plan_id))}
+        assert [statuses[person_id] for person_id in people_ids[:4]] == ["ACCEPTED", "ACCEPTED", "WAITING_CONDITION", "ACCEPTED"]
+
+
 def test_concurrent_group_regeneration_creates_one_plan_offer_and_notification(engine: Engine) -> None:
     current = datetime.now(UTC)
     with Session(engine) as session:

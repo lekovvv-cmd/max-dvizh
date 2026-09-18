@@ -101,3 +101,15 @@ KudaGo Events and Places are normalized separately. Every verified Event occurre
 
 ## AC-034 Empty-source and invitation states
 An active Signal distinguishes provider outage, empty provider result and no feasible plan; its owner can retry the saved query. A missing invite token yields an invalid state, while an explicitly expired known token yields a distinct expired state. The initial join result remains visible even before the user has a Company.
+
+## AC-035 Confirmed core with stricter responder
+A and B accept with min=2 and confirm an open plan. C responds with min=5: A and B remain accepted, C waits conditionally, and the plan remains confirmed and open. Two later min=2 responses allow C to join; cancellation recomputes without losing a still feasible core. Ordinary members see only the accepted count and never C's private minimum.
+
+## AC-036 Exact waitlist action
+A full range-based plan offers no waitlist action. A full exact-size plan exposes an explicit waitlist action and keeps waitlist order private.
+
+## AC-037 Place slot and category mapping
+For one Place/day, a slot compatible with five users wins over an earlier slot compatible with one user. Ties choose the earlier slot. The small `Бани и спа` category uses verified KudaGo v1.4 place slugs and content, and an unrelated beauty salon does not match it.
+
+## AC-038 Saved places and batch repair
+Saved places can be renamed, deleted when unused and marked default per city without exposing coordinates. A Signal's available origins follow its selected Companies' city. A recompute failure leaves neither partially committed Intent rows nor stale plans; a repeated owner refresh converges without duplicate plans.

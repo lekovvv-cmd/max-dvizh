@@ -7,7 +7,7 @@ export const formatTime = (value: string) => new Intl.DateTimeFormat('ru-RU', {
 }).format(new Date(value))
 
 export const activityLabel = (category: string) => ({
-  concert: '🎵 Музыка', exhibition: '🎭 Культура', sport: '🏃 Активности', games: '🎮 Игры', other: 'Всё равно', any: 'Всё равно',
+  concert: '🎵 Музыка', exhibition: '🎭 Культура', sport: '🏃 Активности', games: '🎮 Игры', wellness: '🧖 Бани и спа', other: 'Всё равно', any: 'Всё равно',
 }[category] ?? 'Досуг')
 
 export const weekDays = (days: number[] | null) => {
