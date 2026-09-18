@@ -51,9 +51,12 @@ npm --prefix frontend run check
 docker compose build
 docker compose run --rm --no-deps backend ruff check .
 docker compose run --rm --no-deps backend mypy app scripts
-docker compose run --rm --no-deps backend pytest
+docker compose exec -T postgres psql -U max_dvizh -d postgres -c "CREATE DATABASE max_dvizh_test OWNER max_dvizh;" # once per local database
+docker compose run --rm --no-deps -e TEST_DATABASE_URL=postgresql+psycopg://max_dvizh:local_development_only@postgres:5432/max_dvizh_test backend pytest
 ./scripts/export-openapi.ps1
 ```
+
+The PostgreSQL reliability tests recreate tables in `TEST_DATABASE_URL`; use a dedicated test database. If `max_dvizh_test` already exists, skip its creation command. Replace the sample local credentials above when overriding Compose's PostgreSQL defaults.
 
 ## Real MAX hand-off
 

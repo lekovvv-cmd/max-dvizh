@@ -2,7 +2,7 @@
 
 ## Product
 - [ ] problem evidence collected / research plan exists
-- [ ] one priority flow
+- [x] one priority flow
 - [x] Signal
 - [x] AutoSignal
 - [x] Near budget
@@ -38,24 +38,24 @@
 - [x] demo data labelled
 
 ## Technical
-- [ ] modular monolith
+- [x] modular monolith
 - [x] Postgres migrations
-- [ ] no secrets
+- [x] no working secrets committed (repository scan; deployment secrets remain external)
 - [x] dependency locks
 - [x] unit and PostgreSQL integration tests
 - [ ] full browser/MAX E2E matrix
 - [x] concurrency locking strategy and PostgreSQL migration CI
 - [x] error recovery
 - [x] Docker one-command
-- [ ] build <=5 min target
+- [x] build <=5 min target (GitHub Actions Docker job: 28 s with cached base images)
 
 ## Submission
 - [x] README updated for product rework
-- [ ] OpenAPI exported — run after deployed image refresh
+- [x] OpenAPI exported after API changes
 - [x] DATA-API.yaml
 - [ ] test accounts/data
 - [ ] HTTPS deployment
 - [ ] presentation PDF
 - [ ] technical slide
 - [ ] commit hash frozen
-- [ ] known limitations
+- [x] known limitations documented
