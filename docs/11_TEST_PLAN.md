@@ -68,6 +68,7 @@
 - outbox retry, claim and OFFER/CONFIRMED_PLAN delivery;
 - clean PostgreSQL Alembic upgrade to head and upgrade of populated revision `20260916_0005` to head, checking preservation and backfill of a legacy user, Company, location and Intent.
 - identity validation adapter.
+- concurrent first-launch session/company requests create one user and both succeed.
 
 ## API tests
 At minimum: session, groups/join, locations, Intents/AutoSignals, Offers list, exact accept, Near accept with explicit confirmation, reject, plans, leisure cities. Verify authz, 4xx/409 and privacy.

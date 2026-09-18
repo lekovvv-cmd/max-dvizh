@@ -497,9 +497,23 @@ def offer_out(session: DbSession, offer: Offer) -> OfferOut:
     accepted = response_count(session, plan.id)
     capacity = effective_capacity(session, plan)
     waitlisted = session.scalar(select(func.count()).select_from(Offer).where(Offer.candidate_plan_id == plan.id, Offer.status == "WAITLISTED")) or 0
-    metadata = snapshot.source_metadata or {}
     responder_mins = list(session.scalars(select(Intent.min_people).join(CandidatePlanMember, CandidatePlanMember.intent_id == Intent.id).join(Offer, (Offer.candidate_plan_id == CandidatePlanMember.candidate_plan_id) & (Offer.user_id == CandidatePlanMember.user_id)).where(CandidatePlanMember.candidate_plan_id == plan.id, Offer.status.in_(("ACCEPTED", "WAITING_CONDITION")))))
     required = max((plan.required_min_people, *responder_mins))
+    return _offer_output(offer, plan, snapshot, group, membership, accepted, capacity, waitlisted, required)
+
+
+def _offer_output(
+    offer: Offer,
+    plan: CandidatePlan,
+    snapshot: CandidatePlanSourceSnapshot,
+    group: Group,
+    membership: CandidatePlanMember,
+    accepted: int,
+    capacity: int,
+    waitlisted: int,
+    required: int,
+) -> OfferOut:
+    metadata = snapshot.source_metadata or {}
     return OfferOut(
         id=offer.id,
         status=offer.status,
@@ -546,7 +560,29 @@ def list_offers(session: DbSession, user: CurrentUser) -> list[OfferOut]:
     )
     # This is the user's global pool across every group. Ordering is convenience
     # only: it must never become a product limit.
-    return [offer_out(session, offer) for offer in offers]
+    if not offers:
+        return []
+    plan_ids = {offer.candidate_plan_id for offer in offers}
+    plans = {plan.id: plan for plan in session.scalars(select(CandidatePlan).where(CandidatePlan.id.in_(plan_ids)))}
+    snapshots = {snapshot.candidate_plan_id: snapshot for snapshot in session.scalars(select(CandidatePlanSourceSnapshot).where(CandidatePlanSourceSnapshot.candidate_plan_id.in_(plan_ids)))}
+    groups = {group.id: group for group in session.scalars(select(Group).where(Group.id.in_({plan.group_id for plan in plans.values()})))}
+    members = {member.candidate_plan_id: member for member in session.scalars(select(CandidatePlanMember).where(CandidatePlanMember.candidate_plan_id.in_(plan_ids), CandidatePlanMember.user_id == user.id))}
+    group_sizes = {group_id: size for group_id, size in session.execute(select(GroupMember.group_id, func.count()).where(GroupMember.group_id.in_(groups)).group_by(GroupMember.group_id))}
+    responder_rows = session.execute(select(Offer.candidate_plan_id, Intent.min_people, Intent.max_people).join(CandidatePlanMember, (CandidatePlanMember.candidate_plan_id == Offer.candidate_plan_id) & (CandidatePlanMember.user_id == Offer.user_id)).join(Intent, Intent.id == CandidatePlanMember.intent_id).where(Offer.candidate_plan_id.in_(plan_ids), Offer.status.in_(("ACCEPTED", "WAITING_CONDITION"))))
+    responders: dict[str, list[tuple[int, int | None]]] = {}
+    for plan_id, minimum, maximum in responder_rows:
+        responders.setdefault(plan_id, []).append((minimum, maximum))
+    waitlists = {plan_id: count for plan_id, count in session.execute(select(Offer.candidate_plan_id, func.count()).where(Offer.candidate_plan_id.in_(plan_ids), Offer.status == "WAITLISTED").group_by(Offer.candidate_plan_id))}
+    result: list[OfferOut] = []
+    for offer in offers:
+        plan = plans[offer.candidate_plan_id]
+        group = groups[plan.group_id]
+        response_ranges = responders.get(plan.id, [])
+        accepted = len(response_ranges)
+        capacity = min((group_sizes.get(group.id, 0), *(maximum for _, maximum in response_ranges if maximum is not None)))
+        required = max((plan.required_min_people, *(minimum for minimum, _ in response_ranges)))
+        result.append(_offer_output(offer, plan, snapshots[plan.id], group, members[plan.id], accepted, capacity, waitlists.get(plan.id, 0), required))
+    return result
 
 
 @router.post("/offers/{offer_id}/accept", response_model=OfferOut)

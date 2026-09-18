@@ -1,9 +1,9 @@
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, event, inspect, select
 from sqlalchemy.orm import Session
 
-from app.api.routes.product import list_offers
+from app.api.routes.product import list_offers, offer_out
 from app.db.models import (
     Base,
     CandidatePlan,
@@ -68,9 +68,19 @@ def test_all_cross_group_pending_offers_are_returned_with_group_context() -> Non
             ))
         session.commit()
 
-        offers = list_offers(session, user)
+        queries: list[str] = []
+        def count_query(_connection: object, _cursor: object, statement: str, _parameters: object, _context: object, _executemany: bool) -> None:
+            queries.append(statement)
+        event.listen(engine, "before_cursor_execute", count_query)
+        try:
+            offers = list_offers(session, user)
+        finally:
+            event.remove(engine, "before_cursor_execute", count_query)
+        expected = {offer.id: offer_out(session, offer) for offer in session.scalars(select(Offer))}
 
     assert len(offers) == 5
+    assert len(queries) <= 15
+    assert {offer.id: offer for offer in offers} == expected
     assert {offer.group_name for offer in offers} == {f"Компания {index}" for index in range(5)}
     assert {offer.is_near for offer in offers} == {False, True}
 

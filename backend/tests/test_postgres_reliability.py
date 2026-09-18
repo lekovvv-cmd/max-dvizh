@@ -6,7 +6,6 @@ import os
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from threading import Barrier, Event, Lock, Thread
-from time import sleep
 from types import SimpleNamespace
 
 import httpx
@@ -32,6 +31,7 @@ from app.db.models import (
     OutboxNotification,
     User,
 )
+from app.modules.auth.service import current_user
 from app.modules.leisure.provider import NormalizedLeisureItem
 from app.modules.matching import scheduler
 from app.modules.matching.service import recompute_candidate_plan, regenerate_group
@@ -138,6 +138,45 @@ def test_cancellation_below_minimum_reopens_plan_with_production_session(engine:
         assert session.get(CandidatePlan, "cancel-three").status == "COLLECTING"  # type: ignore[union-attr]
         statuses = [offer.status for offer in session.scalars(select(Offer).where(Offer.candidate_plan_id == "cancel-three").order_by(Offer.id))]
         assert sorted(statuses) == ["CANCELLED_BY_USER", "WAITING_CONDITION", "WAITING_CONDITION"]
+
+
+def test_concurrent_first_launch_creates_one_user(engine: Engine) -> None:
+    assert settings.app_env == "development"
+    barrier = Barrier(2)
+    ids: list[str] = []
+    failures: list[BaseException] = []
+    result_lock = Lock()
+
+    class RacingSession(Session):
+        raced = False
+
+        def scalar(self, *args: object, **kwargs: object) -> object:
+            result = super().scalar(*args, **kwargs)
+            if not self.raced:
+                self.raced = True
+                barrier.wait(timeout=10)
+            return result
+
+    def launch() -> None:
+        try:
+            with RacingSession(engine, autoflush=False) as session:
+                user = current_user(session, x_max_init_data=None, x_demo_user="concurrent-first-launch")
+                with result_lock:
+                    ids.append(user.id)
+        except BaseException as exc:
+            with result_lock:
+                failures.append(exc)
+
+    threads = [Thread(target=launch) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=15)
+    assert all(not thread.is_alive() for thread in threads)
+    assert not failures
+    assert len(ids) == 2 and ids[0] == ids[1]
+    with Session(engine) as session:
+        assert len(list(session.scalars(select(User).where(User.max_user_id == "concurrent-first-launch")))) == 1
 
 
 def test_second_scheduler_skips_when_first_holds_advisory_lock(engine: Engine, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -297,13 +336,13 @@ def test_outbox_claim_retry_stale_and_dedupe_on_postgres(engine: Engine, monkeyp
 
 def test_two_postgres_workers_claim_one_outbox_row_once(engine: Engine, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(outbox_client, "settings", replace(settings, max_bot_token="token"))
-    started, calls, calls_lock = Event(), [], Lock()
+    started, release, calls, calls_lock = Event(), Event(), [], Lock()
 
     def send(*_: str) -> bool:
         with calls_lock:
             calls.append("sent")
         started.set()
-        sleep(0.15)
+        assert release.wait(timeout=10)
         return True
 
     monkeypatch.setattr(outbox_client, "send_bot_message", send)
@@ -322,12 +361,16 @@ def test_two_postgres_workers_claim_one_outbox_row_once(engine: Engine, monkeypa
     first = Thread(target=dispatch)
     first.start()
     assert started.wait(timeout=2)
-    with Session(engine) as session:
-        assert session.get(OutboxNotification, event_id).status == "PROCESSING"  # type: ignore[union-attr]
-    second = Thread(target=dispatch)
-    second.start()
+    try:
+        with Session(engine) as session:
+            assert session.get(OutboxNotification, event_id).status == "PROCESSING"  # type: ignore[union-attr]
+        second = Thread(target=dispatch)
+        second.start()
+        second.join(timeout=5)
+        assert not second.is_alive()
+    finally:
+        release.set()
     first.join()
-    second.join()
     with Session(engine) as session:
         assert session.get(OutboxNotification, event_id).status == "SENT"  # type: ignore[union-attr]
     assert sorted(outcomes) == [0, 1]

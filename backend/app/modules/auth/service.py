@@ -11,6 +11,7 @@ from urllib.parse import unquote_plus
 
 from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -79,11 +80,22 @@ def current_user(
         raise _fail("Invalid user identity")
     user = session.scalar(select(User).where(User.max_user_id == max_user_id))
     if user is None:
-        user = User(max_user_id=max_user_id, display_name=name)
-        session.add(user)
-        session.commit()
-        session.refresh(user)
-    elif user.display_name != name and x_max_init_data:
+        created = User(max_user_id=max_user_id, display_name=name)
+        try:
+            # A second first-launch request can race the initial SELECT. Keep
+            # the outer transaction usable when the unique constraint wins.
+            with session.begin_nested():
+                session.add(created)
+                session.flush()
+        except IntegrityError:
+            user = session.scalar(select(User).where(User.max_user_id == max_user_id))
+            if user is None:
+                raise
+        else:
+            session.commit()
+            session.refresh(created)
+            user = created
+    if user.display_name != name and x_max_init_data:
         user.display_name = name
         session.commit()
     return user
