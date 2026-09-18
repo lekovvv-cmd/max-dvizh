@@ -26,6 +26,9 @@ CONFIRMED_OPEN
 ├─ reaches effective capacity → CONFIRMED
 ├─ joining cutoff → CONFIRMED
 └─ accepted cancellation below minimum → COLLECTING
+
+CONFIRMED
+└─ accepted cancellation below minimum before cutoff → COLLECTING
 ```
 
 ## Offer
@@ -42,6 +45,7 @@ PENDING
 └─ candidate/user conflict changes → INVALIDATED
 
 WAITING_CONDITION → ACCEPTED when a valid accepted set satisfies every personal range
+ACCEPTED → WAITING_CONDITION if cancellation or a changed constraint breaks the valid set before cutoff
 WAITLISTED → WAITING_CONDITION / ACCEPTED when an admitted place opens
 WAITING_CONDITION / ACCEPTED / WAITLISTED → CANCELLED_BY_USER before cutoff
 ```

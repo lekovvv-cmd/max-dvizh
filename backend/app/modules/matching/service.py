@@ -155,10 +155,6 @@ def _upsert_member(session: Session, plan_id: str, candidate: EvaluatedCandidate
             setattr(member, field, value)
 
 
-def candidate_count(session: Session, plan_id: str) -> int:
-    return session.scalar(select(func.count()).select_from(Offer).where(Offer.candidate_plan_id == plan_id, Offer.status == "ACCEPTED")) or 0
-
-
 def response_count(session: Session, plan_id: str) -> int:
     return session.scalar(select(func.count()).select_from(Offer).where(Offer.candidate_plan_id == plan_id, Offer.status.in_(("ACCEPTED", "WAITING_CONDITION")))) or 0
 
@@ -176,7 +172,11 @@ def effective_capacity(session: Session, plan: CandidatePlan) -> int:
 
 def recompute_candidate_plan(session: Session, plan: CandidatePlan, *, intents: list[Intent] | None = None, locations: dict[str, Location] | None = None) -> bool:
     """Refresh a plan from its source snapshot; repeated calls are idempotent."""
+    # Production sessions disable autoflush. Persist the caller's status changes
+    # before SQL-based overlap and capacity checks read them.
+    session.flush()
     cleanup_expired(session)
+    session.flush()
     if plan.status not in {"COLLECTING", "CONFIRMED_OPEN", "CONFIRMED"} or aware(plan.expires_at) <= utcnow():
         return False
     snapshot = session.scalar(select(CandidatePlanSourceSnapshot).where(CandidatePlanSourceSnapshot.candidate_plan_id == plan.id))
@@ -198,6 +198,7 @@ def recompute_candidate_plan(session: Session, plan: CandidatePlan, *, intents: 
                 offer.status = "INVALIDATED"
             elif offer.status == "INVALIDATED" and aware(offer.expires_at) > utcnow():
                 offer.status = "PENDING"
+    session.flush()
     expiry = offer_expiry(utcnow(), aware(plan.starts_at))
     if expiry is not None:
         for candidate in eligible:
@@ -223,7 +224,9 @@ def recompute_candidate_plan(session: Session, plan: CandidatePlan, *, intents: 
             group = session.get(Group, plan.group_id)
             _enqueue(session, kind="CONFIRMED_PLAN", user_id=offer.user_id, payload={"plan_id": plan.id, "title": snapshot.title, "group_name": group.name if group else "Компания", "starts_at": plan.starts_at.isoformat(), "timezone": group.timezone_name if group else "UTC"}, key=f"CONFIRMED_PLAN:{plan.id}:{offer.user_id}")
         plan.status = "CONFIRMED" if count >= plan.required_max_people else "CONFIRMED_OPEN"
-    elif candidate_count(session, plan.id) < plan.required_min_people:
+    else:
+        for offer in responders:
+            offer.status = "WAITING_CONDITION"
         plan.status = "COLLECTING"
     return True
 
@@ -231,6 +234,7 @@ def recompute_candidate_plan(session: Session, plan: CandidatePlan, *, intents: 
 def regenerate_group(session: Session, group_id: str, city: str, items: list[NormalizedLeisureItem]) -> list[CandidatePlan]:
     """Create/update plans for provider items and commit the request flow once."""
     cleanup_expired(session)
+    session.flush()
     # Every entry point (HTTP, background evaluation, periodic scheduler) takes
     # the same company lock before looking up or creating a plan. The scheduler's
     # global advisory lock alone does not serialize HTTP-triggered evaluations.

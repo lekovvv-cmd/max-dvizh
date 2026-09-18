@@ -17,7 +17,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.routes.product import accept_offer, reject_offer
+from app.api.routes.product import accept_offer, cancel_accepted_offer, reject_offer
 from app.api.schemas import OfferAction
 from app.core.config import settings
 from app.db.models import (
@@ -119,6 +119,25 @@ def test_concurrent_group_regeneration_creates_one_plan_offer_and_notification(e
         assert len(list(session.scalars(select(CandidatePlanSourceSnapshot)))) == 1
         assert len(list(session.scalars(select(Offer)))) == 1
         assert len(list(session.scalars(select(OutboxNotification)))) == 1
+
+
+def test_cancellation_below_minimum_reopens_plan_with_production_session(engine: Engine) -> None:
+    start = datetime.now(UTC) + timedelta(hours=2)
+    with Session(engine) as session:
+        people = users(session, 3)
+        offer_ids = [offer.id for offer in seed_plan(session, people, "cancel-three", start, required=3)]
+        user_ids = [person.id for person in people]
+    for offer_id, user_id in zip(offer_ids, user_ids, strict=True):
+        with Session(engine, autoflush=False) as session:
+            accept_offer(offer_id, OfferAction(), session, SimpleNamespace(id=user_id))
+    with Session(engine) as session:
+        assert session.get(CandidatePlan, "cancel-three").status == "CONFIRMED"  # type: ignore[union-attr]
+    with Session(engine, autoflush=False) as session:
+        cancel_accepted_offer(offer_ids[0], session, SimpleNamespace(id=user_ids[0]))
+    with Session(engine) as session:
+        assert session.get(CandidatePlan, "cancel-three").status == "COLLECTING"  # type: ignore[union-attr]
+        statuses = [offer.status for offer in session.scalars(select(Offer).where(Offer.candidate_plan_id == "cancel-three").order_by(Offer.id))]
+        assert sorted(statuses) == ["CANCELLED_BY_USER", "WAITING_CONDITION", "WAITING_CONDITION"]
 
 
 def test_second_scheduler_skips_when_first_holds_advisory_lock(engine: Engine, monkeypatch: pytest.MonkeyPatch) -> None:
