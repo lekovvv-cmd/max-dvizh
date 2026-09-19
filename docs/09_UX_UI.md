@@ -1,88 +1,88 @@
 # 09 — UX/UI baseline
 
-This defines interaction, not final visual design. Figma/screenshots override visual styling once added.
+The Mini App is a compact utility inside MAX. It should answer, in order: what is happening now, whether the user needs to decide anything, and how to signal availability. It is not a landing page, dashboard, or collection of promotional cards.
+
+## Visual system
+
+- Use page, section, row, divider, and list-item structure by default.
+- Reserve bordered cards for Offers and important current Plans.
+- Keep page titles compact; do not repeat kicker/title/subtitle stacks.
+- Use small, medium, and modal radii deliberately. Pills are for compact selectable tags, not every control.
+- Use the lightning mark for the product identity and the strongest confirmed state only.
+- Use one local SVG icon language for the four main destinations. Emoji are not interface icons.
+- Keep gradients and shadows exceptional. Every token must work in light and dark mode.
+- Desktop remains a centered, readable Mini App rather than becoming a sidebar dashboard.
 
 ## Navigation
-Keep MVP small: Home, AutoSignals, Plans, Profile/Locations. Avoid admin-dashboard feel.
+
+The four destinations are `Главная`, `Авто`, `Планы`, and `Компания`. The top bar is compact. Bottom navigation is safe-area aware, uses 44 px touch targets, and indicates the active destination without a large selected tile.
 
 ## Home
-Primary CTA: `⚡ Подать сигнал`.
-Signal creation remains available when the private Offer pool is populated. Offer acceptance keeps the stronger card-level action; its full label must fit on narrow screens, including Near confirmation.
-Also show active Signal, AutoSignals and relevant Offer/ConfirmedPlan.
 
-## Signal form
-Progressive sections:
-1. Когда?
-2. Что интересно?
-3. Бюджет? (необязательно)
-4. Откуда?
-5. Радиус? (необязательно; при выборе точки)
-6. Сколько людей?
+Home is ordered by urgency:
 
-Use defaults/presets; avoid giant technical form.
+1. the user's current Signal;
+2. Plans the user has already responded to;
+3. pending Invitations.
 
-## AutoSignal builder
-Language: `Позови меня, если...`
-Fields: activity/category, days, time, budget, participant count, origin, radius.
-One card = one AND rule. Do not build arbitrary boolean programming UI.
+An active Signal is one compact summary containing its time, categories, Companies, meaningful optional constraints, and a quiet edit action. Cancellation is available but visually secondary. With no Signal, show one clear `Подать сигнал` action without a promotional empty-state card.
 
-## Offer list
-Show the complete current Offer pool from all user's companies. Each card identifies its company and includes enough to choose: what/where/when, available source-aware price, own distance, group state and CTA. Sort only for navigation; do not hide lower-ranked offers.
+Confirmed, conditional, collecting, and waitlisted Plans retain distinct wording but share one restrained layout. `ДВИЖ СОБРАЛСЯ` is a strong status label, not a full-screen celebration.
 
-## Exact Offer
-```text
-🎮 ПК-клуб
-Сегодня 20:00–23:00
-~400 ₽
-3.2 км от твоей точки
-Собирается 4 человека
-[ Я в деле ] [ Пас ]
-```
+The complete cross-company Offer pool remains visible and is grouped by the device's local day: `Сегодня`, `Завтра`, `Позже`. Home calls this section `Приглашения`. Signal creation stays reachable when invitations exist.
 
-## Near Offer
-```text
-🎮 ПК-клуб
-Цена: 400 ₽
-Твой лимит: 300 ₽
-На 100 ₽ выше
-[ Всё равно пойду ] [ Пропустить ]
-```
-No prechecked acceptance.
+## Signal
 
-## Confirmed
-Strong success: `⚡ ДВИЖ СОБРАЛСЯ`.
-Show what/where/when, price/source caveat, user's distance, confirmed participants according to reveal policy, share/open in MAX.
+Signal creation stays on one fast screen:
 
-## Empty state
-Never only “Ничего нет”. Explain lack of exact plan and offer a private Near/edit action if available.
+1. `Когда` presets;
+2. `Что ок` multi-select categories;
+3. `С кем` Company rows;
+4. collapsed `Условия`;
+5. the primary submit action.
 
-## Optional metadata
-When provider data is absent, omit its row entirely: do not show “Цена неизвестна”, “Цена не указана” or placeholder venue/image/description. This presentation rule never weakens matching hard constraints.
+Categories may use restrained multi-select chips. Companies use selectable rows so activity and audience are not visually confused. Budget, distance, and group size are secondary. `Ровно N` reveals a numeric field from 2 through 12. Distance appears only when a real saved place exists in the selected Companies' city. Mixed-city Company selection blocks submission.
 
-If the user set a budget/radius but the provider lacks price/coordinates, the backend treats the item as Unverified and does not send an Offer. The UI must not claim that it was a rejection or a compatible option.
+Editing restores the current multi-category, multi-company, location, and exact-size values. Cancelling opens an accessible in-app confirmation dialog.
 
-## Data status
-Cached: `Данные обновлены 18 минут назад`.
-Model: `Демонстрационные данные`.
+## Offers and progress
 
-## Errors
-Always provide next action: retry/back/edit/use cached result.
+Offer is a real decision card. Its hierarchy is title, time, place, important price/distance facts, quiet Company context, group progress, applicable caveat, actions, and provider provenance.
 
-## Accessibility
-Focus, touch targets, contrast, semantic controls, no color-only meaning, reduced motion.
-AutoSignal group-size choices expose their selected state with `aria-pressed`. Personal conditions are described as private; company selection scopes new signals, not the global Offer pool.
+The primary action is `Я в деле`, `Всё равно впишусь`, or `Встать в лист ожидания` according to backend fields. `Пас` is secondary. A full non-exact plan states that there are no places without offering a waitlist.
 
-## MAX
-Use official current MAX UI where helpful; verify mobile + web.
+All collection states use the same compact dot-and-text progress language. It supports 2–12 people and only renders actual backend counts. A conditional responder sees their own private minimum and current response count; other users never do.
 
-## Product rework (2026-09-18)
+Near is an explicit, non-alarming exception such as `На 100 ₽ выше твоего лимита`. It always requires a deliberate action and never exposes the user's budget to anyone else.
 
-Home is a working screen: active Signal batches, plans still collecting and the full pending Offer pool appear before marketing copy. A Signal uses one short form: time preset, multi-category choice, one or more same-city Companies, and collapsed optional conditions. The primary group-size labels are `Неважно`, `Хотя бы 3`, `Хотя бы 5`; exact size is advanced. Distance controls are unavailable until a real saved place exists. Saving a place asks for device geolocation permission and a user label; no raw coordinates are the main UI.
+A FROM price keeps `от` in the visible price and adds `Цена может быть выше`. A Place with unverified hours says `Режим работы лучше проверить`. Provider provenance and source links remain accessible but secondary.
 
-The complete cross-company Offer pool is ordered by start time and grouped by the device's local day: `Сегодня`, `Завтра`, `Позже`. Home calls this section `Приглашения`. Offer cards show only confirmed people in the accepted count and use explicit backend `can_waitlist`/`can_accept` fields. A full non-exact plan says `Мест нет` without a waitlist button. Confirmed plans can remain open to joins. A collecting responder sees the plan on Home and can withdraw before cutoff; when the plan confirms, the confirmation card appears on Home immediately. A conditional responder still sees their own plan with private progress, e.g. `Сейчас 3 из 5`, but cannot share it as their confirmed plan. Exact-N overflow is shown privately as a waitlist response. Place plans without verified opening hours state `Режим работы лучше проверить` and link to the source. A FROM price states that final price may be higher. Production does not mount development tools.
+## AutoSignals
 
-The small activity selector includes `Бани и спа` for real mapped KudaGo Places. Saved places can be renamed, deleted when unused, or marked as the default for their city; an address appears only when stored. Distance origins in one-time Signal follow the selected Companies' city, and a mixed-city selection blocks submission.
+AutoSignals are a settings list, not marketing cards. Each row contains name, schedule, categories, Company, concise constraints, switch, and an edit affordance. Delete stays inside edit/detail.
 
-`Ровно N` reveals a numeric field from 2 through the system limit of 12. Editing a Signal or AutoSignal restores its actual exact value. Cancelling an active Signal opens an in-app confirmation dialog; browser `confirm()` is not used.
+The editor groups name, Company, activity, schedule, and conditions with spacing and dividers. It preserves overnight schedules, saved-location rules, and generic exact N behavior.
 
-Company settings show the current human-readable city and an explicit `Изменить` action. The confirmation explains that active Signals will be cancelled and AutoSignals paused. After success, the UI reports the affected counts. Saved places from the previous city remain private user data and stay available for another Company in that city.
+## Plans
+
+Plans are a single scannable upcoming list. Small status labels distinguish `Собираем`, `Ждём ещё людей`, `Лист ожидания`, and `ДВИЖ СОБРАЛСЯ`. Confirmed Plans can be visually stronger but use the same product-native structure.
+
+Participant names appear only in confirmed states and only as provided by the backend privacy contract. Confirmed-open Plans state that another person may still join.
+
+## Company and saved places
+
+Company is a settings screen: current Company summary, Company switcher when needed, invitation action, saved places, city settings, and development tools only in development mode.
+
+Companies and saved places use rows. A saved place exposes rename/default/delete through an accessible explicit action menu rather than several persistent buttons. No action relies on hover. City change uses a dialog that explains cancellation/pause consequences and reports affected counts after success.
+
+## Empty, loading, and error states
+
+Empty states use short state-specific copy rather than a repeated lightning-card composition. Keep `no Signal`, `no source results`, `no feasible plan`, `provider unavailable`, `no AutoSignals`, `no Plans`, and `no saved places` semantically distinct.
+
+Loading is a small native indicator. Errors are concise, human, and include recovery where possible. Never expose internal state names or backend vocabulary.
+
+## Accessibility and MAX
+
+Maintain semantic headings, labels, `aria-pressed`, switch names, dialog semantics, visible focus, keyboard navigation, 44 px touch targets, non-color state cues, contrast, and reduced motion. Use MAX UI primitives where they clarify standard controls, and semantic HTML where a row or list is simpler.
+
+Production and MAX mode never mount development tools. The interface must be verified at 375 × 812, 430 × 932, and 1280 × 800 in light and dark themes where available, including long Russian copy and all product states.
