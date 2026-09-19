@@ -613,7 +613,6 @@ def _offer_output(
         source_url=snapshot.source_url,
         source_fetched_at=snapshot.source_fetched_at,
         distance_km=membership.distance_km,
-        potential_count=accepted,
         required_min_people=required,
         required_max_people=capacity,
         expires_at=offer.expires_at,

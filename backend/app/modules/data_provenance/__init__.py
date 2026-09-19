@@ -1,1 +1,1 @@
-"""Reserved module boundary for provenance and cache (M5+)."""
+"""Provider provenance and query-scoped cache boundary."""

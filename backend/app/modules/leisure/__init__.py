@@ -1,1 +1,1 @@
-"""Reserved module boundary for provider adapters (M5+)."""
+"""External leisure provider adapters and normalized source facts."""

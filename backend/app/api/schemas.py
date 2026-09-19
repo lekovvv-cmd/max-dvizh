@@ -170,7 +170,6 @@ class OfferOut(BaseModel):
     source_url: str | None
     source_fetched_at: datetime
     distance_km: float | None
-    potential_count: int
     required_min_people: int
     required_max_people: int
     expires_at: datetime

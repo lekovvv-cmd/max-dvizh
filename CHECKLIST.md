@@ -43,7 +43,8 @@
 - [x] no working secrets committed (repository scan; deployment secrets remain external)
 - [x] dependency locks
 - [x] unit and PostgreSQL integration tests
-- [ ] full browser/MAX E2E matrix
+- [x] local browser E2E matrix at 375, 430 and 1280 px
+- [ ] real MAX mobile/web E2E matrix
 - [x] concurrency locking strategy and PostgreSQL migration CI
 - [x] error recovery
 - [x] Docker one-command

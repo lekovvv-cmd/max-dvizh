@@ -1,1 +1,1 @@
-"""Reserved module boundary for private locations (M3+)."""
+"""Private saved-location module boundary."""

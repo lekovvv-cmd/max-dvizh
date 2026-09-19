@@ -89,7 +89,18 @@ At minimum: session, groups/join, locations, Intents/AutoSignals, Offers list, e
 13. Exact-only waitlist action and full non-exact no-action states agree between backend DTO and UI.
 14. Place/day selection ranks all bounded slots by feasible participants and chooses the earlier slot on a tie; live KudaGo place slugs map into the small product taxonomy without unrelated salons matching wellness.
 15. Saved place rename/default/delete and city/owner validation; one-time Signal origins follow selected Companies. Failure during batch recompute rolls back mutation, and repeated refresh creates no duplicates.
-12. Scheduler poll delay accounts for evaluation duration; two instances do not evaluate concurrently under the advisory lock.
+16. Scheduler poll delay accounts for evaluation duration; two instances do not evaluate concurrently under the advisory lock.
+
+## Local browser verification — 2026-09-19
+
+Playwright against the production Docker frontend/backend passed at 375×812, 430×932 and 1280×800 with no page or console errors and no horizontal overflow:
+
+- all five addressed Offers, including exact-N waitlist, a full non-exact range without an accept/waitlist action, explicit Near confirmation, a Place with address/distance/opening-hours warning and a free Event;
+- private conditional progress (3 of 5), collecting and confirmed states, participant names and the private waitlist state;
+- active wellness AutoSignal, multiple Companies, saved-place addresses and the default marker;
+- the no-saved-place Signal recovery path, with the distance control absent and no raw coordinates rendered.
+
+The generated screenshots are QA artifacts outside the repository. This local run does not satisfy the real MAX mobile/web checks below.
 
 ## Manual real MAX QA
 - mobile;

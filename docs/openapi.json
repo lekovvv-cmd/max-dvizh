@@ -2942,10 +2942,6 @@
             ],
             "title": "Distance Km"
           },
-          "potential_count": {
-            "type": "integer",
-            "title": "Potential Count"
-          },
           "required_min_people": {
             "type": "integer",
             "title": "Required Min People"
@@ -3049,7 +3045,6 @@
           "source_url",
           "source_fetched_at",
           "distance_km",
-          "potential_count",
           "required_min_people",
           "required_max_people",
           "expires_at"
