@@ -45,7 +45,20 @@ The scheduler subtracts evaluation duration from the next poll delay, so the con
 ```
 
 ## Backend modules
-`auth`, `users`, `groups`, `locations`, `intents`, `leisure`, `matching`, `plans`, `offers`, `max_integration`, `data_provenance`, `common`.
+Implemented modules are `auth`, `leisure`, `matching`, and `max_integration`.
+Company, location, Intent and Offer HTTP orchestration currently lives in
+`app/api/routes/product.py`; database entities are in `app/db/models.py`.
+Empty placeholder packages are not architecture boundaries. The product router
+still needs separation by use case as it grows; extracting it must preserve
+transaction and locking order.
+
+## Frontend structure
+
+Features own their screens; `CreateCompany` owns the initial Company form.
+`styles/global.css` imports base tokens, layout, cards, forms, Company settings
+and overlays, then applies responsive and theme overrides. New component styles
+belong in the relevant stylesheet rather than another override at the end of the
+global entry point. Prettier and Ruff formatting checks run alongside lint in CI.
 
 ## Lightweight layering
 API/router → application service → domain logic → repository/provider.

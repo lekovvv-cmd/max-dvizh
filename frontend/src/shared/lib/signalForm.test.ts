@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatLocalDateTimeInput, groupSizeRange, initialGroupSize, parseExactPeople, parseOptionalInteger, parseOptionalRadius } from './signalForm'
+import {
+  formatLocalDateTimeInput,
+  groupSizeRange,
+  initialGroupSize,
+  parseExactPeople,
+  parseOptionalInteger,
+  parseOptionalRadius,
+} from './signalForm'
 
 describe('signal form values', () => {
   it('formats datetime-local values from local calendar fields', () => {

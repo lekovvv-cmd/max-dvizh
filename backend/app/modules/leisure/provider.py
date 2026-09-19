@@ -92,22 +92,37 @@ class ProviderQuery:
 
 
 EVENT_CATEGORY_MAP = {
-    "quest": ("games",), "entertainment": ("games",), "recreation": ("sport",),
-    "exhibition": ("exhibition",), "theater": ("exhibition",), "tour": ("exhibition",),
-    "concert": ("concert",), "party": ("concert",),
+    "quest": ("games",),
+    "entertainment": ("games",),
+    "recreation": ("sport",),
+    "exhibition": ("exhibition",),
+    "theater": ("exhibition",),
+    "tour": ("exhibition",),
+    "concert": ("concert",),
+    "party": ("concert",),
 }
 PLACE_CATEGORY_MAP = {
-    "anticafe": ("games",), "questroom": ("games",), "amusement": ("games", "sport"),
-    "clubs": ("games", "concert"), "recreation": ("sport",), "stable": ("sport",),
-    "museums": ("exhibition",), "art-centers": ("exhibition",),
-    "art-space": ("exhibition",), "theatre": ("exhibition",),
+    "anticafe": ("games",),
+    "questroom": ("games",),
+    "amusement": ("games", "sport"),
+    "clubs": ("games", "concert"),
+    "recreation": ("sport",),
+    "stable": ("sport",),
+    "museums": ("exhibition",),
+    "art-centers": ("exhibition",),
+    "art-space": ("exhibition",),
+    "theatre": ("exhibition",),
     "concert-hall": ("concert",),
 }
 WELLNESS_PLACE_CATEGORIES = {"salons", "suburb", "recreation", "amusement"}
-WELLNESS_WORDS = re.compile(r"бан[яиеюьн]|саун|(?<![а-яёa-z])(?:спа|spa)(?![а-яёa-z])|терм[ыа]|парн[аяоы]", re.I)
+WELLNESS_WORDS = re.compile(
+    r"бан[яиеюьн]|саун|(?<![а-яёa-z])(?:спа|spa)(?![а-яёa-z])|терм[ыа]|парн[аяоы]", re.I
+)
 
 
-def mapped_categories(raw: list[str], category_map: Mapping[str, tuple[str, ...]]) -> tuple[str, ...]:
+def mapped_categories(
+    raw: list[str], category_map: Mapping[str, tuple[str, ...]]
+) -> tuple[str, ...]:
     return tuple(sorted({internal for slug in raw for internal in category_map.get(slug, ())}))
 
 
@@ -119,7 +134,9 @@ def price_kind(value: str | None, is_free: bool) -> tuple[str, int | None]:
     numbers = re.findall(r"(?<!\d)(\d{1,6})(?!\d)", value.replace(" ", ""))
     if value.lower().lstrip().startswith("от ") and numbers:
         return "FROM", int(numbers[0])
-    if len(numbers) == 1 and re.fullmatch(r"\s*\d[\d\s]*\s*(?:₽|руб(?:лей|ля|ль|\.)?)\s*", value, re.I):
+    if len(numbers) == 1 and re.fullmatch(
+        r"\s*\d[\d\s]*\s*(?:₽|руб(?:лей|ля|ль|\.)?)\s*", value, re.I
+    ):
         return "EXACT", int(numbers[0])
     return "UNKNOWN", None
 
@@ -128,12 +145,16 @@ def parse_price(value: str | None, is_free: bool) -> int | None:
     return price_kind(value, is_free)[1]
 
 
-def normalize_event(raw: dict[str, Any], city: str, fetched_at: datetime) -> NormalizedLeisureItem | None:
+def normalize_event(
+    raw: dict[str, Any], city: str, fetched_at: datetime
+) -> NormalizedLeisureItem | None:
     items = normalize_events(raw, city, fetched_at)
     return items[0] if items else None
 
 
-def normalize_events(raw: dict[str, Any], city: str, fetched_at: datetime) -> list[NormalizedLeisureItem]:
+def normalize_events(
+    raw: dict[str, Any], city: str, fetched_at: datetime
+) -> list[NormalizedLeisureItem]:
     dates = raw.get("dates") or []
     if not raw.get("id"):
         return []
@@ -156,47 +177,64 @@ def normalize_events(raw: dict[str, Any], city: str, fetched_at: datetime) -> li
         except (KeyError, TypeError, ValueError, OverflowError, OSError):
             # An event without a documented end cannot make a verified Offer.
             continue
-        items.append(NormalizedLeisureItem(
-        provider="KUDAGO",
-        provider_id=str(raw["id"]),
-        item_type="EVENT",
-        city_slug=city,
-        title=str(raw.get("title") or "Событие KudaGo"),
-        category=normalized[0] if normalized else "other",
-        venue_name=place.get("title"),
-        latitude=coords.get("lat"),
-        longitude=coords.get("lon"),
-        starts_at=start,
-        ends_at=end,
-        price_text=price_text,
-        price_min=minimum,
-        source_url=raw.get("site_url"),
-        image_url=((raw.get("images") or [{}])[0] or {}).get("image"),
-        source_fetched_at=fetched_at,
-        categories=normalized,
-        price_kind=kind,
-    ))
+        items.append(
+            NormalizedLeisureItem(
+                provider="KUDAGO",
+                provider_id=str(raw["id"]),
+                item_type="EVENT",
+                city_slug=city,
+                title=str(raw.get("title") or "Событие KudaGo"),
+                category=normalized[0] if normalized else "other",
+                venue_name=place.get("title"),
+                latitude=coords.get("lat"),
+                longitude=coords.get("lon"),
+                starts_at=start,
+                ends_at=end,
+                price_text=price_text,
+                price_min=minimum,
+                source_url=raw.get("site_url"),
+                image_url=((raw.get("images") or [{}])[0] or {}).get("image"),
+                source_fetched_at=fetched_at,
+                categories=normalized,
+                price_kind=kind,
+            )
+        )
     return items
 
 
-def normalize_place(raw: dict[str, Any], query: ProviderQuery, fetched_at: datetime) -> NormalizedLeisureItem | None:
+def normalize_place(
+    raw: dict[str, Any], query: ProviderQuery, fetched_at: datetime
+) -> NormalizedLeisureItem | None:
     if not raw.get("id") or raw.get("is_closed") is True or not raw.get("site_url"):
         return None
     raw_categories = raw.get("categories") or []
     categories = mapped_categories(raw_categories, PLACE_CATEGORY_MAP)
-    if WELLNESS_PLACE_CATEGORIES.intersection(raw_categories) and WELLNESS_WORDS.search(f"{raw.get('title') or ''} {raw.get('description') or ''}"):
+    if WELLNESS_PLACE_CATEGORIES.intersection(raw_categories) and WELLNESS_WORDS.search(
+        f"{raw.get('title') or ''} {raw.get('description') or ''}"
+    ):
         categories = tuple(sorted({*categories, "wellness"}))
     coords = raw.get("coords") or {}
     return NormalizedLeisureItem(
-        provider="KUDAGO", provider_id=str(raw["id"]), item_type="PLACE",
-        city_slug=query.city_slug, title=str(raw.get("title") or "Место KudaGo"),
-        category=categories[0] if categories else "other", categories=categories,
-        venue_name=str(raw.get("title") or ""), starts_at=query.starts_at,
-        ends_at=query.ends_at, latitude=coords.get("lat"), longitude=coords.get("lon"),
-        price_text=None, price_min=None, source_url=raw.get("site_url"),
+        provider="KUDAGO",
+        provider_id=str(raw["id"]),
+        item_type="PLACE",
+        city_slug=query.city_slug,
+        title=str(raw.get("title") or "Место KudaGo"),
+        category=categories[0] if categories else "other",
+        categories=categories,
+        venue_name=str(raw.get("title") or ""),
+        starts_at=query.starts_at,
+        ends_at=query.ends_at,
+        latitude=coords.get("lat"),
+        longitude=coords.get("lon"),
+        price_text=None,
+        price_min=None,
+        source_url=raw.get("site_url"),
         image_url=((raw.get("images") or [{}])[0] or {}).get("image"),
-        source_fetched_at=fetched_at, price_kind="UNKNOWN",
-        address_text=raw.get("address"), opening_hours_unverified=True,
+        source_fetched_at=fetched_at,
+        price_kind="UNKNOWN",
+        address_text=raw.get("address"),
+        opening_hours_unverified=True,
         timetable=raw.get("timetable"),
     )
 
@@ -239,29 +277,81 @@ class KudaGoProvider:
             timeout=settings.kudago_timeout_seconds,
         )
         response.raise_for_status()
-        return [{"slug": str(city["slug"]), "name": str(city["name"]), "timezone": str(city.get("timezone") or "UTC")} for city in response.json() if city.get("slug") != "interesting" and city.get("slug") and city.get("name")]
+        return [
+            {
+                "slug": str(city["slug"]),
+                "name": str(city["name"]),
+                "timezone": str(city.get("timezone") or "UTC"),
+            }
+            for city in response.json()
+            if city.get("slug") != "interesting" and city.get("slug") and city.get("name")
+        ]
 
     def items(self, query: ProviderQuery) -> list[NormalizedLeisureItem]:
         fetched_at = utcnow()
         result: list[NormalizedLeisureItem] = []
-        event_filters = {"games": "quest", "sport": "recreation", "exhibition": "exhibition", "concert": "concert"}
-        place_filters = {"games": "anticafe,questroom,amusement,clubs", "sport": "recreation,amusement,stable", "exhibition": "museums,art-centers,art-space,theatre", "concert": "concert-hall,clubs", "wellness": "salons,suburb,recreation,amusement"}
+        event_filters = {
+            "games": "quest",
+            "sport": "recreation",
+            "exhibition": "exhibition",
+            "concert": "concert",
+        }
+        place_filters = {
+            "games": "anticafe,questroom,amusement,clubs",
+            "sport": "recreation,amusement,stable",
+            "exhibition": "museums,art-centers,art-space,theatre",
+            "concert": "concert-hall,clubs",
+            "wellness": "salons,suburb,recreation,amusement",
+        }
         for kind in ("events", "places"):
-            if kind == "events" and query.categories and all(category == "wellness" for category in query.categories):
+            if (
+                kind == "events"
+                and query.categories
+                and all(category == "wellness" for category in query.categories)
+            ):
                 continue
             params: dict[str, str | int] = {"location": query.city_slug, "page_size": 100}
             if kind == "events":
-                params.update({"actual_since": int(query.starts_at.timestamp()), "actual_until": int(query.ends_at.timestamp()), "fields": "id,title,dates,place,categories,price,is_free,site_url,images", "expand": "place"})
-                selected = sorted({event_filters[category] for category in query.categories if category in event_filters})
+                params.update(
+                    {
+                        "actual_since": int(query.starts_at.timestamp()),
+                        "actual_until": int(query.ends_at.timestamp()),
+                        "fields": "id,title,dates,place,categories,price,is_free,site_url,images",
+                        "expand": "place",
+                    }
+                )
+                selected = sorted(
+                    {
+                        event_filters[category]
+                        for category in query.categories
+                        if category in event_filters
+                    }
+                )
             else:
-                params["fields"] = "id,title,description,address,location,site_url,is_closed,coords,categories,timetable,images"
-                selected = sorted({slug for category in query.categories for slug in place_filters.get(category, "").split(",") if slug})
+                params["fields"] = (
+                    "id,title,description,address,location,site_url,is_closed,coords,categories,timetable,images"
+                )
+                selected = sorted(
+                    {
+                        slug
+                        for category in query.categories
+                        for slug in place_filters.get(category, "").split(",")
+                        if slug
+                    }
+                )
             known = event_filters if kind == "events" else place_filters
-            if selected and all(category in known or (kind == "events" and category == "wellness") for category in query.categories):
+            if selected and all(
+                category in known or (kind == "events" and category == "wellness")
+                for category in query.categories
+            ):
                 params["categories"] = ",".join(selected)
             for page in range(1, max(1, settings.kudago_max_pages) + 1):
                 params["page"] = page
-                response = httpx.get(f"{settings.kudago_base_url}/{kind}/", params=params, timeout=settings.kudago_timeout_seconds)
+                response = httpx.get(
+                    f"{settings.kudago_base_url}/{kind}/",
+                    params=params,
+                    timeout=settings.kudago_timeout_seconds,
+                )
                 response.raise_for_status()
                 data = response.json()
                 for raw in data.get("results", []):
@@ -286,14 +376,20 @@ def fetch_items(
     cache = cache or RedisProviderCache()
     cached = cache.get_events(query)
     if cached is not None:
-        return ProviderResult(cached, cached=True, fetched_at=cached[0].source_fetched_at if cached else None)
+        return ProviderResult(
+            cached, cached=True, fetched_at=cached[0].source_fetched_at if cached else None
+        )
     try:
         items = (provider or KudaGoProvider()).items(query)
     except (httpx.HTTPError, ValueError):
         # A second read lets a value written by another request win a race with failure.
         cached = cache.get_events(query)
         if cached is not None:
-            return ProviderResult(cached, cached=True, fetched_at=cached[0].source_fetched_at if cached else None)
+            return ProviderResult(
+                cached, cached=True, fetched_at=cached[0].source_fetched_at if cached else None
+            )
         return ProviderResult([], cached=False, fetched_at=None, unavailable=True)
     cache.set_events(query, items)
-    return ProviderResult(items, cached=False, fetched_at=items[0].source_fetched_at if items else utcnow())
+    return ProviderResult(
+        items, cached=False, fetched_at=items[0].source_fetched_at if items else utcnow()
+    )

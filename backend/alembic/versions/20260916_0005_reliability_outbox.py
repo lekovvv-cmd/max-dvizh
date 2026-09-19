@@ -18,9 +18,16 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     op.add_column("outbox_notifications", sa.Column("dedupe_key", sa.String(180), nullable=True))
-    op.add_column("outbox_notifications", sa.Column("next_attempt_at", sa.DateTime(timezone=True), nullable=True))
-    op.add_column("outbox_notifications", sa.Column("locked_at", sa.DateTime(timezone=True), nullable=True))
-    op.create_unique_constraint("uq_outbox_notifications_dedupe_key", "outbox_notifications", ["dedupe_key"])
+    op.add_column(
+        "outbox_notifications",
+        sa.Column("next_attempt_at", sa.DateTime(timezone=True), nullable=True),
+    )
+    op.add_column(
+        "outbox_notifications", sa.Column("locked_at", sa.DateTime(timezone=True), nullable=True)
+    )
+    op.create_unique_constraint(
+        "uq_outbox_notifications_dedupe_key", "outbox_notifications", ["dedupe_key"]
+    )
     op.create_index("ix_outbox_dispatch", "outbox_notifications", ["status", "next_attempt_at"])
 
 

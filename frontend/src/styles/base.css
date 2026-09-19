@@ -1,0 +1,131 @@
+:root {
+  --dvizh-bg: #f6f7f9;
+  --dvizh-surface: #ffffff;
+  --dvizh-surface-muted: #f0f2f5;
+  --dvizh-ink: #171a21;
+  --dvizh-muted: #69707d;
+  --dvizh-line: #dfe3e8;
+  --dvizh-line-strong: #c9ced7;
+  --dvizh-blue: #1976ed;
+  --dvizh-blue-strong: #0f62c9;
+  --dvizh-blue-soft: #eaf3ff;
+  --dvizh-yellow: #ffd43b;
+  --dvizh-warm: #8a4c12;
+  --dvizh-warm-soft: #fff4e5;
+  --dvizh-collecting: #68720e;
+  --dvizh-danger: #b5382a;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --radius-control: 8px;
+  --radius-row: 12px;
+  --radius-modal: 16px;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  color: var(--dvizh-ink);
+  background: var(--dvizh-bg);
+  font-synthesis: none;
+  color-scheme: light dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+html {
+  background: var(--dvizh-bg);
+}
+body {
+  min-width: 320px;
+  margin: 0;
+  background: var(--dvizh-bg);
+}
+button,
+input,
+select {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+}
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--dvizh-blue) 45%, transparent);
+  outline-offset: 2px;
+}
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+h1 {
+  margin-bottom: 0;
+  font-size: clamp(24px, 6vw, 28px);
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+}
+h2 {
+  margin-bottom: 0;
+  font-size: 18px;
+  line-height: 1.25;
+  letter-spacing: -0.012em;
+}
+h3 {
+  margin-bottom: 0;
+  font-size: 16px;
+  line-height: 1.3;
+}
+p {
+  line-height: 1.45;
+}
+a {
+  color: var(--dvizh-blue);
+}
+label {
+  display: grid;
+  gap: 6px;
+  color: var(--dvizh-ink);
+  font-size: 14px;
+  font-weight: 650;
+}
+select {
+  min-height: 44px;
+  width: 100%;
+  border: 1px solid var(--dvizh-line-strong);
+  border-radius: var(--radius-control);
+  padding: 0 12px;
+  background: var(--dvizh-surface);
+  color: var(--dvizh-ink);
+}
+.icon {
+  display: block;
+  flex: 0 0 auto;
+}
+.sr-only {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+.text-muted {
+  color: var(--dvizh-muted);
+}

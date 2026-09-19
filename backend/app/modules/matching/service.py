@@ -55,31 +55,88 @@ class EvaluatedCandidate:
 
     def rank(self) -> tuple[bool, bool, float, datetime, str]:
         created = self.intent.created_at or datetime.min.replace(tzinfo=UTC)
-        return (self.kind == "NEAR", self.distance_km is None, self.distance_km if self.distance_km is not None else float("inf"), created, self.intent.user_id)
+        return (
+            self.kind == "NEAR",
+            self.distance_km is None,
+            self.distance_km if self.distance_km is not None else float("inf"),
+            created,
+            self.intent.user_id,
+        )
 
 
 def _active_intents(session: Session, group_id: str, city: str) -> list[Intent]:
     current = utcnow()
-    return list(session.scalars(select(Intent).where(Intent.group_id == group_id, Intent.status == "ACTIVE", Intent.city_slug == city, (Intent.expires_at.is_(None) | (Intent.expires_at > current)))))
+    return list(
+        session.scalars(
+            select(Intent).where(
+                Intent.group_id == group_id,
+                Intent.status == "ACTIVE",
+                Intent.city_slug == city,
+                (Intent.expires_at.is_(None) | (Intent.expires_at > current)),
+            )
+        )
+    )
 
 
 def _fits_time(intent: Intent, item: NormalizedLeisureItem) -> bool:
     if intent.type != "RECURRING":
-        return intent.available_from is not None and intent.available_to is not None and contains_interval(intent.available_from, intent.available_to, item.starts_at, item.ends_at)
+        return (
+            intent.available_from is not None
+            and intent.available_to is not None
+            and contains_interval(
+                intent.available_from, intent.available_to, item.starts_at, item.ends_at
+            )
+        )
     recurrence = intent.recurrence_json or {}
     weekdays, local_start = recurrence.get("weekdays"), recurrence.get("local_start")
     local_end, timezone_name = recurrence.get("local_end"), recurrence.get("timezone")
-    if not (isinstance(weekdays, list) and all(isinstance(day, int) for day in weekdays) and isinstance(local_start, str) and isinstance(local_end, str) and isinstance(timezone_name, str)):
+    if not (
+        isinstance(weekdays, list)
+        and all(isinstance(day, int) for day in weekdays)
+        and isinstance(local_start, str)
+        and isinstance(local_end, str)
+        and isinstance(timezone_name, str)
+    ):
         return False
     try:
-        return recurring_interval_fits(starts_at=item.starts_at, ends_at=item.ends_at, weekdays=weekdays, local_start=local_start, local_end=local_end, timezone_name=timezone_name)
+        return recurring_interval_fits(
+            starts_at=item.starts_at,
+            ends_at=item.ends_at,
+            weekdays=weekdays,
+            local_start=local_start,
+            local_end=local_end,
+            timezone_name=timezone_name,
+        )
     except (ValueError, KeyError):
         return False
 
 
 def _snapshot_item(snapshot: CandidatePlanSourceSnapshot, city_slug: str) -> NormalizedLeisureItem:
     metadata = snapshot.source_metadata or {}
-    return NormalizedLeisureItem(provider=snapshot.provider, provider_id=snapshot.provider_item_id, item_type=snapshot.provider_item_type, city_slug=city_slug, title=snapshot.title, category=snapshot.category, venue_name=snapshot.venue_name, starts_at=snapshot.starts_at, ends_at=snapshot.ends_at, latitude=snapshot.latitude, longitude=snapshot.longitude, price_text=snapshot.price_text, price_min=snapshot.parsed_price, source_url=snapshot.source_url, image_url=snapshot.image_url, source_fetched_at=snapshot.source_fetched_at, is_demo=snapshot.is_demo, categories=tuple(cast(list[str], metadata.get("categories") or [])), price_kind=str(metadata.get("price_kind") or "UNKNOWN"), address_text=metadata_text(metadata, "address_text"), opening_hours_unverified=bool(metadata.get("opening_hours_unverified")), timetable=metadata_text(metadata, "timetable"))
+    return NormalizedLeisureItem(
+        provider=snapshot.provider,
+        provider_id=snapshot.provider_item_id,
+        item_type=snapshot.provider_item_type,
+        city_slug=city_slug,
+        title=snapshot.title,
+        category=snapshot.category,
+        venue_name=snapshot.venue_name,
+        starts_at=snapshot.starts_at,
+        ends_at=snapshot.ends_at,
+        latitude=snapshot.latitude,
+        longitude=snapshot.longitude,
+        price_text=snapshot.price_text,
+        price_min=snapshot.parsed_price,
+        source_url=snapshot.source_url,
+        image_url=snapshot.image_url,
+        source_fetched_at=snapshot.source_fetched_at,
+        is_demo=snapshot.is_demo,
+        categories=tuple(cast(list[str], metadata.get("categories") or [])),
+        price_kind=str(metadata.get("price_kind") or "UNKNOWN"),
+        address_text=metadata_text(metadata, "address_text"),
+        opening_hours_unverified=bool(metadata.get("opening_hours_unverified")),
+        timetable=metadata_text(metadata, "timetable"),
+    )
 
 
 def place_slots(item: NormalizedLeisureItem) -> list[NormalizedLeisureItem]:
@@ -90,7 +147,9 @@ def place_slots(item: NormalizedLeisureItem) -> list[NormalizedLeisureItem]:
     start = max(item.starts_at, utcnow())
     minute_overhang = start.minute % 30
     if minute_overhang or start.second or start.microsecond:
-        start += timedelta(minutes=30 - minute_overhang, seconds=-start.second, microseconds=-start.microsecond)
+        start += timedelta(
+            minutes=30 - minute_overhang, seconds=-start.second, microseconds=-start.microsecond
+        )
     result: list[NormalizedLeisureItem] = []
     while start + duration <= item.ends_at and len(result) < 7 * 48:
         result.append(replace(item, starts_at=start, ends_at=start + duration))
@@ -98,92 +157,226 @@ def place_slots(item: NormalizedLeisureItem) -> list[NormalizedLeisureItem]:
     return result
 
 
-def _evaluate_item(session: Session, group_id: str, city: str, item: NormalizedLeisureItem, *, intents: list[Intent] | None = None, locations: dict[str, Location] | None = None) -> tuple[list[EvaluatedCandidate], list[EvaluatedCandidate]]:
+def _evaluate_item(
+    session: Session,
+    group_id: str,
+    city: str,
+    item: NormalizedLeisureItem,
+    *,
+    intents: list[Intent] | None = None,
+    locations: dict[str, Location] | None = None,
+) -> tuple[list[EvaluatedCandidate], list[EvaluatedCandidate]]:
     eligible_by_user: dict[str, EvaluatedCandidate] = {}
     unverified_by_user: dict[str, EvaluatedCandidate] = {}
     for intent in intents if intents is not None else _active_intents(session, group_id, city):
         categories = set(intent.activity_categories or [intent.activity_category])
         item_categories = set(getattr(item, "categories", ()) or (item.category,))
-        if not ({"any", "other"} & categories or categories & item_categories) or not _fits_time(intent, item):
+        if not ({"any", "other"} & categories or categories & item_categories) or not _fits_time(
+            intent, item
+        ):
             continue
-        location = (locations.get(intent.origin_location_id) if locations is not None else session.get(Location, intent.origin_location_id)) if intent.origin_location_id else None
-        distance = haversine_km(location.latitude, location.longitude, item.latitude, item.longitude) if location is not None and item.latitude is not None and item.longitude is not None else None
-        result = compatibility(price=item.price_min, max_budget=intent.budget_max, near_limit=settings.near_budget_max_delta_rub, distance_km=distance, radius_km=intent.radius_km)
+        location = (
+            (
+                locations.get(intent.origin_location_id)
+                if locations is not None
+                else session.get(Location, intent.origin_location_id)
+            )
+            if intent.origin_location_id
+            else None
+        )
+        distance = (
+            haversine_km(location.latitude, location.longitude, item.latitude, item.longitude)
+            if location is not None and item.latitude is not None and item.longitude is not None
+            else None
+        )
+        result = compatibility(
+            price=item.price_min,
+            max_budget=intent.budget_max,
+            near_limit=settings.near_budget_max_delta_rub,
+            distance_km=distance,
+            radius_km=intent.radius_km,
+        )
         candidate = EvaluatedCandidate(intent, result.kind, distance, result.budget_delta)
-        target = eligible_by_user if result.kind in {"EXACT", "NEAR"} else unverified_by_user if result.kind == "UNVERIFIED" else None
-        if target is not None and (target.get(intent.user_id) is None or candidate.rank() < target[intent.user_id].rank()):
+        target = (
+            eligible_by_user
+            if result.kind in {"EXACT", "NEAR"}
+            else unverified_by_user
+            if result.kind == "UNVERIFIED"
+            else None
+        )
+        if target is not None and (
+            target.get(intent.user_id) is None or candidate.rank() < target[intent.user_id].rank()
+        ):
             target[intent.user_id] = candidate
     return list(eligible_by_user.values()), list(unverified_by_user.values())
 
 
-def _enqueue(session: Session, *, kind: str, user_id: str, payload: dict[str, object], key: str) -> None:
-    if session.scalar(select(OutboxNotification.id).where(OutboxNotification.dedupe_key == key)) is None:
-        session.add(OutboxNotification(kind=kind, user_id=user_id, payload=payload, dedupe_key=key, status="PENDING"))
+def _enqueue(
+    session: Session, *, kind: str, user_id: str, payload: dict[str, object], key: str
+) -> None:
+    if (
+        session.scalar(select(OutboxNotification.id).where(OutboxNotification.dedupe_key == key))
+        is None
+    ):
+        session.add(
+            OutboxNotification(
+                kind=kind, user_id=user_id, payload=payload, dedupe_key=key, status="PENDING"
+            )
+        )
 
 
 def cleanup_expired(session: Session) -> None:
     """Query-time expiry keeps active pool and action semantics consistent."""
     current = utcnow()
-    for plan in session.scalars(select(CandidatePlan).where(CandidatePlan.status.in_(("COLLECTING", "CONFIRMED_OPEN")), CandidatePlan.expires_at <= current)):
+    for plan in session.scalars(
+        select(CandidatePlan).where(
+            CandidatePlan.status.in_(("COLLECTING", "CONFIRMED_OPEN")),
+            CandidatePlan.expires_at <= current,
+        )
+    ):
         was_confirmed = plan.status == "CONFIRMED_OPEN"
         plan.status = "CONFIRMED" if was_confirmed else "EXPIRED"
-        for offer in session.scalars(select(Offer).where(Offer.candidate_plan_id == plan.id, Offer.status == "PENDING")):
+        for offer in session.scalars(
+            select(Offer).where(Offer.candidate_plan_id == plan.id, Offer.status == "PENDING")
+        ):
             offer.status = "EXPIRED"
-    for offer in session.scalars(select(Offer).where(Offer.status == "PENDING", Offer.expires_at <= current)):
+    for offer in session.scalars(
+        select(Offer).where(Offer.status == "PENDING", Offer.expires_at <= current)
+    ):
         offer.status = "EXPIRED"
 
 
 def _offer_statuses(session: Session, plan_id: str) -> dict[str, Offer]:
-    return {offer.user_id: offer for offer in session.scalars(select(Offer).where(Offer.candidate_plan_id == plan_id))}
+    return {
+        offer.user_id: offer
+        for offer in session.scalars(select(Offer).where(Offer.candidate_plan_id == plan_id))
+    }
 
 
 def _has_other_overlap(session: Session, *, user_id: str, plan: CandidatePlan) -> bool:
-    for offer in session.scalars(select(Offer).where(Offer.user_id == user_id, Offer.status.in_(("ACCEPTED", "WAITING_CONDITION")), Offer.candidate_plan_id != plan.id)):
+    for offer in session.scalars(
+        select(Offer).where(
+            Offer.user_id == user_id,
+            Offer.status.in_(("ACCEPTED", "WAITING_CONDITION")),
+            Offer.candidate_plan_id != plan.id,
+        )
+    ):
         other = session.get(CandidatePlan, offer.candidate_plan_id)
-        if other is not None and overlaps(plan.starts_at, plan.ends_at, other.starts_at, other.ends_at):
+        if other is not None and overlaps(
+            plan.starts_at, plan.ends_at, other.starts_at, other.ends_at
+        ):
             return True
     return False
 
 
 def _upsert_member(session: Session, plan_id: str, candidate: EvaluatedCandidate) -> None:
-    member = session.scalar(select(CandidatePlanMember).where(CandidatePlanMember.candidate_plan_id == plan_id, CandidatePlanMember.user_id == candidate.intent.user_id))
-    deviation = {"type": "BUDGET_OVER_MAX", "delta": candidate.budget_delta} if candidate.kind == "NEAR" else ({"type": "MISSING_PROVIDER_CONSTRAINT_DATA"} if candidate.kind == "UNVERIFIED" else None)
-    values = {"intent_id": candidate.intent.id, "compatibility": candidate.kind, "distance_km": round(candidate.distance_km, 1) if candidate.distance_km is not None else None, "budget_delta": candidate.budget_delta, "deviations_json": deviation}
+    member = session.scalar(
+        select(CandidatePlanMember).where(
+            CandidatePlanMember.candidate_plan_id == plan_id,
+            CandidatePlanMember.user_id == candidate.intent.user_id,
+        )
+    )
+    deviation = (
+        {"type": "BUDGET_OVER_MAX", "delta": candidate.budget_delta}
+        if candidate.kind == "NEAR"
+        else (
+            {"type": "MISSING_PROVIDER_CONSTRAINT_DATA"} if candidate.kind == "UNVERIFIED" else None
+        )
+    )
+    values = {
+        "intent_id": candidate.intent.id,
+        "compatibility": candidate.kind,
+        "distance_km": round(candidate.distance_km, 1)
+        if candidate.distance_km is not None
+        else None,
+        "budget_delta": candidate.budget_delta,
+        "deviations_json": deviation,
+    }
     if member is None:
-        session.add(CandidatePlanMember(candidate_plan_id=plan_id, user_id=candidate.intent.user_id, **values))
+        session.add(
+            CandidatePlanMember(
+                candidate_plan_id=plan_id, user_id=candidate.intent.user_id, **values
+            )
+        )
     else:
         for field, value in values.items():
             setattr(member, field, value)
 
 
 def response_count(session: Session, plan_id: str) -> int:
-    return session.scalar(select(func.count()).select_from(Offer).where(Offer.candidate_plan_id == plan_id, Offer.status.in_(("ACCEPTED", "WAITING_CONDITION")))) or 0
+    return (
+        session.scalar(
+            select(func.count())
+            .select_from(Offer)
+            .where(
+                Offer.candidate_plan_id == plan_id,
+                Offer.status.in_(("ACCEPTED", "WAITING_CONDITION")),
+            )
+        )
+        or 0
+    )
 
 
 def confirmed_count(session: Session, plan_id: str) -> int:
-    return session.scalar(select(func.count()).select_from(Offer).where(Offer.candidate_plan_id == plan_id, Offer.status == "ACCEPTED")) or 0
+    return (
+        session.scalar(
+            select(func.count())
+            .select_from(Offer)
+            .where(Offer.candidate_plan_id == plan_id, Offer.status == "ACCEPTED")
+        )
+        or 0
+    )
 
 
 def group_capacity(session: Session, group_id: str) -> int:
-    return session.scalar(select(func.count()).select_from(GroupMember).where(GroupMember.group_id == group_id)) or 0
+    return (
+        session.scalar(
+            select(func.count()).select_from(GroupMember).where(GroupMember.group_id == group_id)
+        )
+        or 0
+    )
 
 
 def effective_capacity(session: Session, plan: CandidatePlan) -> int:
     """A conditional responder cannot reduce an already confirmed core's cap."""
     capacity = group_capacity(session, plan.group_id)
-    statuses = ("ACCEPTED",) if confirmed_count(session, plan.id) else ("ACCEPTED", "WAITING_CONDITION")
-    members = session.scalars(select(Intent.max_people).join(CandidatePlanMember, CandidatePlanMember.intent_id == Intent.id).join(Offer, (Offer.candidate_plan_id == CandidatePlanMember.candidate_plan_id) & (Offer.user_id == CandidatePlanMember.user_id)).where(CandidatePlanMember.candidate_plan_id == plan.id, Offer.status.in_(statuses), Intent.max_people.is_not(None)))
+    statuses = (
+        ("ACCEPTED",) if confirmed_count(session, plan.id) else ("ACCEPTED", "WAITING_CONDITION")
+    )
+    members = session.scalars(
+        select(Intent.max_people)
+        .join(CandidatePlanMember, CandidatePlanMember.intent_id == Intent.id)
+        .join(
+            Offer,
+            (Offer.candidate_plan_id == CandidatePlanMember.candidate_plan_id)
+            & (Offer.user_id == CandidatePlanMember.user_id),
+        )
+        .where(
+            CandidatePlanMember.candidate_plan_id == plan.id,
+            Offer.status.in_(statuses),
+            Intent.max_people.is_not(None),
+        )
+    )
     return min((capacity, *members)) if capacity else 0
 
 
-def _feasible_core(responders: list[Offer], eligible_by_user: dict[str, EvaluatedCandidate], capacity: int) -> set[str]:
+def _feasible_core(
+    responders: list[Offer], eligible_by_user: dict[str, EvaluatedCandidate], capacity: int
+) -> set[str]:
     """Choose the largest feasible core while retaining existing confirmed users."""
     confirmed = {offer.user_id for offer in responders if offer.status == "ACCEPTED"}
-    ordered = sorted(responders, key=lambda offer: (aware(offer.responded_at or offer.created_at), offer.id))
+    ordered = sorted(
+        responders, key=lambda offer: (aware(offer.responded_at or offer.created_at), offer.id)
+    )
     best: set[str] = set()
     best_score = (-1, -1)
     for size in range(1, min(len(ordered), capacity) + 1):
-        suitable = [offer for offer in ordered if (candidate := eligible_by_user.get(offer.user_id)) is not None and candidate.intent.min_people <= size <= (candidate.intent.max_people or capacity)]
+        suitable = [
+            offer
+            for offer in ordered
+            if (candidate := eligible_by_user.get(offer.user_id)) is not None
+            and candidate.intent.min_people <= size <= (candidate.intent.max_people or capacity)
+        ]
         if len(suitable) < size:
             continue
         chosen = [offer.user_id for offer in suitable if offer.user_id in confirmed]
@@ -197,25 +390,51 @@ def _feasible_core(responders: list[Offer], eligible_by_user: dict[str, Evaluate
 
 def _feasible_size(candidates: list[EvaluatedCandidate], capacity: int) -> int:
     for size in range(min(len(candidates), capacity), 1, -1):
-        if sum(candidate.intent.min_people <= size <= (candidate.intent.max_people or capacity) for candidate in candidates) >= size:
+        if (
+            sum(
+                candidate.intent.min_people <= size <= (candidate.intent.max_people or capacity)
+                for candidate in candidates
+            )
+            >= size
+        ):
             return size
     return 0
 
 
-def recompute_candidate_plan(session: Session, plan: CandidatePlan, *, intents: list[Intent] | None = None, locations: dict[str, Location] | None = None) -> bool:
+def recompute_candidate_plan(
+    session: Session,
+    plan: CandidatePlan,
+    *,
+    intents: list[Intent] | None = None,
+    locations: dict[str, Location] | None = None,
+) -> bool:
     """Refresh a plan from its source snapshot; repeated calls are idempotent."""
     # Production sessions disable autoflush. Persist the caller's status changes
     # before SQL-based overlap and capacity checks read them.
     session.flush()
     cleanup_expired(session)
     session.flush()
-    if plan.status not in {"COLLECTING", "CONFIRMED_OPEN", "CONFIRMED"} or aware(plan.expires_at) <= utcnow():
+    if (
+        plan.status not in {"COLLECTING", "CONFIRMED_OPEN", "CONFIRMED"}
+        or aware(plan.expires_at) <= utcnow()
+    ):
         return False
-    snapshot = session.scalar(select(CandidatePlanSourceSnapshot).where(CandidatePlanSourceSnapshot.candidate_plan_id == plan.id))
+    snapshot = session.scalar(
+        select(CandidatePlanSourceSnapshot).where(
+            CandidatePlanSourceSnapshot.candidate_plan_id == plan.id
+        )
+    )
     if snapshot is None or plan.starts_at >= plan.ends_at:
         plan.status = "CANCELLED"
         return False
-    eligible, unverified = _evaluate_item(session, plan.group_id, plan.city_slug, _snapshot_item(snapshot, plan.city_slug), intents=intents, locations=locations)
+    eligible, unverified = _evaluate_item(
+        session,
+        plan.group_id,
+        plan.city_slug,
+        _snapshot_item(snapshot, plan.city_slug),
+        intents=intents,
+        locations=locations,
+    )
     capacity = group_capacity(session, plan.group_id)
     eligible = [candidate for candidate in eligible if candidate.intent.min_people <= capacity]
     statuses = _offer_statuses(session, plan.id)
@@ -226,7 +445,9 @@ def recompute_candidate_plan(session: Session, plan: CandidatePlan, *, intents: 
         if offer.status in {"ACCEPTED", "WAITING_CONDITION"} and user_id not in eligible_by_user:
             offer.status = "CANCELLED_BY_USER"
         if offer.status in {"PENDING", "INVALIDATED"}:
-            if user_id not in eligible_by_user or _has_other_overlap(session, user_id=user_id, plan=plan):
+            if user_id not in eligible_by_user or _has_other_overlap(
+                session, user_id=user_id, plan=plan
+            ):
                 offer.status = "INVALIDATED"
             elif offer.status == "INVALIDATED" and aware(offer.expires_at) > utcnow():
                 offer.status = "PENDING"
@@ -237,12 +458,32 @@ def recompute_candidate_plan(session: Session, plan: CandidatePlan, *, intents: 
             user_id = candidate.intent.user_id
             if user_id in statuses or _has_other_overlap(session, user_id=user_id, plan=plan):
                 continue
-            offer = Offer(candidate_plan_id=plan.id, user_id=user_id, status="PENDING", is_near=candidate.kind == "NEAR", expires_at=expiry)
+            offer = Offer(
+                candidate_plan_id=plan.id,
+                user_id=user_id,
+                status="PENDING",
+                is_near=candidate.kind == "NEAR",
+                expires_at=expiry,
+            )
             session.add(offer)
             session.flush()
             group = session.get(Group, plan.group_id)
-            _enqueue(session, kind="OFFER", user_id=user_id, payload={"offer_id": offer.id, "title": snapshot.title, "group_name": group.name if group else "Компания", "starts_at": plan.starts_at.isoformat(), "timezone": group.timezone_name if group else "UTC"}, key=f"OFFER:{offer.id}")
-    responders = [offer for offer in statuses.values() if offer.status in {"ACCEPTED", "WAITING_CONDITION"}]
+            _enqueue(
+                session,
+                kind="OFFER",
+                user_id=user_id,
+                payload={
+                    "offer_id": offer.id,
+                    "title": snapshot.title,
+                    "group_name": group.name if group else "Компания",
+                    "starts_at": plan.starts_at.isoformat(),
+                    "timezone": group.timezone_name if group else "UTC",
+                },
+                key=f"OFFER:{offer.id}",
+            )
+    responders = [
+        offer for offer in statuses.values() if offer.status in {"ACCEPTED", "WAITING_CONDITION"}
+    ]
     capacity = effective_capacity(session, plan)
     core = _feasible_core(responders, eligible_by_user, capacity)
     plan.required_max_people = capacity
@@ -253,8 +494,24 @@ def recompute_candidate_plan(session: Session, plan: CandidatePlan, *, intents: 
             offer.status = "ACCEPTED" if offer.user_id in core else "WAITING_CONDITION"
             if offer.status == "ACCEPTED":
                 group = session.get(Group, plan.group_id)
-                _enqueue(session, kind="CONFIRMED_PLAN", user_id=offer.user_id, payload={"plan_id": plan.id, "title": snapshot.title, "group_name": group.name if group else "Компания", "starts_at": plan.starts_at.isoformat(), "timezone": group.timezone_name if group else "UTC"}, key=f"CONFIRMED_PLAN:{plan.id}:{offer.user_id}")
-        core_caps = [limit for user_id in core if (limit := eligible_by_user[user_id].intent.max_people) is not None]
+                _enqueue(
+                    session,
+                    kind="CONFIRMED_PLAN",
+                    user_id=offer.user_id,
+                    payload={
+                        "plan_id": plan.id,
+                        "title": snapshot.title,
+                        "group_name": group.name if group else "Компания",
+                        "starts_at": plan.starts_at.isoformat(),
+                        "timezone": group.timezone_name if group else "UTC",
+                    },
+                    key=f"CONFIRMED_PLAN:{plan.id}:{offer.user_id}",
+                )
+        core_caps = [
+            limit
+            for user_id in core
+            if (limit := eligible_by_user[user_id].intent.max_people) is not None
+        ]
         plan.required_max_people = min((group_capacity(session, plan.group_id), *core_caps))
         plan.status = "CONFIRMED" if len(core) >= plan.required_max_people else "CONFIRMED_OPEN"
     else:
@@ -264,7 +521,14 @@ def recompute_candidate_plan(session: Session, plan: CandidatePlan, *, intents: 
     return True
 
 
-def regenerate_group(session: Session, group_id: str, city: str, items: list[NormalizedLeisureItem], *, commit: bool = True) -> list[CandidatePlan]:
+def regenerate_group(
+    session: Session,
+    group_id: str,
+    city: str,
+    items: list[NormalizedLeisureItem],
+    *,
+    commit: bool = True,
+) -> list[CandidatePlan]:
     """Create/update plans for provider items and commit the request flow once."""
     cleanup_expired(session)
     session.flush()
@@ -275,7 +539,14 @@ def regenerate_group(session: Session, group_id: str, city: str, items: list[Nor
         return []
     intents = _active_intents(session, group_id, city)
     location_ids = {intent.origin_location_id for intent in intents if intent.origin_location_id}
-    locations = {location.id: location for location in session.scalars(select(Location).where(Location.id.in_(location_ids)))} if location_ids else {}
+    locations = (
+        {
+            location.id: location
+            for location in session.scalars(select(Location).where(Location.id.in_(location_ids)))
+        }
+        if location_ids
+        else {}
+    )
     capacity = group_capacity(session, group_id)
     plans: list[CandidatePlan] = []
     used_place_days: set[tuple[str, str]] = set()
@@ -290,8 +561,12 @@ def regenerate_group(session: Session, group_id: str, city: str, items: list[Nor
         for slot in place_slots(source):
             if slot.starts_at - timedelta(minutes=10) <= utcnow():
                 continue
-            eligible, _ = _evaluate_item(session, group_id, city, slot, intents=intents, locations=locations)
-            eligible = [candidate for candidate in eligible if candidate.intent.min_people <= capacity]
+            eligible, _ = _evaluate_item(
+                session, group_id, city, slot, intents=intents, locations=locations
+            )
+            eligible = [
+                candidate for candidate in eligible if candidate.intent.min_people <= capacity
+            ]
             if not eligible:
                 continue
             day = slot.starts_at.astimezone(timezone).date().isoformat()
@@ -306,7 +581,9 @@ def regenerate_group(session: Session, group_id: str, city: str, items: list[Nor
         place_day = (item.provider_id, item.starts_at.astimezone(timezone).date().isoformat())
         if item.item_type == "PLACE" and place_day in used_place_days:
             continue
-        eligible, _ = _evaluate_item(session, group_id, city, item, intents=intents, locations=locations)
+        eligible, _ = _evaluate_item(
+            session, group_id, city, item, intents=intents, locations=locations
+        )
         eligible = [candidate for candidate in eligible if candidate.intent.min_people <= capacity]
         # One compatible member is enough to create a concrete invitation. The
         # minimum is a confirmation condition, not a prerequisite for an Offer.
@@ -314,12 +591,60 @@ def regenerate_group(session: Session, group_id: str, city: str, items: list[Nor
             continue
         if item.item_type == "PLACE":
             used_place_days.add(place_day)
-        plan = session.scalar(select(CandidatePlan).join(CandidatePlanSourceSnapshot).where(CandidatePlan.group_id == group_id, CandidatePlan.status.in_(("COLLECTING", "CONFIRMED_OPEN", "CONFIRMED")), CandidatePlanSourceSnapshot.provider == item.provider, CandidatePlanSourceSnapshot.provider_item_id == item.provider_id, CandidatePlan.starts_at == item.starts_at).with_for_update(of=CandidatePlan))
+        plan = session.scalar(
+            select(CandidatePlan)
+            .join(CandidatePlanSourceSnapshot)
+            .where(
+                CandidatePlan.group_id == group_id,
+                CandidatePlan.status.in_(("COLLECTING", "CONFIRMED_OPEN", "CONFIRMED")),
+                CandidatePlanSourceSnapshot.provider == item.provider,
+                CandidatePlanSourceSnapshot.provider_item_id == item.provider_id,
+                CandidatePlan.starts_at == item.starts_at,
+            )
+            .with_for_update(of=CandidatePlan)
+        )
         if plan is None:
-            plan = CandidatePlan(group_id=group_id, city_slug=city, starts_at=item.starts_at, ends_at=item.ends_at, estimated_price_min=item.price_min, required_min_people=min(candidate.intent.min_people for candidate in eligible), required_max_people=capacity, status="COLLECTING", expires_at=item.starts_at - timedelta(minutes=10))
+            plan = CandidatePlan(
+                group_id=group_id,
+                city_slug=city,
+                starts_at=item.starts_at,
+                ends_at=item.ends_at,
+                estimated_price_min=item.price_min,
+                required_min_people=min(candidate.intent.min_people for candidate in eligible),
+                required_max_people=capacity,
+                status="COLLECTING",
+                expires_at=item.starts_at - timedelta(minutes=10),
+            )
             session.add(plan)
             session.flush()
-            session.add(CandidatePlanSourceSnapshot(candidate_plan_id=plan.id, provider=item.provider, provider_item_id=item.provider_id, provider_item_type=item.item_type, title=item.title, category=item.category, venue_name=item.venue_name, starts_at=item.starts_at, ends_at=item.ends_at, latitude=item.latitude, longitude=item.longitude, price_text=item.price_text, parsed_price=item.price_min, source_url=item.source_url, image_url=item.image_url, source_fetched_at=item.source_fetched_at, is_demo=item.is_demo, source_metadata={"categories": item.categories, "price_kind": item.price_kind, "address_text": item.address_text, "opening_hours_unverified": item.opening_hours_unverified, "timetable": item.timetable}))
+            session.add(
+                CandidatePlanSourceSnapshot(
+                    candidate_plan_id=plan.id,
+                    provider=item.provider,
+                    provider_item_id=item.provider_id,
+                    provider_item_type=item.item_type,
+                    title=item.title,
+                    category=item.category,
+                    venue_name=item.venue_name,
+                    starts_at=item.starts_at,
+                    ends_at=item.ends_at,
+                    latitude=item.latitude,
+                    longitude=item.longitude,
+                    price_text=item.price_text,
+                    parsed_price=item.price_min,
+                    source_url=item.source_url,
+                    image_url=item.image_url,
+                    source_fetched_at=item.source_fetched_at,
+                    is_demo=item.is_demo,
+                    source_metadata={
+                        "categories": item.categories,
+                        "price_kind": item.price_kind,
+                        "address_text": item.address_text,
+                        "opening_hours_unverified": item.opening_hours_unverified,
+                        "timetable": item.timetable,
+                    },
+                )
+            )
         recompute_candidate_plan(session, plan, intents=intents, locations=locations)
         plans.append(plan)
     if commit:

@@ -17,7 +17,10 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column("intents", sa.Column("provider_state", sa.String(24), server_default="NOT_CHECKED", nullable=False))
+    op.add_column(
+        "intents",
+        sa.Column("provider_state", sa.String(24), server_default="NOT_CHECKED", nullable=False),
+    )
 
 
 def downgrade() -> None:

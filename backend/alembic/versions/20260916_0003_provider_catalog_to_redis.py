@@ -74,7 +74,9 @@ def upgrade() -> None:
         ON CONFLICT (candidate_plan_id) DO NOTHING
         """
     )
-    op.drop_constraint("candidate_plans_leisure_item_id_fkey", "candidate_plans", type_="foreignkey")
+    op.drop_constraint(
+        "candidate_plans_leisure_item_id_fkey", "candidate_plans", type_="foreignkey"
+    )
     op.drop_column("candidate_plans", "leisure_item_id")
     if "provider_snapshots" in tables:
         op.drop_table("provider_snapshots")
@@ -96,13 +98,19 @@ def downgrade() -> None:
         sa.Column("city_slug", sa.String(64), nullable=False),
         sa.Column("title", sa.String(250), nullable=False),
         sa.Column("category", sa.String(64), nullable=False),
-        sa.Column("venue_name", sa.String(250)), sa.Column("latitude", sa.Float()),
-        sa.Column("longitude", sa.Float()), sa.Column("starts_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("ends_at", sa.DateTime(timezone=True), nullable=False), sa.Column("price_text", sa.String(250)),
-        sa.Column("price_min", sa.Integer()), sa.Column("is_free", sa.Boolean(), nullable=False, server_default=sa.false()),
-        sa.Column("source_url", sa.Text()), sa.Column("image_url", sa.Text()),
+        sa.Column("venue_name", sa.String(250)),
+        sa.Column("latitude", sa.Float()),
+        sa.Column("longitude", sa.Float()),
+        sa.Column("starts_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("ends_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("price_text", sa.String(250)),
+        sa.Column("price_min", sa.Integer()),
+        sa.Column("is_free", sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.Column("source_url", sa.Text()),
+        sa.Column("image_url", sa.Text()),
         sa.Column("source_fetched_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("is_demo", sa.Boolean(), nullable=False, server_default=sa.false()), sa.Column("raw_metadata", sa.JSON()),
+        sa.Column("is_demo", sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.Column("raw_metadata", sa.JSON()),
         sa.UniqueConstraint("provider", "provider_id"),
     )
     op.create_index("ix_leisure_city_start", "leisure_items", ["city_slug", "starts_at"])
@@ -130,12 +138,19 @@ def downgrade() -> None:
     )
     op.alter_column("candidate_plans", "leisure_item_id", nullable=False)
     op.create_foreign_key(
-        "candidate_plans_leisure_item_id_fkey", "candidate_plans", "leisure_items", ["leisure_item_id"], ["id"]
+        "candidate_plans_leisure_item_id_fkey",
+        "candidate_plans",
+        "leisure_items",
+        ["leisure_item_id"],
+        ["id"],
     )
     op.create_table(
-        "provider_snapshots", sa.Column("id", sa.String(36), primary_key=True),
-        sa.Column("provider", sa.String(40), nullable=False), sa.Column("city_slug", sa.String(64), nullable=False),
-        sa.Column("payload", sa.JSON(), nullable=False), sa.Column("fetched_at", sa.DateTime(timezone=True), nullable=False),
+        "provider_snapshots",
+        sa.Column("id", sa.String(36), primary_key=True),
+        sa.Column("provider", sa.String(40), nullable=False),
+        sa.Column("city_slug", sa.String(64), nullable=False),
+        sa.Column("payload", sa.JSON(), nullable=False),
+        sa.Column("fetched_at", sa.DateTime(timezone=True), nullable=False),
         sa.UniqueConstraint("provider", "city_slug"),
     )
     op.drop_table("candidate_plan_source_snapshots")

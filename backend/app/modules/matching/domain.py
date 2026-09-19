@@ -121,7 +121,9 @@ def recurring_interval_fits(
     local day (for example Friday 22:00–02:00).
     """
     zone = ZoneInfo(timezone_name)
-    event_start = starts_at.replace(tzinfo=UTC) if starts_at.tzinfo is None else starts_at.astimezone(UTC)
+    event_start = (
+        starts_at.replace(tzinfo=UTC) if starts_at.tzinfo is None else starts_at.astimezone(UTC)
+    )
     event_end = ends_at.replace(tzinfo=UTC) if ends_at.tzinfo is None else ends_at.astimezone(UTC)
     if event_end <= event_start:
         return False
@@ -140,7 +142,9 @@ def recurring_interval_fits(
     return window_start <= local_event_start and local_event_end <= window_end
 
 
-def feasible_cohort(candidates: list[GroupSizeCandidate], maximum_size: int = 12) -> FeasibleCohort | None:
+def feasible_cohort(
+    candidates: list[GroupSizeCandidate], maximum_size: int = 12
+) -> FeasibleCohort | None:
     """Find a feasible size for a given set of respondents.
 
     This pure helper does not select Offer recipients. A concrete plan and its
@@ -151,7 +155,8 @@ def feasible_cohort(candidates: list[GroupSizeCandidate], maximum_size: int = 12
         cohort = sorted(
             candidate.user_id
             for candidate in unique.values()
-            if candidate.min_people <= size and (candidate.max_people is None or size <= candidate.max_people)
+            if candidate.min_people <= size
+            and (candidate.max_people is None or size <= candidate.max_people)
         )
         if len(cohort) >= size:
             return FeasibleCohort(size=size, user_ids=tuple(cohort))
@@ -172,6 +177,9 @@ def confirmed_size(accepted: list[GroupSizeCandidate], group_size: int) -> int |
     count = len(accepted)
     if count < 2 or count > group_size:
         return None
-    if all(candidate.min_people <= count <= (candidate.max_people or group_size) for candidate in accepted):
+    if all(
+        candidate.min_people <= count <= (candidate.max_people or group_size)
+        for candidate in accepted
+    ):
         return count
     return None

@@ -46,7 +46,9 @@ class Group(Base):
     timezone_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_by: Mapped[str] = mapped_column(ForeignKey("users.id"))
     invite_token: Mapped[str] = mapped_column(String(64), unique=True, default=lambda: uuid4().hex)
-    invite_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    invite_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -93,7 +95,9 @@ class Intent(Base):
     available_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     recurrence_json: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
     budget_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    origin_location_id: Mapped[str | None] = mapped_column(ForeignKey("locations.id"), nullable=True)
+    origin_location_id: Mapped[str | None] = mapped_column(
+        ForeignKey("locations.id"), nullable=True
+    )
     radius_km: Mapped[float | None] = mapped_column(Float, nullable=True)
     min_people: Mapped[int] = mapped_column(Integer)
     max_people: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -186,7 +190,10 @@ class Offer(Base):
 
 class OutboxNotification(Base):
     __tablename__ = "outbox_notifications"
-    __table_args__ = (UniqueConstraint("dedupe_key"), Index("ix_outbox_dispatch", "status", "next_attempt_at"))
+    __table_args__ = (
+        UniqueConstraint("dedupe_key"),
+        Index("ix_outbox_dispatch", "status", "next_attempt_at"),
+    )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     kind: Mapped[str] = mapped_column(String(40))
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))

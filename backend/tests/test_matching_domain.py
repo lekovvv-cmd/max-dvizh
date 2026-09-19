@@ -21,18 +21,30 @@ def test_budget_exact_near_and_conflict() -> None:
 
 
 def test_optional_constraints_distinguish_conflict_from_unverified() -> None:
-    assert compatibility(
-        price=None, max_budget=500, near_limit=150, distance_km=1, radius_km=None
-    ).kind == "UNVERIFIED"
-    assert compatibility(
-        price=400, max_budget=None, near_limit=150, distance_km=None, radius_km=10
-    ).kind == "UNVERIFIED"
-    assert compatibility(
-        price=400, max_budget=None, near_limit=150, distance_km=None, radius_km=None
-    ).kind == "EXACT"
-    assert compatibility(
-        price=800, max_budget=500, near_limit=150, distance_km=None, radius_km=10
-    ).kind == "CONFLICT"
+    assert (
+        compatibility(
+            price=None, max_budget=500, near_limit=150, distance_km=1, radius_km=None
+        ).kind
+        == "UNVERIFIED"
+    )
+    assert (
+        compatibility(
+            price=400, max_budget=None, near_limit=150, distance_km=None, radius_km=10
+        ).kind
+        == "UNVERIFIED"
+    )
+    assert (
+        compatibility(
+            price=400, max_budget=None, near_limit=150, distance_km=None, radius_km=None
+        ).kind
+        == "EXACT"
+    )
+    assert (
+        compatibility(
+            price=800, max_budget=500, near_limit=150, distance_km=None, radius_km=10
+        ).kind
+        == "CONFLICT"
+    )
 
 
 def test_haversine_and_half_open_interval_overlap() -> None:
@@ -75,17 +87,42 @@ def test_group_feasibility_prefers_fastest_valid_minimum_not_largest_cohort() ->
 
 def test_one_time_event_must_be_contained_not_merely_overlap() -> None:
     start = datetime(2026, 9, 18, 18, tzinfo=UTC)
-    assert contains_interval(start, start + timedelta(hours=3), start + timedelta(hours=2), start + timedelta(hours=3))
-    assert not contains_interval(start, start + timedelta(hours=3), start + timedelta(hours=2), start + timedelta(hours=5))
+    assert contains_interval(
+        start, start + timedelta(hours=3), start + timedelta(hours=2), start + timedelta(hours=3)
+    )
+    assert not contains_interval(
+        start, start + timedelta(hours=3), start + timedelta(hours=2), start + timedelta(hours=5)
+    )
 
 
 def test_recurring_time_timezone_and_overnight_window() -> None:
     # 15:00 UTC is 20:00 in Yekaterinburg on Friday.
     start = datetime(2026, 9, 18, 15, tzinfo=UTC)
-    assert recurring_interval_fits(starts_at=start, ends_at=start + timedelta(hours=2), weekdays=[4], local_start="18:00", local_end="23:00", timezone_name="Asia/Yekaterinburg")
-    assert not recurring_interval_fits(starts_at=start - timedelta(hours=10), ends_at=start - timedelta(hours=8), weekdays=[4], local_start="18:00", local_end="23:00", timezone_name="Asia/Yekaterinburg")
+    assert recurring_interval_fits(
+        starts_at=start,
+        ends_at=start + timedelta(hours=2),
+        weekdays=[4],
+        local_start="18:00",
+        local_end="23:00",
+        timezone_name="Asia/Yekaterinburg",
+    )
+    assert not recurring_interval_fits(
+        starts_at=start - timedelta(hours=10),
+        ends_at=start - timedelta(hours=8),
+        weekdays=[4],
+        local_start="18:00",
+        local_end="23:00",
+        timezone_name="Asia/Yekaterinburg",
+    )
     overnight = datetime(2026, 9, 18, 17, tzinfo=UTC)  # Friday 22:00 local
-    assert recurring_interval_fits(starts_at=overnight, ends_at=overnight + timedelta(hours=3), weekdays=[4], local_start="22:00", local_end="02:00", timezone_name="Asia/Yekaterinburg")
+    assert recurring_interval_fits(
+        starts_at=overnight,
+        ends_at=overnight + timedelta(hours=3),
+        weekdays=[4],
+        local_start="22:00",
+        local_end="02:00",
+        timezone_name="Asia/Yekaterinburg",
+    )
     assert not overlaps(
         start, start + timedelta(hours=2), start + timedelta(hours=2), start + timedelta(hours=3)
     )

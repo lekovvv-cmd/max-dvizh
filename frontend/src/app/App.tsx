@@ -1,8 +1,9 @@
-import { Button, Input } from '@maxhub/max-ui'
+import { Button } from '@maxhub/max-ui'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { AutoSignals } from '../features/autosignals/AutoSignals'
 import { Company } from '../features/groups/Company'
+import { CreateCompany } from '../features/groups/CreateCompany'
 import { OfferPool } from '../features/offers/OfferPool'
 import { PlanCard } from '../features/plans/PlanCard'
 import { Plans } from '../features/plans/Plans'
@@ -16,11 +17,16 @@ import type { Group, GroupCityUpdateResult, Intent, Location, Offer, Plan } from
 
 export function App() {
   const [screen, setScreen] = useState<Screen>('home')
-  const [loading, setLoading] = useState(true); const [error, setError] = useState('')
-  const [group, setGroup] = useState<Group | null>(null); const [groups, setGroups] = useState<Group[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [group, setGroup] = useState<Group | null>(null)
+  const [groups, setGroups] = useState<Group[]>([])
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
-  const [locations, setLocations] = useState<Location[]>([]); const [intents, setIntents] = useState<Intent[]>([])
-  const [offers, setOffers] = useState<Offer[]>([]); const [plans, setPlans] = useState<Plan[]>([]); const [name, setName] = useState('')
+  const [locations, setLocations] = useState<Location[]>([])
+  const [intents, setIntents] = useState<Intent[]>([])
+  const [offers, setOffers] = useState<Offer[]>([])
+  const [plans, setPlans] = useState<Plan[]>([])
+  const [name, setName] = useState('')
   const [mode, setMode] = useState('MAX')
   const [chatAvailable, setChatAvailable] = useState(false)
   const [editingBatch, setEditingBatch] = useState<string | null>(null)
@@ -31,77 +37,326 @@ export function App() {
   const [cancelBatchId, setCancelBatchId] = useState<string | null>(null)
   const [cancelBusy, setCancelBusy] = useState(false)
   const load = useCallback(async () => {
-    setLoading(true); setError('')
+    setLoading(true)
+    setError('')
     try {
-      const [session, nextGroups] = await Promise.all([api.session(), api.groups()])
-      const selected = nextGroups.find(item => item.id === selectedGroupId) ?? nextGroups[0] ?? null
-      const [nextLocations, nextOffers, nextPlans, nextIntents] = await Promise.all([api.locations(), api.offers(), api.plans(), api.intents()])
-      setName(session.display_name); setMode(session.max_mode); setChatAvailable(Boolean(session.max_chat_id)); setGroups(nextGroups); setGroup(selected); setLocations(nextLocations); setOffers(nextOffers); setPlans(nextPlans); setIntents(nextIntents)
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Сервис временно недоступен') } finally { setLoading(false) }
+      const [session, nextGroups, nextLocations, nextOffers, nextPlans, nextIntents] =
+        await Promise.all([
+          api.session(),
+          api.groups(),
+          api.locations(),
+          api.offers(),
+          api.plans(),
+          api.intents(),
+        ])
+      const selected =
+        nextGroups.find((item) => item.id === selectedGroupId) ?? nextGroups[0] ?? null
+      setName(session.display_name)
+      setMode(session.max_mode)
+      setChatAvailable(Boolean(session.max_chat_id))
+      setGroups(nextGroups)
+      setGroup(selected)
+      setLocations(nextLocations)
+      setOffers(nextOffers)
+      setPlans(nextPlans)
+      setIntents(nextIntents)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Сервис временно недоступен')
+    } finally {
+      setLoading(false)
+    }
   }, [selectedGroupId])
-  useEffect(() => { void load() }, [load])
   useEffect(() => {
-    const token = new URLSearchParams(window.location.hash.slice(1)).get('startapp') || new URLSearchParams(window.WebApp?.initData || '').get('start_param')
-    if (token?.startsWith('offer_')) { setScreen('home'); setTargetId(`offer-${token.slice(6)}`); return }
-    if (token?.startsWith('plan_')) { setScreen('plans'); setTargetId(`plan-${token.slice(5)}`); return }
+    void load()
+  }, [load])
+  useEffect(() => {
+    const token =
+      new URLSearchParams(window.location.hash.slice(1)).get('startapp') ||
+      new URLSearchParams(window.WebApp?.initData || '').get('start_param')
+    if (token?.startsWith('offer_')) {
+      setScreen('home')
+      setTargetId(`offer-${token.slice(6)}`)
+      return
+    }
+    if (token?.startsWith('plan_')) {
+      setScreen('plans')
+      setTargetId(`plan-${token.slice(5)}`)
+      return
+    }
     if (token && handledJoinToken.current !== token) {
       handledJoinToken.current = token
       setJoinState('Вступаем…')
-      void api.join(token).then(result => { setJoinState(result.already_member ? 'Ты уже участник' : 'Ты в компании'); setSelectedGroupId(result.group.id) }).catch(reason => setJoinState(reason instanceof Error ? reason.message : 'Приглашение недействительно'))
+      void api
+        .join(token)
+        .then((result) => {
+          setJoinState(result.already_member ? 'Ты уже участник' : 'Ты в компании')
+          setSelectedGroupId(result.group.id)
+        })
+        .catch((reason) =>
+          setJoinState(reason instanceof Error ? reason.message : 'Приглашение недействительно'),
+        )
     }
   }, [])
-  useEffect(() => { if (targetId && !loading) document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'center' }) }, [targetId, loading, offers, plans])
-  if (loading) return <main className="system-state" aria-live="polite"><span className="loading-indicator" aria-hidden="true" /><p>Загружаем…</p></main>
-  if (error) return <main className="system-state"><section className="system-card" role="alert"><h1>Не получилось загрузить</h1><p>{error}</p><Button variant="primary" onClick={() => void load()}>Повторить</Button></section></main>
-  if (!group || creatingGroup) return <Start chatAvailable={chatAvailable} joinState={joinState} onCreated={created => { setSelectedGroupId(created.id); setCreatingGroup(false) }} onCancel={group ? () => setCreatingGroup(false) : undefined} />
+  useEffect(() => {
+    if (targetId && !loading)
+      document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [targetId, loading, offers, plans])
+  if (loading)
+    return (
+      <main className="system-state" aria-live="polite">
+        <span className="loading-indicator" aria-hidden="true" />
+        <p>Загружаем…</p>
+      </main>
+    )
+  if (error)
+    return (
+      <main className="system-state">
+        <section className="system-card" role="alert">
+          <h1>Не получилось загрузить</h1>
+          <p>{error}</p>
+          <Button variant="primary" onClick={() => void load()}>
+            Повторить
+          </Button>
+        </section>
+      </main>
+    )
+  if (!group || creatingGroup)
+    return (
+      <CreateCompany
+        chatAvailable={chatAvailable}
+        joinState={joinState}
+        onCreated={(created) => {
+          setSelectedGroupId(created.id)
+          setCreatingGroup(false)
+        }}
+        onCancel={group ? () => setCreatingGroup(false) : undefined}
+      />
+    )
   const refresh = () => void load()
   const cancelSignal = async () => {
     if (!cancelBatchId) return
     setCancelBusy(true)
-    try { await api.cancelSignalBatch(cancelBatchId); setCancelBatchId(null); await load() }
-    catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось отменить сигнал') }
-    finally { setCancelBusy(false) }
+    try {
+      await api.cancelSignalBatch(cancelBatchId)
+      setCancelBatchId(null)
+      await load()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Не удалось отменить сигнал')
+    } finally {
+      setCancelBusy(false)
+    }
   }
   const changeGroupCity = async (groupId: string, city: string): Promise<GroupCityUpdateResult> => {
     const result = await api.updateGroupCity(groupId, city)
-    const [nextOffers, nextPlans, nextIntents] = await Promise.all([api.offers(), api.plans(), api.intents()])
-    setGroups(current => current.map(item => item.id === groupId ? result.group : item))
+    const [nextOffers, nextPlans, nextIntents] = await Promise.all([
+      api.offers(),
+      api.plans(),
+      api.intents(),
+    ])
+    setGroups((current) => current.map((item) => (item.id === groupId ? result.group : item)))
     setGroup(result.group)
-    setOffers(nextOffers); setPlans(nextPlans); setIntents(nextIntents)
+    setOffers(nextOffers)
+    setPlans(nextPlans)
+    setIntents(nextIntents)
     return result
   }
   const addLocation = async (label: string) => {
-    if (!navigator.geolocation) throw new Error('Геопозиция недоступна. Расстояние останется выключенным.')
-    const position = await new Promise<GeolocationPosition>((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 15000 }))
-    const location = await api.createLocation({ label, latitude: position.coords.latitude, longitude: position.coords.longitude, city_slug: group.city_slug, kind: 'SAVED', is_ephemeral: false })
-    setLocations(current => [location, ...current]); return location
+    if (!navigator.geolocation)
+      throw new Error('Геопозиция недоступна. Расстояние останется выключенным.')
+    const position = await new Promise<GeolocationPosition>((resolve, reject) =>
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 15000,
+      }),
+    )
+    const location = await api.createLocation({
+      label,
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+      city_slug: group.city_slug,
+      kind: 'SAVED',
+      is_ephemeral: false,
+    })
+    setLocations((current) => [location, ...current])
+    return location
   }
   const activeBatches = (() => {
     const batches = new Map<string, Intent[]>()
-    for (const intent of intents) if (intent.type === 'ONE_TIME' && intent.status === 'ACTIVE' && intent.signal_batch_id && (!intent.expires_at || new Date(intent.expires_at) > new Date())) batches.set(intent.signal_batch_id, [...(batches.get(intent.signal_batch_id) || []), intent])
+    for (const intent of intents)
+      if (
+        intent.type === 'ONE_TIME' &&
+        intent.status === 'ACTIVE' &&
+        intent.signal_batch_id &&
+        (!intent.expires_at || new Date(intent.expires_at) > new Date())
+      )
+        batches.set(intent.signal_batch_id, [
+          ...(batches.get(intent.signal_batch_id) || []),
+          intent,
+        ])
     return [...batches.values()]
   })()
-  const providerStates = activeBatches.flat().map(intent => intent.provider_state)
-  const providerState = ['PROVIDER_UNAVAILABLE', 'NO_FEASIBLE_PLAN', 'NO_SOURCE'].find(state => providerStates.includes(state))
-  const confirmedPlans = plans.filter(plan => plan.status.startsWith('CONFIRMED') && ['ACCEPTED', 'WAITING_CONDITION'].includes(plan.my_status || ''))
-  const collectingPlans = plans.filter(plan => plan.status === 'COLLECTING')
-  const content = screen === 'home' ? <div className="page-stack home-page">
-    {joinState ? <p className="inline-notice" role="status">{joinState}</p> : null}
-    {activeBatches.length ? <section className="home-section" aria-label="Активные сигналы">{activeBatches.map(batch => <ActiveSignalSummary key={batch[0].signal_batch_id} batch={batch} groups={groups} onEdit={() => { setEditingBatch(batch[0].signal_batch_id); setScreen('signal') }} onCancel={() => setCancelBatchId(batch[0].signal_batch_id)} />)}</section> : null}
-    {confirmedPlans.length ? <section className="home-section" aria-label="Подтверждённые планы"><div className="plans-list">{confirmedPlans.map(plan => <PlanCard key={plan.id} plan={plan} onChanged={refresh} />)}</div></section> : null}
-    {collectingPlans.length ? <section className="home-section" aria-labelledby="home-collecting"><h2 id="home-collecting" className="home-section__title">Твои планы</h2><div className="plans-list">{collectingPlans.map(plan => <PlanCard key={plan.id} plan={plan} onChanged={refresh} />)}</div></section> : null}
-    <OfferPool offers={offers} hasActiveSignal={activeBatches.length > 0} providerState={providerState} onRetry={activeBatches.length ? () => { void Promise.all(activeBatches.map(batch => batch[0].signal_batch_id ? api.refreshSignalBatch(batch[0].signal_batch_id) : Promise.resolve())).then(refresh).catch(reason => setError(reason instanceof Error ? reason.message : 'Не удалось повторить поиск')) } : undefined} onSignal={() => { setEditingBatch(null); setScreen('signal') }} onChanged={refresh} />
-  </div>
-    : screen === 'signal' ? <SignalWizard group={group} groups={groups} locations={locations} activeBatch={activeBatches.find(batch => batch[0].signal_batch_id === editingBatch)} onAddPlace={city => { const selected = groups.find(item => item.city_slug === city); if (selected) { setGroup(selected); setSelectedGroupId(selected.id) } setScreen('group') }} onDone={() => { setScreen('home'); setEditingBatch(null); refresh() }} />
-      : screen === 'autos' ? <AutoSignals group={group} groups={groups} locations={locations} intents={intents} onChanged={refresh} />
-        : screen === 'plans' ? <Plans plans={plans} onChanged={refresh} />
-          : <Company groups={groups} active={group} locations={locations} mode={mode} onChangeCity={changeGroupCity} onAddPlace={addLocation} onRenamePlace={async (id, label) => { const updated = await api.renameLocation(id, label); setLocations(current => current.map(item => item.id === id ? updated : item)) }} onDefaultPlace={async id => { const updated = await api.defaultLocation(id); setLocations(current => current.map(item => item.city_slug === updated.city_slug ? { ...item, is_default: item.id === id } : item)) }} onDeletePlace={async id => { await api.deleteLocation(id); setLocations(await api.locations()) }} onNew={() => setCreatingGroup(true)} onSelect={selected => { setSelectedGroupId(selected.id); setScreen('home') }} />
-  return <><AppShell screen={screen} name={name} onNavigate={setScreen}>{content}</AppShell>{cancelBatchId ? <ConfirmDialog title="Отменить сигнал?" description="Новые варианты по нему больше не будут собираться." confirmLabel="Отменить сигнал" cancelLabel="Оставить" busy={cancelBusy} onConfirm={() => void cancelSignal()} onCancel={() => setCancelBatchId(null)} /> : null}</>
-}
-
-function Start({ onCreated, onCancel, chatAvailable, joinState }: { onCreated: (group: Group) => void; onCancel?: () => void; chatAvailable: boolean; joinState: string }) {
-  const [name, setName] = useState('Наша компания'); const [city, setCity] = useState(''); const [cities, setCities] = useState<{ slug: string; name: string }[]>([]); const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
-  useEffect(() => { void api.cities().then(items => { setCities(items); setCity(items[0]?.slug || '') }).catch(() => setError('Не удалось загрузить города. Попробуй позже.')) }, [])
-  async function submit(event: React.FormEvent, bindCurrentChat = false) { event.preventDefault(); setBusy(true); setError(''); try { onCreated(await api.createGroup({ name, city_slug: city, bind_current_chat: bindCurrentChat })) } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось создать компанию') } finally { setBusy(false) } }
-  return <main className="start-screen"><section className="start-card">{joinState ? <p role="status">{joinState}</p> : null}<h1>Создать компанию</h1><form onSubmit={event => void submit(event)}><label>Название<Input value={name} onChange={event => setName(event.target.value)} required /></label><label>Город<select value={city} onChange={event => setCity(event.target.value)} required>{cities.map(item => <option key={item.slug} value={item.slug}>{item.name}</option>)}</select></label>{error ? <p className="form-error" role="alert">{error}</p> : null}{error && !cities.length ? <Button type="button" variant="secondary" onClick={() => void api.cities().then(items => { setCities(items); setCity(items[0]?.slug || ''); setError('') }).catch(() => setError('Не удалось загрузить города. Попробуй позже.'))}>Повторить загрузку городов</Button> : null}{chatAvailable ? <Button stretched variant="primary" type="button" loading={busy} disabled={busy || !city} onClick={event => void submit(event, true)}>Для этого чата MAX</Button> : null}<Button stretched variant={chatAvailable ? 'secondary' : 'primary'} type="submit" loading={busy} disabled={busy || !city}>Приватная компания</Button>{onCancel ? <Button type="button" variant="secondary" onClick={onCancel}>Назад</Button> : null}</form></section></main>
+  const providerStates = activeBatches.flat().map((intent) => intent.provider_state)
+  const providerState = ['PROVIDER_UNAVAILABLE', 'NO_FEASIBLE_PLAN', 'NO_SOURCE'].find((state) =>
+    providerStates.includes(state),
+  )
+  const confirmedPlans = plans.filter(
+    (plan) =>
+      plan.status.startsWith('CONFIRMED') &&
+      ['ACCEPTED', 'WAITING_CONDITION'].includes(plan.my_status || ''),
+  )
+  const collectingPlans = plans.filter((plan) => plan.status === 'COLLECTING')
+  const content =
+    screen === 'home' ? (
+      <div className="page-stack home-page">
+        {joinState ? (
+          <p className="inline-notice" role="status">
+            {joinState}
+          </p>
+        ) : null}
+        {activeBatches.length ? (
+          <section className="home-section" aria-label="Активные сигналы">
+            {activeBatches.map((batch) => (
+              <ActiveSignalSummary
+                key={batch[0].signal_batch_id}
+                batch={batch}
+                groups={groups}
+                onEdit={() => {
+                  setEditingBatch(batch[0].signal_batch_id)
+                  setScreen('signal')
+                }}
+                onCancel={() => setCancelBatchId(batch[0].signal_batch_id)}
+              />
+            ))}
+          </section>
+        ) : null}
+        {confirmedPlans.length ? (
+          <section className="home-section" aria-label="Подтверждённые планы">
+            <div className="plans-list">
+              {confirmedPlans.map((plan) => (
+                <PlanCard key={plan.id} plan={plan} onChanged={refresh} />
+              ))}
+            </div>
+          </section>
+        ) : null}
+        {collectingPlans.length ? (
+          <section className="home-section" aria-labelledby="home-collecting">
+            <h2 id="home-collecting" className="home-section__title">
+              Твои планы
+            </h2>
+            <div className="plans-list">
+              {collectingPlans.map((plan) => (
+                <PlanCard key={plan.id} plan={plan} onChanged={refresh} />
+              ))}
+            </div>
+          </section>
+        ) : null}
+        <OfferPool
+          offers={offers}
+          hasActiveSignal={activeBatches.length > 0}
+          providerState={providerState}
+          onRetry={
+            activeBatches.length
+              ? () => {
+                  void Promise.all(
+                    activeBatches.map((batch) =>
+                      batch[0].signal_batch_id
+                        ? api.refreshSignalBatch(batch[0].signal_batch_id)
+                        : Promise.resolve(),
+                    ),
+                  )
+                    .then(refresh)
+                    .catch((reason) =>
+                      setError(
+                        reason instanceof Error ? reason.message : 'Не удалось повторить поиск',
+                      ),
+                    )
+                }
+              : undefined
+          }
+          onSignal={() => {
+            setEditingBatch(null)
+            setScreen('signal')
+          }}
+          onChanged={refresh}
+        />
+      </div>
+    ) : screen === 'signal' ? (
+      <SignalWizard
+        group={group}
+        groups={groups}
+        locations={locations}
+        activeBatch={activeBatches.find((batch) => batch[0].signal_batch_id === editingBatch)}
+        onAddPlace={(city) => {
+          const selected = groups.find((item) => item.city_slug === city)
+          if (selected) {
+            setGroup(selected)
+            setSelectedGroupId(selected.id)
+          }
+          setScreen('group')
+        }}
+        onDone={() => {
+          setScreen('home')
+          setEditingBatch(null)
+          refresh()
+        }}
+      />
+    ) : screen === 'autos' ? (
+      <AutoSignals
+        group={group}
+        groups={groups}
+        locations={locations}
+        intents={intents}
+        onChanged={refresh}
+      />
+    ) : screen === 'plans' ? (
+      <Plans plans={plans} onChanged={refresh} />
+    ) : (
+      <Company
+        groups={groups}
+        active={group}
+        locations={locations}
+        mode={mode}
+        onChangeCity={changeGroupCity}
+        onAddPlace={addLocation}
+        onRenamePlace={async (id, label) => {
+          const updated = await api.renameLocation(id, label)
+          setLocations((current) => current.map((item) => (item.id === id ? updated : item)))
+        }}
+        onDefaultPlace={async (id) => {
+          const updated = await api.defaultLocation(id)
+          setLocations((current) =>
+            current.map((item) =>
+              item.city_slug === updated.city_slug ? { ...item, is_default: item.id === id } : item,
+            ),
+          )
+        }}
+        onDeletePlace={async (id) => {
+          await api.deleteLocation(id)
+          setLocations(await api.locations())
+        }}
+        onNew={() => setCreatingGroup(true)}
+        onSelect={(selected) => {
+          setSelectedGroupId(selected.id)
+          setScreen('home')
+        }}
+      />
+    )
+  return (
+    <>
+      <AppShell screen={screen} name={name} onNavigate={setScreen}>
+        {content}
+      </AppShell>
+      {cancelBatchId ? (
+        <ConfirmDialog
+          title="Отменить сигнал?"
+          description="Новые варианты по нему больше не будут собираться."
+          confirmLabel="Отменить сигнал"
+          cancelLabel="Оставить"
+          busy={cancelBusy}
+          onConfirm={() => void cancelSignal()}
+          onCancel={() => setCancelBatchId(null)}
+        />
+      ) : null}
+    </>
+  )
 }

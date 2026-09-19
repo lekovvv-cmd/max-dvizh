@@ -100,7 +100,9 @@ def supported_cities() -> dict[str, dict[str, str]]:
     try:
         return {city["slug"]: city for city in KudaGoProvider().cities()}
     except Exception as exc:
-        raise error(status.HTTP_503_SERVICE_UNAVAILABLE, "Список городов временно недоступен") from exc
+        raise error(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "Список городов временно недоступен"
+        ) from exc
 
 
 def group_out(session: DbSession, group: Group, expose_token: bool = False) -> GroupOut:
@@ -142,7 +144,9 @@ def recurrence_display_fields(
             weekdays = parsed_weekdays or None
 
     raw_start = data.get("local_start")
-    local_start = raw_start if isinstance(raw_start, str) and TIME_OF_DAY.fullmatch(raw_start) else None
+    local_start = (
+        raw_start if isinstance(raw_start, str) and TIME_OF_DAY.fullmatch(raw_start) else None
+    )
     raw_end = data.get("local_end")
     local_end = raw_end if isinstance(raw_end, str) and TIME_OF_DAY.fullmatch(raw_end) else None
     return weekdays, local_start, local_end
@@ -177,7 +181,9 @@ def intent_out(intent: Intent, group_name: str | None = None) -> IntentOut:
 
 
 @router.get("/session", response_model=SessionOut)
-def get_session(user: CurrentUser, x_max_init_data: str | None = Header(default=None)) -> SessionOut:
+def get_session(
+    user: CurrentUser, x_max_init_data: str | None = Header(default=None)
+) -> SessionOut:
     return SessionOut(
         id=user.id,
         display_name=user.display_name,
@@ -200,7 +206,12 @@ def list_groups(session: DbSession, user: CurrentUser) -> list[GroupOut]:
 
 
 @router.post("/groups", response_model=GroupOut, status_code=status.HTTP_201_CREATED)
-def create_group(payload: GroupCreate, session: DbSession, user: CurrentUser, x_max_init_data: str | None = Header(default=None)) -> GroupOut:
+def create_group(
+    payload: GroupCreate,
+    session: DbSession,
+    user: CurrentUser,
+    x_max_init_data: str | None = Header(default=None),
+) -> GroupOut:
     supported = supported_cities()
     if payload.city_slug not in supported:
         raise error(status.HTTP_422_UNPROCESSABLE_ENTITY, "Город пока не поддерживается")
@@ -211,16 +222,29 @@ def create_group(payload: GroupCreate, session: DbSession, user: CurrentUser, x_
         if session.scalar(select(Group.id).where(Group.max_chat_id == chat_id)) is not None:
             raise error(status.HTTP_409_CONFLICT, "Для этого чата уже создана компания")
         try:
-            response = httpx.get(f"{settings.max_bot_api_base}/chats/{chat_id}", headers={"Authorization": settings.max_bot_token}, timeout=5)
+            response = httpx.get(
+                f"{settings.max_bot_api_base}/chats/{chat_id}",
+                headers={"Authorization": settings.max_bot_token},
+                timeout=5,
+            )
             response.raise_for_status()
         except httpx.HTTPError as exc:
-            raise error(status.HTTP_503_SERVICE_UNAVAILABLE, "Не удалось проверить чат MAX. Бот должен иметь доступ к чату") from exc
+            raise error(
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+                "Не удалось проверить чат MAX. Бот должен иметь доступ к чату",
+            ) from exc
         chat = response.json()
         if chat.get("type") != "chat":
             raise error(status.HTTP_422_UNPROCESSABLE_ENTITY, "Нужен групповой чат MAX")
         if chat.get("status") != "active":
             raise error(status.HTTP_409_CONFLICT, "Бот не участвует в этом чате")
-    group = Group(name=payload.name, default_city_slug=payload.city_slug, timezone_name=supported[payload.city_slug].get("timezone"), max_chat_id=chat_id, created_by=user.id)
+    group = Group(
+        name=payload.name,
+        default_city_slug=payload.city_slug,
+        timezone_name=supported[payload.city_slug].get("timezone"),
+        max_chat_id=chat_id,
+        created_by=user.id,
+    )
     session.add(group)
     session.flush()
     session.add(GroupMember(group_id=group.id, user_id=user.id, role="OWNER"))
@@ -236,7 +260,9 @@ def update_group_city(
     user: CurrentUser,
 ) -> GroupCityUpdateOut:
     group = member(session, group_id, user.id)
-    membership = session.scalar(select(GroupMember).where(GroupMember.group_id == group_id, GroupMember.user_id == user.id))
+    membership = session.scalar(
+        select(GroupMember).where(GroupMember.group_id == group_id, GroupMember.user_id == user.id)
+    )
     assert membership is not None
     if group.created_by != user.id and membership.role != "OWNER":
         raise error(status.HTTP_403_FORBIDDEN, "Только владелец компании может изменить город")
@@ -346,13 +372,22 @@ def join_group(token: str, session: DbSession, user: CurrentUser) -> JoinOut:
 @router.get("/locations", response_model=list[LocationOut])
 def list_locations(session: DbSession, user: CurrentUser) -> list[LocationOut]:
     locations = session.scalars(
-        select(Location).where(Location.user_id == user.id, Location.is_ephemeral.is_(False)).order_by(Location.is_default.desc(), Location.created_at.desc())
+        select(Location)
+        .where(Location.user_id == user.id, Location.is_ephemeral.is_(False))
+        .order_by(Location.is_default.desc(), Location.created_at.desc())
     )
     return [location_out(item) for item in locations]
 
 
 def location_out(location: Location) -> LocationOut:
-    return LocationOut(id=location.id, label=location.label, city_slug=location.city_slug, kind=location.kind, address_text=location.address_text, is_default=location.is_default)
+    return LocationOut(
+        id=location.id,
+        label=location.label,
+        city_slug=location.city_slug,
+        kind=location.kind,
+        address_text=location.address_text,
+        is_default=location.is_default,
+    )
 
 
 def own_location(session: DbSession, user_id: str, location_id: str) -> Location:
@@ -365,12 +400,28 @@ def own_location(session: DbSession, user_id: str, location_id: str) -> Location
 @router.post("/locations", response_model=LocationOut, status_code=status.HTTP_201_CREATED)
 def create_location(payload: LocationIn, session: DbSession, user: CurrentUser) -> LocationOut:
     if payload.is_ephemeral:
-        raise error(status.HTTP_422_UNPROCESSABLE_ENTITY, "Сохрани место, чтобы использовать расстояние")
+        raise error(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "Сохрани место, чтобы использовать расстояние"
+        )
     session.scalar(select(User).where(User.id == user.id).with_for_update())
-    city_is_joined = session.scalar(select(Group.id).join(GroupMember, GroupMember.group_id == Group.id).where(GroupMember.user_id == user.id, Group.default_city_slug == payload.city_slug).limit(1))
+    city_is_joined = session.scalar(
+        select(Group.id)
+        .join(GroupMember, GroupMember.group_id == Group.id)
+        .where(GroupMember.user_id == user.id, Group.default_city_slug == payload.city_slug)
+        .limit(1)
+    )
     if city_is_joined is None:
         raise error(status.HTTP_422_UNPROCESSABLE_ENTITY, "Выбери город своей компании")
-    has_default = session.scalar(select(Location.id).where(Location.user_id == user.id, Location.city_slug == payload.city_slug, Location.is_ephemeral.is_(False), Location.is_default.is_(True)).limit(1))
+    has_default = session.scalar(
+        select(Location.id)
+        .where(
+            Location.user_id == user.id,
+            Location.city_slug == payload.city_slug,
+            Location.is_ephemeral.is_(False),
+            Location.is_default.is_(True),
+        )
+        .limit(1)
+    )
     location = Location(user_id=user.id, **payload.model_dump())
     location.is_default = has_default is None
     session.add(location)
@@ -380,7 +431,9 @@ def create_location(payload: LocationIn, session: DbSession, user: CurrentUser) 
 
 
 @router.patch("/locations/{location_id}", response_model=LocationOut)
-def rename_location(location_id: str, payload: LocationRenameIn, session: DbSession, user: CurrentUser) -> LocationOut:
+def rename_location(
+    location_id: str, payload: LocationRenameIn, session: DbSession, user: CurrentUser
+) -> LocationOut:
     location = own_location(session, user.id, location_id)
     location.label = payload.label.strip()
     if not location.label:
@@ -393,7 +446,13 @@ def rename_location(location_id: str, payload: LocationRenameIn, session: DbSess
 def default_location(location_id: str, session: DbSession, user: CurrentUser) -> LocationOut:
     session.scalar(select(User).where(User.id == user.id).with_for_update())
     location = own_location(session, user.id, location_id)
-    for place in session.scalars(select(Location).where(Location.user_id == user.id, Location.city_slug == location.city_slug, Location.is_default.is_(True))):
+    for place in session.scalars(
+        select(Location).where(
+            Location.user_id == user.id,
+            Location.city_slug == location.city_slug,
+            Location.is_default.is_(True),
+        )
+    ):
         place.is_default = False
     location.is_default = True
     session.commit()
@@ -404,9 +463,14 @@ def default_location(location_id: str, session: DbSession, user: CurrentUser) ->
 def delete_location(location_id: str, session: DbSession, user: CurrentUser) -> dict[str, str]:
     session.scalar(select(User).where(User.id == user.id).with_for_update())
     location = own_location(session, user.id, location_id)
-    referencing = list(session.scalars(select(Intent).where(Intent.origin_location_id == location.id)))
+    referencing = list(
+        session.scalars(select(Intent).where(Intent.origin_location_id == location.id))
+    )
     if any(intent.status == "ACTIVE" for intent in referencing):
-        raise error(status.HTTP_409_CONFLICT, "Место используется в сигнале. Сначала убери ограничение расстояния в сигнале")
+        raise error(
+            status.HTTP_409_CONFLICT,
+            "Место используется в сигнале. Сначала убери ограничение расстояния в сигнале",
+        )
     for intent in referencing:
         intent.origin_location_id = None
         intent.radius_km = None
@@ -415,7 +479,16 @@ def delete_location(location_id: str, session: DbSession, user: CurrentUser) -> 
     session.delete(location)
     session.flush()
     if was_default:
-        replacement = session.scalar(select(Location).where(Location.user_id == user.id, Location.city_slug == city, Location.is_ephemeral.is_(False)).order_by(Location.created_at.desc()).limit(1))
+        replacement = session.scalar(
+            select(Location)
+            .where(
+                Location.user_id == user.id,
+                Location.city_slug == city,
+                Location.is_ephemeral.is_(False),
+            )
+            .order_by(Location.created_at.desc())
+            .limit(1)
+        )
         if replacement is not None:
             replacement.is_default = True
     session.commit()
@@ -436,20 +509,33 @@ def _create_intent(
         if payload.origin_location_id is not None
         else None
     )
-    if payload.origin_location_id is not None and (location is None or location.user_id != user.id or location.city_slug != group.default_city_slug):
+    if payload.origin_location_id is not None and (
+        location is None
+        or location.user_id != user.id
+        or location.city_slug != group.default_city_slug
+    ):
         raise error(status.HTTP_422_UNPROCESSABLE_ENTITY, "Точка отправления не найдена")
     if payload.city_slug is not None and payload.city_slug != group.default_city_slug:
-        raise error(status.HTTP_422_UNPROCESSABLE_ENTITY, "Город сигнала должен совпадать с городом компании")
+        raise error(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Город сигнала должен совпадать с городом компании",
+        )
     if type_ == "ONE_TIME" and (
         payload.available_from is None
         or payload.available_to is None
         or payload.available_from >= payload.available_to
     ):
         raise error(status.HTTP_422_UNPROCESSABLE_ENTITY, "Укажите корректное окно времени")
-    values = payload.model_dump(exclude={"name", "weekdays", "local_start", "local_end", "timezone"})
+    values = payload.model_dump(
+        exclude={"name", "weekdays", "local_start", "local_end", "timezone"}
+    )
     values["city_slug"] = group.default_city_slug
     values["activity_categories"] = payload.activity_categories or [payload.activity_category]
-    values["expires_at"] = payload.available_to + timedelta(minutes=30) if type_ == "ONE_TIME" and payload.available_to is not None else None
+    values["expires_at"] = (
+        payload.available_to + timedelta(minutes=30)
+        if type_ == "ONE_TIME" and payload.available_to is not None
+        else None
+    )
     intent = Intent(
         user_id=user.id,
         type=type_,
@@ -464,7 +550,9 @@ def _create_intent(
     if type_ == "ONE_TIME":
         provider_result = fetch_items(_provider_query(payload, type_, group.default_city_slug))
         if not provider_result.unavailable:
-            regenerate_group(session, payload.group_id, group.default_city_slug, provider_result.items)
+            regenerate_group(
+                session, payload.group_id, group.default_city_slug, provider_result.items
+            )
     return intent_out(intent)
 
 
@@ -490,7 +578,9 @@ def create_signal(payload: IntentIn, session: DbSession, user: CurrentUser) -> I
     return _create_intent(payload, session, user, "ONE_TIME")
 
 
-def _batch_groups(payload: SignalBatchIn, session: DbSession, user: CurrentUser) -> tuple[list[Group], str]:
+def _batch_groups(
+    payload: SignalBatchIn, session: DbSession, user: CurrentUser
+) -> tuple[list[Group], str]:
     groups = [member(session, group_id, user.id) for group_id in payload.group_ids]
     cities = {group.default_city_slug for group in groups}
     if len(cities) != 1:
@@ -499,11 +589,15 @@ def _batch_groups(payload: SignalBatchIn, session: DbSession, user: CurrentUser)
     if payload.origin_location_id:
         location = session.get(Location, payload.origin_location_id)
         if location is None or location.user_id != user.id or location.city_slug != city:
-            raise error(status.HTTP_422_UNPROCESSABLE_ENTITY, "Выберите своё место в городе компании")
+            raise error(
+                status.HTTP_422_UNPROCESSABLE_ENTITY, "Выберите своё место в городе компании"
+            )
     return groups, city
 
 
-def _refresh_batch(session: DbSession, intents: list[Intent], city: str, result: ProviderResult) -> None:
+def _refresh_batch(
+    session: DbSession, intents: list[Intent], city: str, result: ProviderResult
+) -> None:
     if not intents:
         return
     if result.unavailable:
@@ -513,68 +607,172 @@ def _refresh_batch(session: DbSession, intents: list[Intent], city: str, result:
         for group_id in sorted({intent.group_id for intent in intents}):
             regenerate_group(session, group_id, city, result.items, commit=False)
         for intent in intents:
-            visible = session.scalar(select(Offer.id).join(CandidatePlanMember, CandidatePlanMember.candidate_plan_id == Offer.candidate_plan_id).where(CandidatePlanMember.intent_id == intent.id, Offer.user_id == intent.user_id, Offer.status.in_(("PENDING", "ACCEPTED", "WAITING_CONDITION", "WAITLISTED"))).limit(1))
-            intent.provider_state = "OFFERS_READY" if visible else "NO_FEASIBLE_PLAN" if result.items else "NO_SOURCE"
+            visible = session.scalar(
+                select(Offer.id)
+                .join(
+                    CandidatePlanMember,
+                    CandidatePlanMember.candidate_plan_id == Offer.candidate_plan_id,
+                )
+                .where(
+                    CandidatePlanMember.intent_id == intent.id,
+                    Offer.user_id == intent.user_id,
+                    Offer.status.in_(("PENDING", "ACCEPTED", "WAITING_CONDITION", "WAITLISTED")),
+                )
+                .limit(1)
+            )
+            intent.provider_state = (
+                "OFFERS_READY" if visible else "NO_FEASIBLE_PLAN" if result.items else "NO_SOURCE"
+            )
 
 
-def _batch_query(city: str, starts_at: datetime, ends_at: datetime, categories: list[str]) -> ProviderQuery:
-    return ProviderQuery(city_slug=city, starts_at=starts_at, ends_at=ends_at, categories=() if "any" in categories else tuple(categories))
+def _batch_query(
+    city: str, starts_at: datetime, ends_at: datetime, categories: list[str]
+) -> ProviderQuery:
+    return ProviderQuery(
+        city_slug=city,
+        starts_at=starts_at,
+        ends_at=ends_at,
+        categories=() if "any" in categories else tuple(categories),
+    )
 
 
-def _save_batch(payload: SignalBatchIn, session: DbSession, user: CurrentUser, batch_id: str | None = None) -> SignalBatchOut:
+def _save_batch(
+    payload: SignalBatchIn, session: DbSession, user: CurrentUser, batch_id: str | None = None
+) -> SignalBatchOut:
     groups, city = _batch_groups(payload, session, user)
     # Complete all provider I/O before mutating Intent rows or holding locks.
     session.commit()
-    result = fetch_items(_batch_query(city, payload.available_from, payload.available_to, payload.activity_categories))
+    result = fetch_items(
+        _batch_query(
+            city, payload.available_from, payload.available_to, payload.activity_categories
+        )
+    )
     session.scalar(select(User).where(User.id == user.id).with_for_update())
     groups, city = _batch_groups(payload, session, user)
     editing = batch_id is not None
     batch_id = batch_id or str(uuid4())
-    existing = list(session.scalars(select(Intent).where(Intent.signal_batch_id == batch_id, Intent.user_id == user.id)))
+    existing = list(
+        session.scalars(
+            select(Intent).where(Intent.signal_batch_id == batch_id, Intent.user_id == user.id)
+        )
+    )
     if editing and not any(intent.status == "ACTIVE" for intent in existing):
         raise error(status.HTTP_404_NOT_FOUND, "Сигнал не найден")
     for intent in existing:
         intent.status = "CANCELLED"
     created: list[Intent] = []
     for group in groups:
-        intent = Intent(user_id=user.id, group_id=group.id, type="ONE_TIME", status="ACTIVE", signal_batch_id=batch_id, city_slug=city, activity_category=payload.activity_categories[0], activity_categories=payload.activity_categories, available_from=payload.available_from, available_to=payload.available_to, budget_max=payload.budget_max, origin_location_id=payload.origin_location_id if payload.radius_km is not None else None, radius_km=payload.radius_km, min_people=payload.min_people, max_people=payload.max_people, expires_at=payload.available_to + timedelta(minutes=30))
+        intent = Intent(
+            user_id=user.id,
+            group_id=group.id,
+            type="ONE_TIME",
+            status="ACTIVE",
+            signal_batch_id=batch_id,
+            city_slug=city,
+            activity_category=payload.activity_categories[0],
+            activity_categories=payload.activity_categories,
+            available_from=payload.available_from,
+            available_to=payload.available_to,
+            budget_max=payload.budget_max,
+            origin_location_id=payload.origin_location_id
+            if payload.radius_km is not None
+            else None,
+            radius_km=payload.radius_km,
+            min_people=payload.min_people,
+            max_people=payload.max_people,
+            expires_at=payload.available_to + timedelta(minutes=30),
+        )
         session.add(intent)
         created.append(intent)
     session.flush()
     _refresh_batch(session, created, city, result)
-    for plan in session.scalars(select(CandidatePlan).where(CandidatePlan.group_id.in_([intent.group_id for intent in existing]), CandidatePlan.status.in_(("COLLECTING", "CONFIRMED_OPEN")))):
+    for plan in session.scalars(
+        select(CandidatePlan).where(
+            CandidatePlan.group_id.in_([intent.group_id for intent in existing]),
+            CandidatePlan.status.in_(("COLLECTING", "CONFIRMED_OPEN")),
+        )
+    ):
         recompute_candidate_plan(session, plan)
     session.commit()
-    return SignalBatchOut(signal_batch_id=batch_id, intents=[intent_out(intent) for intent in created])
+    return SignalBatchOut(
+        signal_batch_id=batch_id, intents=[intent_out(intent) for intent in created]
+    )
 
 
 @router.post("/signal-batches/{batch_id}/refresh", response_model=SignalBatchOut)
 def refresh_signal_batch(batch_id: str, session: DbSession, user: CurrentUser) -> SignalBatchOut:
-    intents = list(session.scalars(select(Intent).where(Intent.signal_batch_id == batch_id, Intent.user_id == user.id, Intent.type == "ONE_TIME", Intent.status == "ACTIVE")))
+    intents = list(
+        session.scalars(
+            select(Intent).where(
+                Intent.signal_batch_id == batch_id,
+                Intent.user_id == user.id,
+                Intent.type == "ONE_TIME",
+                Intent.status == "ACTIVE",
+            )
+        )
+    )
     if not intents:
         raise error(status.HTTP_404_NOT_FOUND, "Сигнал не найден")
     first = intents[0]
     assert first.available_from is not None and first.available_to is not None
-    query = _batch_query(first.city_slug, first.available_from, first.available_to, first.activity_categories or [first.activity_category])
+    query = _batch_query(
+        first.city_slug,
+        first.available_from,
+        first.available_to,
+        first.activity_categories or [first.activity_category],
+    )
     session.commit()
     result = fetch_items(query)
     session.scalar(select(User).where(User.id == user.id).with_for_update())
-    intents = list(session.scalars(select(Intent).where(Intent.signal_batch_id == batch_id, Intent.user_id == user.id, Intent.type == "ONE_TIME", Intent.status == "ACTIVE")))
-    if not intents or intents[0].available_from is None or intents[0].available_to is None or _batch_query(intents[0].city_slug, intents[0].available_from, intents[0].available_to, intents[0].activity_categories or [intents[0].activity_category]) != query:
+    intents = list(
+        session.scalars(
+            select(Intent).where(
+                Intent.signal_batch_id == batch_id,
+                Intent.user_id == user.id,
+                Intent.type == "ONE_TIME",
+                Intent.status == "ACTIVE",
+            )
+        )
+    )
+    if (
+        not intents
+        or intents[0].available_from is None
+        or intents[0].available_to is None
+        or _batch_query(
+            intents[0].city_slug,
+            intents[0].available_from,
+            intents[0].available_to,
+            intents[0].activity_categories or [intents[0].activity_category],
+        )
+        != query
+    ):
         raise error(status.HTTP_409_CONFLICT, "Сигнал изменился. Повтори поиск")
     _refresh_batch(session, intents, intents[0].city_slug, result)
     session.commit()
-    return SignalBatchOut(signal_batch_id=batch_id, intents=[intent_out(intent) for intent in intents])
+    return SignalBatchOut(
+        signal_batch_id=batch_id, intents=[intent_out(intent) for intent in intents]
+    )
 
 
 @router.post("/signal-batches", response_model=SignalBatchOut, status_code=status.HTTP_201_CREATED)
-def create_signal_batch(payload: SignalBatchIn, session: DbSession, user: CurrentUser) -> SignalBatchOut:
+def create_signal_batch(
+    payload: SignalBatchIn, session: DbSession, user: CurrentUser
+) -> SignalBatchOut:
     return _save_batch(payload, session, user)
 
 
 @router.put("/signal-batches/{batch_id}", response_model=SignalBatchOut)
-def edit_signal_batch(batch_id: str, payload: SignalBatchIn, session: DbSession, user: CurrentUser) -> SignalBatchOut:
-    current = session.scalar(select(Intent).where(Intent.signal_batch_id == batch_id, Intent.user_id == user.id, Intent.type == "ONE_TIME", Intent.status == "ACTIVE"))
+def edit_signal_batch(
+    batch_id: str, payload: SignalBatchIn, session: DbSession, user: CurrentUser
+) -> SignalBatchOut:
+    current = session.scalar(
+        select(Intent).where(
+            Intent.signal_batch_id == batch_id,
+            Intent.user_id == user.id,
+            Intent.type == "ONE_TIME",
+            Intent.status == "ACTIVE",
+        )
+    )
     if current is None:
         raise error(status.HTTP_404_NOT_FOUND, "Сигнал не найден")
     return _save_batch(payload, session, user, batch_id)
@@ -583,32 +781,53 @@ def edit_signal_batch(batch_id: str, payload: SignalBatchIn, session: DbSession,
 @router.delete("/signal-batches/{batch_id}")
 def cancel_signal_batch(batch_id: str, session: DbSession, user: CurrentUser) -> dict[str, str]:
     session.scalar(select(User).where(User.id == user.id).with_for_update())
-    intents = list(session.scalars(select(Intent).where(Intent.signal_batch_id == batch_id, Intent.user_id == user.id, Intent.type == "ONE_TIME", Intent.status == "ACTIVE")))
+    intents = list(
+        session.scalars(
+            select(Intent).where(
+                Intent.signal_batch_id == batch_id,
+                Intent.user_id == user.id,
+                Intent.type == "ONE_TIME",
+                Intent.status == "ACTIVE",
+            )
+        )
+    )
     if not intents:
         raise error(status.HTTP_404_NOT_FOUND, "Сигнал не найден")
     for intent in intents:
         intent.status = "CANCELLED"
     affected = set(intent.group_id for intent in intents)
     session.flush()
-    for plan in session.scalars(select(CandidatePlan).where(CandidatePlan.group_id.in_(affected), CandidatePlan.status.in_(("COLLECTING", "CONFIRMED_OPEN")))):
+    for plan in session.scalars(
+        select(CandidatePlan).where(
+            CandidatePlan.group_id.in_(affected),
+            CandidatePlan.status.in_(("COLLECTING", "CONFIRMED_OPEN")),
+        )
+    ):
         recompute_candidate_plan(session, plan)
     session.commit()
     return {"status": "cancelled"}
 
 
 @router.get("/intents", response_model=list[IntentOut])
-def list_intents(session: DbSession, user: CurrentUser, group_id: str | None = None) -> list[IntentOut]:
+def list_intents(
+    session: DbSession, user: CurrentUser, group_id: str | None = None
+) -> list[IntentOut]:
     if group_id is not None:
         member(session, group_id, user.id)
     query = select(Intent).where(Intent.user_id == user.id)
     if group_id is not None:
         query = query.where(Intent.group_id == group_id)
     intents = session.scalars(query.order_by(Intent.created_at.desc()))
-    return [intent_out(item, group.name if (group := session.get(Group, item.group_id)) else "Компания") for item in intents]
+    return [
+        intent_out(item, group.name if (group := session.get(Group, item.group_id)) else "Компания")
+        for item in intents
+    ]
 
 
 @router.post("/autosignals", response_model=IntentOut, status_code=status.HTTP_201_CREATED)
-def create_auto_signal(payload: AutoSignalIn, background_tasks: BackgroundTasks, session: DbSession, user: CurrentUser) -> IntentOut:
+def create_auto_signal(
+    payload: AutoSignalIn, background_tasks: BackgroundTasks, session: DbSession, user: CurrentUser
+) -> IntentOut:
     recurrence: dict[str, object] = {
         "weekdays": payload.weekdays,
         "local_start": payload.local_start,
@@ -621,14 +840,30 @@ def create_auto_signal(payload: AutoSignalIn, background_tasks: BackgroundTasks,
 
 
 @router.put("/autosignals/{intent_id}", response_model=IntentOut)
-def edit_auto_signal(intent_id: str, payload: AutoSignalIn, background_tasks: BackgroundTasks, session: DbSession, user: CurrentUser) -> IntentOut:
+def edit_auto_signal(
+    intent_id: str,
+    payload: AutoSignalIn,
+    background_tasks: BackgroundTasks,
+    session: DbSession,
+    user: CurrentUser,
+) -> IntentOut:
     current = session.get(Intent, intent_id)
-    if current is None or current.user_id != user.id or current.type != "RECURRING" or current.status == "CANCELLED":
+    if (
+        current is None
+        or current.user_id != user.id
+        or current.type != "RECURRING"
+        or current.status == "CANCELLED"
+    ):
         raise error(status.HTTP_404_NOT_FOUND, "Автосигнал не найден")
     old_group_id = current.group_id
     current.status = "CANCELLED"
     replacement = create_auto_signal(payload, background_tasks, session, user)
-    for plan in session.scalars(select(CandidatePlan).where(CandidatePlan.group_id == old_group_id, CandidatePlan.status.in_(("COLLECTING", "CONFIRMED_OPEN")))):
+    for plan in session.scalars(
+        select(CandidatePlan).where(
+            CandidatePlan.group_id == old_group_id,
+            CandidatePlan.status.in_(("COLLECTING", "CONFIRMED_OPEN")),
+        )
+    ):
         recompute_candidate_plan(session, plan)
     session.commit()
     return replacement
@@ -636,7 +871,11 @@ def edit_auto_signal(intent_id: str, payload: AutoSignalIn, background_tasks: Ba
 
 @router.post("/autosignals/{intent_id}/{action}", response_model=IntentOut)
 def change_auto_signal(
-    intent_id: str, action: str, background_tasks: BackgroundTasks, session: DbSession, user: CurrentUser
+    intent_id: str,
+    action: str,
+    background_tasks: BackgroundTasks,
+    session: DbSession,
+    user: CurrentUser,
 ) -> IntentOut:
     intent = session.get(Intent, intent_id)
     if intent is None or intent.user_id != user.id or intent.type != "RECURRING":
@@ -653,7 +892,12 @@ def change_auto_signal(
     if action == "resume":
         background_tasks.add_task(evaluate_auto_signal, intent.id)
     else:
-        for plan in session.scalars(select(CandidatePlan).where(CandidatePlan.group_id == intent.group_id, CandidatePlan.status.in_(("COLLECTING", "CONFIRMED_OPEN")))):
+        for plan in session.scalars(
+            select(CandidatePlan).where(
+                CandidatePlan.group_id == intent.group_id,
+                CandidatePlan.status.in_(("COLLECTING", "CONFIRMED_OPEN")),
+            )
+        ):
             recompute_candidate_plan(session, plan)
         session.commit()
     return intent_out(intent)
@@ -678,11 +922,30 @@ def offer_out(session: DbSession, offer: Offer) -> OfferOut:
     accepted = confirmed_count(session, plan.id)
     responders = response_count(session, plan.id)
     capacity = effective_capacity(session, plan)
-    waitlisted = session.scalar(select(func.count()).select_from(Offer).where(Offer.candidate_plan_id == plan.id, Offer.status == "WAITLISTED")) or 0
+    waitlisted = (
+        session.scalar(
+            select(func.count())
+            .select_from(Offer)
+            .where(Offer.candidate_plan_id == plan.id, Offer.status == "WAITLISTED")
+        )
+        or 0
+    )
     own_intent = session.get(Intent, membership.intent_id)
     assert own_intent is not None
     required = max(plan.required_min_people, own_intent.min_people)
-    return _offer_output(offer, plan, snapshot, group, membership, accepted, responders, capacity, waitlisted, required, own_intent)
+    return _offer_output(
+        offer,
+        plan,
+        snapshot,
+        group,
+        membership,
+        accepted,
+        responders,
+        capacity,
+        waitlisted,
+        required,
+        own_intent,
+    )
 
 
 def _offer_output(
@@ -699,8 +962,13 @@ def _offer_output(
     own_intent: Intent,
 ) -> OfferOut:
     metadata = snapshot.source_metadata or {}
-    personal_capacity = min(capacity, own_intent.max_people) if own_intent.max_people is not None else capacity
-    can_waitlist = own_intent.max_people == own_intent.min_people == personal_capacity and responders >= personal_capacity
+    personal_capacity = (
+        min(capacity, own_intent.max_people) if own_intent.max_people is not None else capacity
+    )
+    can_waitlist = (
+        own_intent.max_people == own_intent.min_people == personal_capacity
+        and responders >= personal_capacity
+    )
     return OfferOut(
         id=offer.id,
         status=offer.status,
@@ -752,28 +1020,100 @@ def list_offers(session: DbSession, user: CurrentUser) -> list[OfferOut]:
     if not offers:
         return []
     plan_ids = {offer.candidate_plan_id for offer in offers}
-    plans = {plan.id: plan for plan in session.scalars(select(CandidatePlan).where(CandidatePlan.id.in_(plan_ids)))}
-    snapshots = {snapshot.candidate_plan_id: snapshot for snapshot in session.scalars(select(CandidatePlanSourceSnapshot).where(CandidatePlanSourceSnapshot.candidate_plan_id.in_(plan_ids)))}
-    groups = {group.id: group for group in session.scalars(select(Group).where(Group.id.in_({plan.group_id for plan in plans.values()})))}
-    members = {member.candidate_plan_id: member for member in session.scalars(select(CandidatePlanMember).where(CandidatePlanMember.candidate_plan_id.in_(plan_ids), CandidatePlanMember.user_id == user.id))}
-    own_intents = {intent.id: intent for intent in session.scalars(select(Intent).where(Intent.id.in_({member.intent_id for member in members.values()})))}
-    group_sizes = {group_id: size for group_id, size in session.execute(select(GroupMember.group_id, func.count()).where(GroupMember.group_id.in_(groups)).group_by(GroupMember.group_id))}
-    responder_rows = session.execute(select(Offer.candidate_plan_id, Offer.status, Intent.max_people).join(CandidatePlanMember, (CandidatePlanMember.candidate_plan_id == Offer.candidate_plan_id) & (CandidatePlanMember.user_id == Offer.user_id)).join(Intent, Intent.id == CandidatePlanMember.intent_id).where(Offer.candidate_plan_id.in_(plan_ids), Offer.status.in_(("ACCEPTED", "WAITING_CONDITION"))))
+    plans = {
+        plan.id: plan
+        for plan in session.scalars(select(CandidatePlan).where(CandidatePlan.id.in_(plan_ids)))
+    }
+    snapshots = {
+        snapshot.candidate_plan_id: snapshot
+        for snapshot in session.scalars(
+            select(CandidatePlanSourceSnapshot).where(
+                CandidatePlanSourceSnapshot.candidate_plan_id.in_(plan_ids)
+            )
+        )
+    }
+    groups = {
+        group.id: group
+        for group in session.scalars(
+            select(Group).where(Group.id.in_({plan.group_id for plan in plans.values()}))
+        )
+    }
+    members = {
+        member.candidate_plan_id: member
+        for member in session.scalars(
+            select(CandidatePlanMember).where(
+                CandidatePlanMember.candidate_plan_id.in_(plan_ids),
+                CandidatePlanMember.user_id == user.id,
+            )
+        )
+    }
+    own_intents = {
+        intent.id: intent
+        for intent in session.scalars(
+            select(Intent).where(Intent.id.in_({member.intent_id for member in members.values()}))
+        )
+    }
+    group_sizes = {
+        group_id: size
+        for group_id, size in session.execute(
+            select(GroupMember.group_id, func.count())
+            .where(GroupMember.group_id.in_(groups))
+            .group_by(GroupMember.group_id)
+        )
+    }
+    responder_rows = session.execute(
+        select(Offer.candidate_plan_id, Offer.status, Intent.max_people)
+        .join(
+            CandidatePlanMember,
+            (CandidatePlanMember.candidate_plan_id == Offer.candidate_plan_id)
+            & (CandidatePlanMember.user_id == Offer.user_id),
+        )
+        .join(Intent, Intent.id == CandidatePlanMember.intent_id)
+        .where(
+            Offer.candidate_plan_id.in_(plan_ids),
+            Offer.status.in_(("ACCEPTED", "WAITING_CONDITION")),
+        )
+    )
     responders: dict[str, list[tuple[str, int | None]]] = {}
     for plan_id, offer_status, maximum in responder_rows:
         responders.setdefault(plan_id, []).append((offer_status, maximum))
-    waitlists = {plan_id: count for plan_id, count in session.execute(select(Offer.candidate_plan_id, func.count()).where(Offer.candidate_plan_id.in_(plan_ids), Offer.status == "WAITLISTED").group_by(Offer.candidate_plan_id))}
+    waitlists = {
+        plan_id: count
+        for plan_id, count in session.execute(
+            select(Offer.candidate_plan_id, func.count())
+            .where(Offer.candidate_plan_id.in_(plan_ids), Offer.status == "WAITLISTED")
+            .group_by(Offer.candidate_plan_id)
+        )
+    }
     result: list[OfferOut] = []
     for offer in offers:
         plan = plans[offer.candidate_plan_id]
         group = groups[plan.group_id]
         response_ranges = responders.get(plan.id, [])
         accepted = sum(offer_status == "ACCEPTED" for offer_status, _ in response_ranges)
-        caps = [maximum for offer_status, maximum in response_ranges if maximum is not None and (offer_status == "ACCEPTED" or accepted == 0)]
+        caps = [
+            maximum
+            for offer_status, maximum in response_ranges
+            if maximum is not None and (offer_status == "ACCEPTED" or accepted == 0)
+        ]
         capacity = min((group_sizes.get(group.id, 0), *caps))
         own_intent = own_intents[members[plan.id].intent_id]
         required = max(plan.required_min_people, own_intent.min_people)
-        result.append(_offer_output(offer, plan, snapshots[plan.id], group, members[plan.id], accepted, len(response_ranges), capacity, waitlists.get(plan.id, 0), required, own_intent))
+        result.append(
+            _offer_output(
+                offer,
+                plan,
+                snapshots[plan.id],
+                group,
+                members[plan.id],
+                accepted,
+                len(response_ranges),
+                capacity,
+                waitlists.get(plan.id, 0),
+                required,
+                own_intent,
+            )
+        )
     return result
 
 
@@ -824,15 +1164,24 @@ def accept_offer(
     if offer.is_near and not payload.confirm_near_exception:
         raise error(status.HTTP_409_CONFLICT, "Подтвердите небольшое превышение бюджета")
     assert plan is not None
-    if plan.status not in {"COLLECTING", "CONFIRMED_OPEN", "CONFIRMED"} or aware(plan.expires_at) <= now():
+    if (
+        plan.status not in {"COLLECTING", "CONFIRMED_OPEN", "CONFIRMED"}
+        or aware(plan.expires_at) <= now()
+    ):
         raise error(status.HTTP_409_CONFLICT, "План больше не собирается")
-    membership = session.scalar(select(CandidatePlanMember).where(CandidatePlanMember.candidate_plan_id == plan.id, CandidatePlanMember.user_id == user.id))
+    membership = session.scalar(
+        select(CandidatePlanMember).where(
+            CandidatePlanMember.candidate_plan_id == plan.id, CandidatePlanMember.user_id == user.id
+        )
+    )
     intent = session.get(Intent, membership.intent_id) if membership else None
     if intent is None or intent.status != "ACTIVE":
         raise error(status.HTTP_409_CONFLICT, "Условия сигнала больше не действуют")
     accepted = response_count(session, plan.id)
     capacity = effective_capacity(session, plan)
-    personal_capacity = min(capacity, intent.max_people) if intent.max_people is not None else capacity
+    personal_capacity = (
+        min(capacity, intent.max_people) if intent.max_people is not None else capacity
+    )
     if accepted >= personal_capacity:
         if intent.max_people != intent.min_people or intent.max_people != personal_capacity:
             raise error(status.HTTP_409_CONFLICT, "В плане уже набрано достаточно участников")
@@ -841,7 +1190,9 @@ def accept_offer(
         session.commit()
         return offer_out(session, offer)
     for other in session.scalars(
-        select(Offer).where(Offer.user_id == user.id, Offer.status.in_(("ACCEPTED", "WAITING_CONDITION")))
+        select(Offer).where(
+            Offer.user_id == user.id, Offer.status.in_(("ACCEPTED", "WAITING_CONDITION"))
+        )
     ):
         other_plan = session.get(CandidatePlan, other.candidate_plan_id)
         if other_plan and overlaps(
@@ -879,7 +1230,11 @@ def cancel_accepted_offer(offer_id: str, session: DbSession, user: CurrentUser) 
     if preliminary is None or preliminary.user_id != user.id:
         raise error(status.HTTP_404_NOT_FOUND, "Участие не найдено")
     session.scalar(select(User).where(User.id == user.id).with_for_update())
-    plan = session.scalar(select(CandidatePlan).where(CandidatePlan.id == preliminary.candidate_plan_id).with_for_update())
+    plan = session.scalar(
+        select(CandidatePlan)
+        .where(CandidatePlan.id == preliminary.candidate_plan_id)
+        .with_for_update()
+    )
     offer = session.scalar(select(Offer).where(Offer.id == offer_id).with_for_update())
     assert plan is not None and offer is not None
     if aware(plan.expires_at) <= now():
@@ -891,7 +1246,13 @@ def cancel_accepted_offer(offer_id: str, session: DbSession, user: CurrentUser) 
     was_waitlisted = offer.status == "WAITLISTED"
     offer.status = "CANCELLED_BY_USER"
     if not was_waitlisted:
-        waiting = list(session.scalars(select(Offer).where(Offer.candidate_plan_id == plan.id, Offer.status == "WAITLISTED").order_by(Offer.responded_at, Offer.id)))
+        waiting = list(
+            session.scalars(
+                select(Offer)
+                .where(Offer.candidate_plan_id == plan.id, Offer.status == "WAITLISTED")
+                .order_by(Offer.responded_at, Offer.id)
+            )
+        )
         for next_offer in waiting:
             if _has_other_overlap(session, user_id=next_offer.user_id, plan=plan):
                 continue
@@ -899,9 +1260,13 @@ def cancel_accepted_offer(offer_id: str, session: DbSession, user: CurrentUser) 
             break
     recompute_candidate_plan(session, plan)
     # Cancellation can make overlapping Offers available again.
-    for other in session.scalars(select(Offer).where(Offer.user_id == user.id, Offer.status == "INVALIDATED")):
+    for other in session.scalars(
+        select(Offer).where(Offer.user_id == user.id, Offer.status == "INVALIDATED")
+    ):
         other_plan = session.get(CandidatePlan, other.candidate_plan_id)
-        if other_plan is not None and overlaps(plan.starts_at, plan.ends_at, other_plan.starts_at, other_plan.ends_at):
+        if other_plan is not None and overlaps(
+            plan.starts_at, plan.ends_at, other_plan.starts_at, other_plan.ends_at
+        ):
             recompute_candidate_plan(session, other_plan)
     session.commit()
     return offer_out(session, offer)
@@ -914,7 +1279,9 @@ def reject_offer(offer_id: str, session: DbSession, user: CurrentUser) -> OfferO
         raise error(status.HTTP_404_NOT_FOUND, "Предложение не найдено")
     session.scalar(select(User).where(User.id == user.id).with_for_update())
     plan = session.scalar(
-        select(CandidatePlan).where(CandidatePlan.id == preliminary.candidate_plan_id).with_for_update()
+        select(CandidatePlan)
+        .where(CandidatePlan.id == preliminary.candidate_plan_id)
+        .with_for_update()
     )
     offer = session.scalar(select(Offer).where(Offer.id == offer_id).with_for_update())
     if offer is None or offer.user_id != user.id:
@@ -943,18 +1310,56 @@ def plan_out(session: DbSession, plan: CandidatePlan, user_id: str) -> PlanOut:
     group = session.get(Group, plan.group_id)
     assert group is not None
     capacity = effective_capacity(session, plan)
-    own_offer = session.scalar(select(Offer).where(Offer.candidate_plan_id == plan.id, Offer.user_id == user_id, Offer.status.in_(("ACCEPTED", "WAITING_CONDITION", "WAITLISTED"))))
-    own_member = session.scalar(select(CandidatePlanMember).where(CandidatePlanMember.candidate_plan_id == plan.id, CandidatePlanMember.user_id == user_id)) if own_offer else None
+    own_offer = session.scalar(
+        select(Offer).where(
+            Offer.candidate_plan_id == plan.id,
+            Offer.user_id == user_id,
+            Offer.status.in_(("ACCEPTED", "WAITING_CONDITION", "WAITLISTED")),
+        )
+    )
+    own_member = (
+        session.scalar(
+            select(CandidatePlanMember).where(
+                CandidatePlanMember.candidate_plan_id == plan.id,
+                CandidatePlanMember.user_id == user_id,
+            )
+        )
+        if own_offer
+        else None
+    )
     own_intent = session.get(Intent, own_member.intent_id) if own_member else None
-    personal_min = own_intent.min_people if own_offer and own_offer.status == "WAITING_CONDITION" and own_intent else None
+    personal_min = (
+        own_intent.min_people
+        if own_offer and own_offer.status == "WAITING_CONDITION" and own_intent
+        else None
+    )
     visible_participants: list[PlanParticipantOut] = []
-    if plan.status in {"CONFIRMED", "CONFIRMED_OPEN"} and own_offer is not None and own_offer.status == "ACCEPTED":
-        people = session.scalars(select(User).join(Offer, Offer.user_id == User.id).where(Offer.candidate_plan_id == plan.id, Offer.status == "ACCEPTED").order_by(User.display_name))
-        visible_participants = [PlanParticipantOut(id=person.id, display_name=person.display_name) for person in people]
+    if (
+        plan.status in {"CONFIRMED", "CONFIRMED_OPEN"}
+        and own_offer is not None
+        and own_offer.status == "ACCEPTED"
+    ):
+        people = session.scalars(
+            select(User)
+            .join(Offer, Offer.user_id == User.id)
+            .where(Offer.candidate_plan_id == plan.id, Offer.status == "ACCEPTED")
+            .order_by(User.display_name)
+        )
+        visible_participants = [
+            PlanParticipantOut(id=person.id, display_name=person.display_name) for person in people
+        ]
     price = f" · {snapshot.price_text}" if snapshot.price_text else ""
     timezone_name = group.timezone_name or "UTC"
-    local_start = plan.starts_at.replace(tzinfo=UTC) if plan.starts_at.tzinfo is None else plan.starts_at
-    share = f"⚡ ДВИЖ СОБРАЛСЯ: {snapshot.title}, {local_start.astimezone(display_timezone(timezone_name)).strftime('%d.%m %H:%M')}{price}" if plan.status in {"CONFIRMED", "CONFIRMED_OPEN"} and own_offer is not None and own_offer.status == "ACCEPTED" else ""
+    local_start = (
+        plan.starts_at.replace(tzinfo=UTC) if plan.starts_at.tzinfo is None else plan.starts_at
+    )
+    share = (
+        f"⚡ ДВИЖ СОБРАЛСЯ: {snapshot.title}, {local_start.astimezone(display_timezone(timezone_name)).strftime('%d.%m %H:%M')}{price}"
+        if plan.status in {"CONFIRMED", "CONFIRMED_OPEN"}
+        and own_offer is not None
+        and own_offer.status == "ACCEPTED"
+        else ""
+    )
     return PlanOut(
         id=plan.id,
         status=plan.status,
@@ -991,7 +1396,11 @@ def list_plans(session: DbSession, user: CurrentUser) -> list[PlanOut]:
     )
     plans = session.scalars(
         select(CandidatePlan)
-        .where(CandidatePlan.id.in_(ids), CandidatePlan.status.in_(("COLLECTING", "CONFIRMED", "CONFIRMED_OPEN")), CandidatePlan.starts_at > now())
+        .where(
+            CandidatePlan.id.in_(ids),
+            CandidatePlan.status.in_(("COLLECTING", "CONFIRMED", "CONFIRMED_OPEN")),
+            CandidatePlan.starts_at > now(),
+        )
         .order_by(CandidatePlan.starts_at)
     )
     return [plan_out(session, plan, user.id) for plan in plans]
@@ -1031,7 +1440,9 @@ def cities() -> list[CityOut]:
 def sync(city_slug: str, session: DbSession, user: CurrentUser) -> dict[str, object]:
     starts_at = now()
     result = fetch_items(
-        ProviderQuery(city_slug=city_slug, starts_at=starts_at, ends_at=starts_at + timedelta(days=7))
+        ProviderQuery(
+            city_slug=city_slug, starts_at=starts_at, ends_at=starts_at + timedelta(days=7)
+        )
     )
     if result.unavailable:
         raise error(status.HTTP_503_SERVICE_UNAVAILABLE, "Данные KudaGo временно недоступны")
@@ -1045,23 +1456,23 @@ def seed_demo(group_id: str, session: DbSession, user: CurrentUser) -> dict[str,
     group = member(session, group_id, user.id)
     start = now() + timedelta(hours=2)
     demo_item = NormalizedLeisureItem(
-            provider="MODEL",
-            provider_id=f"demo-{group.id}",
-            item_type="MODEL",
-            city_slug=group.default_city_slug,
-            title="Демо: вечер в ПК-клубе",
-            category="other",
-            venue_name="Демо-площадка",
-            latitude=56.8389,
-            longitude=60.6057,
-            starts_at=start,
-            ends_at=start + timedelta(hours=3),
-            price_text="400 ₽",
-            price_min=400,
-            source_url=None,
-            image_url=None,
-            source_fetched_at=now(),
-            is_demo=True,
-        )
+        provider="MODEL",
+        provider_id=f"demo-{group.id}",
+        item_type="MODEL",
+        city_slug=group.default_city_slug,
+        title="Демо: вечер в ПК-клубе",
+        category="other",
+        venue_name="Демо-площадка",
+        latitude=56.8389,
+        longitude=60.6057,
+        starts_at=start,
+        ends_at=start + timedelta(hours=3),
+        price_text="400 ₽",
+        price_min=400,
+        source_url=None,
+        image_url=None,
+        source_fetched_at=now(),
+        is_demo=True,
+    )
     regenerate_group(session, group.id, group.default_city_slug, [demo_item])
     return {"status": "seeded", "label": "Демонстрационные данные"}

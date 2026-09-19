@@ -22,19 +22,44 @@ LOCK_ID = 564836421
 def evaluate_active_autosignals(session: Session, current: datetime | None = None) -> int:
     """Fetch each city/category slice once, then match every relevant company."""
     current = current or datetime.now(UTC)
-    active = list(session.scalars(select(Intent).where(Intent.type == "RECURRING", Intent.status == "ACTIVE")))
+    active = list(
+        session.scalars(select(Intent).where(Intent.type == "RECURRING", Intent.status == "ACTIVE"))
+    )
     slices: dict[tuple[str, tuple[str, ...]], set[str]] = {}
     for intent in active:
-        categories = tuple(sorted(category for category in (intent.activity_categories or [intent.activity_category]) if category not in {"any", "other"}))
+        categories = tuple(
+            sorted(
+                category
+                for category in (intent.activity_categories or [intent.activity_category])
+                if category not in {"any", "other"}
+            )
+        )
         slices.setdefault((intent.city_slug, categories), set()).add(intent.group_id)
     refreshed = 0
     for (city, categories), groups in slices.items():
-        query = ProviderQuery(city_slug=city, starts_at=current, ends_at=current + timedelta(days=settings.autosignal_lookahead_days), categories=categories)
+        query = ProviderQuery(
+            city_slug=city,
+            starts_at=current,
+            ends_at=current + timedelta(days=settings.autosignal_lookahead_days),
+            categories=categories,
+        )
         result = fetch_items(query)
         if result.unavailable:
             logger.warning("AutoSignal provider unavailable for city %s", city)
             for intent in active:
-                if intent.city_slug == city and tuple(sorted(category for category in (intent.activity_categories or [intent.activity_category]) if category not in {"any", "other"})) == categories:
+                if (
+                    intent.city_slug == city
+                    and tuple(
+                        sorted(
+                            category
+                            for category in (
+                                intent.activity_categories or [intent.activity_category]
+                            )
+                            if category not in {"any", "other"}
+                        )
+                    )
+                    == categories
+                ):
                     intent.provider_state = "PROVIDER_UNAVAILABLE"
             session.commit()
             continue
@@ -42,9 +67,39 @@ def evaluate_active_autosignals(session: Session, current: datetime | None = Non
             regenerate_group(session, group_id, city, result.items)
             refreshed += 1
         for intent in active:
-            if intent.city_slug == city and tuple(sorted(category for category in (intent.activity_categories or [intent.activity_category]) if category not in {"any", "other"})) == categories:
-                visible = session.scalar(select(Offer.id).join(CandidatePlanMember, CandidatePlanMember.candidate_plan_id == Offer.candidate_plan_id).where(CandidatePlanMember.intent_id == intent.id, Offer.user_id == intent.user_id, Offer.status.in_(("PENDING", "ACCEPTED", "WAITING_CONDITION", "WAITLISTED"))).limit(1))
-                intent.provider_state = "OFFERS_READY" if visible else "NO_FEASIBLE_PLAN" if result.items else "NO_SOURCE"
+            if (
+                intent.city_slug == city
+                and tuple(
+                    sorted(
+                        category
+                        for category in (intent.activity_categories or [intent.activity_category])
+                        if category not in {"any", "other"}
+                    )
+                )
+                == categories
+            ):
+                visible = session.scalar(
+                    select(Offer.id)
+                    .join(
+                        CandidatePlanMember,
+                        CandidatePlanMember.candidate_plan_id == Offer.candidate_plan_id,
+                    )
+                    .where(
+                        CandidatePlanMember.intent_id == intent.id,
+                        Offer.user_id == intent.user_id,
+                        Offer.status.in_(
+                            ("PENDING", "ACCEPTED", "WAITING_CONDITION", "WAITLISTED")
+                        ),
+                    )
+                    .limit(1)
+                )
+                intent.provider_state = (
+                    "OFFERS_READY"
+                    if visible
+                    else "NO_FEASIBLE_PLAN"
+                    if result.items
+                    else "NO_SOURCE"
+                )
         session.commit()
     return refreshed
 
@@ -56,16 +111,47 @@ def evaluate_auto_signal(intent_id: str) -> None:
             intent = session.get(Intent, intent_id)
             if intent is None or intent.type != "RECURRING" or intent.status != "ACTIVE":
                 return
-            categories = tuple(sorted(category for category in (intent.activity_categories or [intent.activity_category]) if category not in {"any", "other"}))
+            categories = tuple(
+                sorted(
+                    category
+                    for category in (intent.activity_categories or [intent.activity_category])
+                    if category not in {"any", "other"}
+                )
+            )
             current = datetime.now(UTC)
-            query = ProviderQuery(city_slug=intent.city_slug, starts_at=current, ends_at=current + timedelta(days=settings.autosignal_lookahead_days), categories=categories)
+            query = ProviderQuery(
+                city_slug=intent.city_slug,
+                starts_at=current,
+                ends_at=current + timedelta(days=settings.autosignal_lookahead_days),
+                categories=categories,
+            )
             result = fetch_items(query)
             if result.unavailable:
                 intent.provider_state = "PROVIDER_UNAVAILABLE"
             else:
                 regenerate_group(session, intent.group_id, intent.city_slug, result.items)
-                visible = session.scalar(select(Offer.id).join(CandidatePlanMember, CandidatePlanMember.candidate_plan_id == Offer.candidate_plan_id).where(CandidatePlanMember.intent_id == intent.id, Offer.user_id == intent.user_id, Offer.status.in_(("PENDING", "ACCEPTED", "WAITING_CONDITION", "WAITLISTED"))).limit(1))
-                intent.provider_state = "OFFERS_READY" if visible else "NO_FEASIBLE_PLAN" if result.items else "NO_SOURCE"
+                visible = session.scalar(
+                    select(Offer.id)
+                    .join(
+                        CandidatePlanMember,
+                        CandidatePlanMember.candidate_plan_id == Offer.candidate_plan_id,
+                    )
+                    .where(
+                        CandidatePlanMember.intent_id == intent.id,
+                        Offer.user_id == intent.user_id,
+                        Offer.status.in_(
+                            ("PENDING", "ACCEPTED", "WAITING_CONDITION", "WAITLISTED")
+                        ),
+                    )
+                    .limit(1)
+                )
+                intent.provider_state = (
+                    "OFFERS_READY"
+                    if visible
+                    else "NO_FEASIBLE_PLAN"
+                    if result.items
+                    else "NO_SOURCE"
+                )
             session.commit()
     except Exception:
         logger.exception("AutoSignal evaluation failed for %s", intent_id)
@@ -73,7 +159,9 @@ def evaluate_auto_signal(intent_id: str) -> None:
 
 def run_once() -> int:
     with engine.connect() as connection:
-        if not connection.scalar(text("SELECT pg_try_advisory_lock(:lock_id)"), {"lock_id": LOCK_ID}):
+        if not connection.scalar(
+            text("SELECT pg_try_advisory_lock(:lock_id)"), {"lock_id": LOCK_ID}
+        ):
             return 0
         try:
             with Session(bind=connection) as session:

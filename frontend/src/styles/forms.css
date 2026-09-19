@@ -1,0 +1,197 @@
+.wizard,
+.auto-form {
+  display: grid;
+  gap: var(--space-4);
+}
+.wizard form,
+.auto-form form,
+.start-card form,
+.dev-tools {
+  display: grid;
+  gap: var(--space-5);
+}
+.back-link {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 44px;
+  align-items: center;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--dvizh-blue);
+  font-size: 14px;
+  font-weight: 700;
+}
+.form-section {
+  display: grid;
+  gap: var(--space-3);
+  border-top: 1px solid var(--dvizh-line);
+  padding-top: var(--space-5);
+}
+.form-section:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.choice {
+  min-height: 44px;
+  border: 1px solid var(--dvizh-line-strong);
+  border-radius: var(--radius-control);
+  padding: 8px 12px;
+  background: var(--dvizh-surface);
+  color: var(--dvizh-ink);
+  font-size: 14px;
+  font-weight: 650;
+}
+.choice--selected {
+  border-color: var(--dvizh-blue);
+  background: var(--dvizh-blue-soft);
+  color: var(--dvizh-blue-strong);
+}
+.choice:disabled {
+  opacity: 0.42;
+}
+.choices--weekdays .choice {
+  min-width: 44px;
+  padding-inline: 9px;
+}
+.company-options {
+  display: grid;
+  border-top: 1px solid var(--dvizh-line);
+}
+.company-option {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border: 0;
+  border-bottom: 1px solid var(--dvizh-line);
+  padding: 8px 2px;
+  background: transparent;
+  color: var(--dvizh-ink);
+  text-align: left;
+}
+.company-option > span:first-child {
+  display: grid;
+  gap: 3px;
+}
+.company-option small {
+  color: var(--dvizh-muted);
+  font-size: 12px;
+}
+.company-option__check {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid var(--dvizh-line-strong);
+  border-radius: 6px;
+  color: transparent;
+}
+.company-option.is-selected .company-option__check {
+  border-color: var(--dvizh-blue);
+  background: var(--dvizh-blue);
+  color: #fff;
+}
+.form-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+.conditions {
+  border-top: 1px solid var(--dvizh-line);
+  border-bottom: 1px solid var(--dvizh-line);
+}
+.conditions summary,
+.add-place summary {
+  min-height: 52px;
+  padding: 15px 0;
+  color: var(--dvizh-ink);
+  font-weight: 750;
+  cursor: pointer;
+}
+.conditions summary span {
+  margin-left: 5px;
+  color: var(--dvizh-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+.conditions__content {
+  display: grid;
+  gap: var(--space-4);
+  padding: 0 0 var(--space-5);
+}
+.conditions__content p {
+  margin-bottom: 0;
+  color: var(--dvizh-muted);
+  font-size: 14px;
+}
+.form-hint {
+  color: var(--dvizh-muted);
+  font-size: 12px;
+}
+.form-error {
+  margin: 0;
+  color: var(--dvizh-danger);
+  font-size: 14px;
+  font-weight: 650;
+}
+.wizard__footer {
+  position: sticky;
+  z-index: 3;
+  bottom: 0;
+  padding: var(--space-3) 0 max(var(--space-2), env(safe-area-inset-bottom));
+  background: linear-gradient(to bottom, transparent, var(--dvizh-bg) 24%);
+}
+
+.autos-list {
+  gap: 0;
+  border-top: 1px solid var(--dvizh-line);
+}
+.autosignal-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: var(--space-3);
+  border-bottom: 1px solid var(--dvizh-line);
+  padding: var(--space-4) 0;
+}
+.autosignal-row__main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--dvizh-ink);
+  text-align: left;
+}
+.autosignal-row__main strong {
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+.autosignal-row__main span {
+  color: var(--dvizh-muted);
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.switch-control {
+  padding-top: 2px;
+}
+.autosignal-row__delete {
+  grid-column: 1 / -1;
+  width: fit-content;
+  min-height: 36px;
+  margin-top: 5px;
+  font-size: 12px;
+}
+.new-auto {
+  width: fit-content;
+}

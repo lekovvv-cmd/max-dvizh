@@ -23,7 +23,9 @@ def upgrade() -> None:
     op.create_index("ix_intents_signal_batch_id", "intents", ["signal_batch_id"])
     op.alter_column("intents", "max_people", existing_type=sa.Integer(), nullable=True)
     op.add_column("offers", sa.Column("responded_at", sa.DateTime(timezone=True), nullable=True))
-    op.execute("UPDATE intents SET activity_categories = json_build_array(activity_category) WHERE activity_categories IS NULL")
+    op.execute(
+        "UPDATE intents SET activity_categories = json_build_array(activity_category) WHERE activity_categories IS NULL"
+    )
 
 
 def downgrade() -> None:

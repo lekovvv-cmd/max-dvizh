@@ -89,14 +89,20 @@ class IntentIn(BaseModel):
             raise ValueError("Для радиуса выберите точку отправления")
         if self.max_people is not None and self.min_people > self.max_people:
             raise ValueError("Минимум участников больше максимума")
-        if self.activity_categories is not None and (not self.activity_categories or len(self.activity_categories) > 8 or any(not item or len(item) > 64 for item in self.activity_categories)):
+        if self.activity_categories is not None and (
+            not self.activity_categories
+            or len(self.activity_categories) > 8
+            or any(not item or len(item) > 64 for item in self.activity_categories)
+        ):
             raise ValueError("Выберите категории")
         return self
 
 
 class SignalBatchIn(BaseModel):
     group_ids: list[str] = Field(min_length=1, max_length=12)
-    activity_categories: list[str] = Field(default_factory=lambda: ["any"], min_length=1, max_length=8)
+    activity_categories: list[str] = Field(
+        default_factory=lambda: ["any"], min_length=1, max_length=8
+    )
     available_from: datetime
     available_to: datetime
     budget_max: int | None = Field(default=None, ge=0, le=100000)
@@ -132,7 +138,9 @@ class AutoSignalIn(IntentIn):
 
     @model_validator(mode="after")
     def validate_recurrence(self) -> AutoSignalIn:
-        if any(day < 0 or day > 6 for day in self.weekdays) or len(set(self.weekdays)) != len(self.weekdays):
+        if any(day < 0 or day > 6 for day in self.weekdays) or len(set(self.weekdays)) != len(
+            self.weekdays
+        ):
             raise ValueError("Дни недели должны быть уникальными числами от 0 до 6")
         try:
             ZoneInfo(self.timezone)

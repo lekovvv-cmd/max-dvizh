@@ -17,7 +17,9 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column("groups", sa.Column("invite_expires_at", sa.DateTime(timezone=True), nullable=True))
+    op.add_column(
+        "groups", sa.Column("invite_expires_at", sa.DateTime(timezone=True), nullable=True)
+    )
 
 
 def downgrade() -> None:

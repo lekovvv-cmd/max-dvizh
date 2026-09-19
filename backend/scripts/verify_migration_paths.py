@@ -14,10 +14,26 @@ def seed_legacy(engine: Engine) -> None:
     """Write rows using only columns available at revision 20260916_0005."""
     current = datetime.now(UTC)
     with engine.begin() as connection:
-        connection.execute(text("INSERT INTO users (id, max_user_id, display_name) VALUES ('legacy-user', 'legacy-user', 'Legacy user')"))
-        connection.execute(text("INSERT INTO groups (id, name, default_city_slug, created_by, invite_token) VALUES ('legacy-group', 'Legacy friends', 'ekb', 'legacy-user', 'legacy-invite')"))
-        connection.execute(text("INSERT INTO group_members (group_id, user_id, role) VALUES ('legacy-group', 'legacy-user', 'OWNER')"))
-        connection.execute(text("INSERT INTO locations (id, user_id, label, latitude, longitude, city_slug, kind, is_ephemeral) VALUES ('legacy-location', 'legacy-user', 'Home', 56.84, 60.61, 'ekb', 'SAVED', false)"))
+        connection.execute(
+            text(
+                "INSERT INTO users (id, max_user_id, display_name) VALUES ('legacy-user', 'legacy-user', 'Legacy user')"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO groups (id, name, default_city_slug, created_by, invite_token) VALUES ('legacy-group', 'Legacy friends', 'ekb', 'legacy-user', 'legacy-invite')"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO group_members (group_id, user_id, role) VALUES ('legacy-group', 'legacy-user', 'OWNER')"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO locations (id, user_id, label, latitude, longitude, city_slug, kind, is_ephemeral) VALUES ('legacy-location', 'legacy-user', 'Home', 56.84, 60.61, 'ekb', 'SAVED', false)"
+            )
+        )
         connection.execute(
             text("""INSERT INTO intents (id, user_id, group_id, type, status, city_slug, activity_category, available_from, available_to, budget_max, origin_location_id, radius_km, min_people, max_people)
                     VALUES ('legacy-intent', 'legacy-user', 'legacy-group', 'ONE_TIME', 'ACTIVE', 'ekb', 'games', :starts_at, :ends_at, 500, 'legacy-location', 5, 3, 5)"""),
@@ -28,11 +44,17 @@ def seed_legacy(engine: Engine) -> None:
 def verify_upgrade(engine: Engine) -> None:
     """Assert the new nullable fields and category backfill preserved old data."""
     with engine.connect() as connection:
-        row = connection.execute(text("""SELECT i.activity_category, i.activity_categories, i.signal_batch_id, i.provider_state, i.budget_max, i.max_people,
+        row = (
+            connection.execute(
+                text("""SELECT i.activity_category, i.activity_categories, i.signal_batch_id, i.provider_state, i.budget_max, i.max_people,
                        g.name AS group_name, g.timezone_name, g.invite_expires_at, l.label AS location_label, l.address_text, l.is_default
                     FROM intents AS i JOIN groups AS g ON g.id = i.group_id
                     JOIN locations AS l ON l.id = i.origin_location_id
-                    WHERE i.id = 'legacy-intent'""")).mappings().one()
+                    WHERE i.id = 'legacy-intent'""")
+            )
+            .mappings()
+            .one()
+        )
         assert row["activity_category"] == "games"
         assert row["activity_categories"] == ["games"]
         assert row["signal_batch_id"] is None
@@ -57,7 +79,9 @@ def create_clean_database(database_url: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=("seed-legacy", "verify-upgrade", "create-clean-database"))
+    parser.add_argument(
+        "action", choices=("seed-legacy", "verify-upgrade", "create-clean-database")
+    )
     action = parser.parse_args().action
     database_url = os.environ["DATABASE_URL"]
     if action == "create-clean-database":

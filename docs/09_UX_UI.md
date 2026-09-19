@@ -85,4 +85,10 @@ Loading is a small native indicator. Errors are concise, human, and include reco
 
 Maintain semantic headings, labels, `aria-pressed`, switch names, dialog semantics, visible focus, keyboard navigation, 44 px touch targets, non-color state cues, contrast, and reduced motion. Use MAX UI primitives where they clarify standard controls, and semantic HTML where a row or list is simpler.
 
+Confirmation dialogs keep keyboard focus inside, preserve the focused field on
+rerender, and restore the opener on close. Saved Signal conditions open during
+editing even for a zero budget. Validation failures use readable messages rather
+than raw API validation objects. The collecting status has separate light and
+dark theme colors.
+
 Production and MAX mode never mount development tools. The interface must be verified at 375 × 812, 430 × 932, and 1280 × 800 in light and dark themes where available, including long Russian copy and all product states.

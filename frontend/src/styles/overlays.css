@@ -1,0 +1,68 @@
+.start-screen,
+.system-state {
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  padding: var(--space-5);
+  background: var(--dvizh-bg);
+}
+.start-card,
+.system-card {
+  display: grid;
+  gap: var(--space-5);
+  width: min(100%, 420px);
+  border: 1px solid var(--dvizh-line);
+  border-radius: var(--radius-modal);
+  padding: var(--space-6);
+  background: var(--dvizh-surface);
+}
+.start-card h1,
+.system-card h1 {
+  font-size: 26px;
+}
+.start-card > p,
+.system-card p {
+  margin-bottom: 0;
+  color: var(--dvizh-muted);
+}
+.system-state {
+  align-content: center;
+  gap: var(--space-3);
+  color: var(--dvizh-muted);
+}
+.loading-indicator {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--dvizh-line-strong);
+  border-top-color: var(--dvizh-blue);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.dialog-backdrop {
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: rgb(17 27 40 / 52%);
+}
+.confirm-dialog {
+  display: grid;
+  gap: var(--space-3);
+  width: min(100%, 420px);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  border-radius: var(--radius-modal);
+  padding: var(--space-5);
+  background: var(--dvizh-surface);
+  box-shadow: 0 18px 60px rgb(17 27 40 / 20%);
+}
+.confirm-dialog h2,
+.confirm-dialog p {
+  margin: 0;
+}
+.confirm-dialog p {
+  color: var(--dvizh-muted);
+}

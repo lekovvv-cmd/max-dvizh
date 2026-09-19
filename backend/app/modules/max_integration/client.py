@@ -42,7 +42,11 @@ def _text(event: OutboxNotification) -> str:
         when = "скоро"
     kind = "plan" if event.kind == "CONFIRMED_PLAN" else "offer"
     identifier = event.payload.get("plan_id" if kind == "plan" else "offer_id")
-    link = f"\nhttps://max.ru/{settings.max_bot_username}?startapp={kind}_{identifier}" if settings.max_bot_username and identifier else ""
+    link = (
+        f"\nhttps://max.ru/{settings.max_bot_username}?startapp={kind}_{identifier}"
+        if settings.max_bot_username and identifier
+        else ""
+    )
     heading = "⚡ ДВИЖ СОБРАЛСЯ" if kind == "plan" else "🎮 Новый ДВИЖ"
     return f"{heading}\n{title} · {when}\n{group}{link}"
 
@@ -59,9 +63,11 @@ def dispatch_pending(session: Session, batch_size: int = 50) -> int:
     current = utcnow()
     stale_before = current - timedelta(minutes=5)
     for event in session.scalars(
-        select(OutboxNotification).where(
+        select(OutboxNotification)
+        .where(
             OutboxNotification.status == "PROCESSING", OutboxNotification.locked_at < stale_before
-        ).with_for_update(skip_locked=True)
+        )
+        .with_for_update(skip_locked=True)
     ):
         event.status = "PENDING"
         event.locked_at = None
@@ -71,7 +77,10 @@ def dispatch_pending(session: Session, batch_size: int = 50) -> int:
             select(OutboxNotification)
             .where(
                 OutboxNotification.status == "PENDING",
-                or_(OutboxNotification.next_attempt_at.is_(None), OutboxNotification.next_attempt_at <= current),
+                or_(
+                    OutboxNotification.next_attempt_at.is_(None),
+                    OutboxNotification.next_attempt_at <= current,
+                ),
             )
             .order_by(OutboxNotification.created_at, OutboxNotification.id)
             .limit(batch_size)

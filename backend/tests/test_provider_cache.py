@@ -45,10 +45,22 @@ class FailingProvider(KudaGoProvider):
 def item() -> NormalizedLeisureItem:
     now = datetime.now(UTC)
     return NormalizedLeisureItem(
-        provider="KUDAGO", provider_id="42", item_type="EVENT", city_slug="ekb", title="Квиз",
-        category="other", venue_name=None, starts_at=now + timedelta(hours=2),
-        ends_at=now + timedelta(hours=4), latitude=56.8, longitude=60.6, price_text="500 ₽",
-        price_min=500, source_url=None, image_url=None, source_fetched_at=now,
+        provider="KUDAGO",
+        provider_id="42",
+        item_type="EVENT",
+        city_slug="ekb",
+        title="Квиз",
+        category="other",
+        venue_name=None,
+        starts_at=now + timedelta(hours=2),
+        ends_at=now + timedelta(hours=4),
+        latitude=56.8,
+        longitude=60.6,
+        price_text="500 ₽",
+        price_min=500,
+        source_url=None,
+        image_url=None,
+        source_fetched_at=now,
     )
 
 
@@ -74,7 +86,9 @@ def test_provider_failure_uses_cache_or_returns_honest_unavailable_result() -> N
     cache.set_events(query(), [item()])
 
     cached = fetch_items(query(), provider=FailingProvider(), cache=cache)
-    missing = fetch_items(query(), provider=FailingProvider(), cache=RedisProviderCache(FakeRedis()))
+    missing = fetch_items(
+        query(), provider=FailingProvider(), cache=RedisProviderCache(FakeRedis())
+    )
 
     assert cached.cached and len(cached.items) == 1 and not cached.unavailable
     assert missing.items == [] and missing.unavailable
@@ -82,7 +96,9 @@ def test_provider_failure_uses_cache_or_returns_honest_unavailable_result() -> N
 
 def test_cache_keys_partition_city_time_and_category_queries() -> None:
     first = query()
-    second = ProviderQuery(first.city_slug, first.starts_at, first.ends_at + timedelta(hours=1), first.categories)
+    second = ProviderQuery(
+        first.city_slug, first.starts_at, first.ends_at + timedelta(hours=1), first.categories
+    )
     third = ProviderQuery(first.city_slug, first.starts_at, first.ends_at, ())
 
     assert len({first.cache_key(), second.cache_key(), third.cache_key()}) == 3
@@ -117,7 +133,9 @@ def test_kudago_request_uses_the_same_city_time_category_slice(monkeypatch: obje
     assert places[1]["categories"] == "clubs,concert-hall"
 
 
-def test_wellness_query_uses_real_place_slugs_without_unfiltered_events(monkeypatch: object) -> None:
+def test_wellness_query_uses_real_place_slugs_without_unfiltered_events(
+    monkeypatch: object,
+) -> None:
     captured: list[tuple[str, dict[str, object]]] = []
 
     class Response:
@@ -133,7 +151,9 @@ def test_wellness_query_uses_real_place_slugs_without_unfiltered_events(monkeypa
 
     monkeypatch.setattr("app.modules.leisure.provider.httpx.get", fake_get)  # type: ignore[attr-defined]
     requested = query()
-    KudaGoProvider().items(ProviderQuery(requested.city_slug, requested.starts_at, requested.ends_at, ("wellness",)))
+    KudaGoProvider().items(
+        ProviderQuery(requested.city_slug, requested.starts_at, requested.ends_at, ("wellness",))
+    )
     assert len(captured) == 1
     assert captured[0][0].endswith("/places/")
     assert captured[0][1]["categories"] == "amusement,recreation,salons,suburb"
