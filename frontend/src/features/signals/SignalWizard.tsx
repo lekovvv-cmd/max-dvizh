@@ -2,8 +2,9 @@ import { Button, Input } from '@maxhub/max-ui'
 import { useState } from 'react'
 import { api } from '../../app/api'
 import type { Group, Intent, Location } from '../../app/api'
-import { activityLabel } from '../../shared/lib/format'
+import { activityLabel, formatPeople } from '../../shared/lib/format'
 import { formatLocalDateTimeInput, groupSizeRange, initialGroupSize, parseExactPeople, parseOptionalInteger, parseOptionalRadius, type GroupSizeChoice } from '../../shared/lib/signalForm'
+import { Icon } from '../../shared/ui/Icon'
 
 type When = 'evening' | 'after20' | 'tomorrow' | 'weekend' | 'custom'
 const categories = ['games', 'sport', 'exhibition', 'concert', 'wellness']
@@ -76,29 +77,32 @@ export function SignalWizard({ group, groups, locations, activeBatch, onAddPlace
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось подать сигнал') } finally { setBusy(false) }
   }
   return <section className="wizard" aria-labelledby="signal-title">
-    <button type="button" className="back-link" onClick={onDone}>‹ Назад</button>
-    <h1 id="signal-title">{existing ? 'Изменить сигнал' : 'Когда свободен?'}</h1>
+    <button type="button" className="back-link" onClick={onDone}>← Назад</button>
+    <h1 id="signal-title">{existing ? 'Изменить сигнал' : 'Подать сигнал'}</h1>
     <form onSubmit={event => void submit(event)}>
-      <div className="wizard__block"><h2>Когда?</h2><div className="choices">
+      <div className="form-section"><h2>Когда</h2><div className="choices">
         <Choice selected={when === 'evening'} disabled={new Date().getHours() >= 18} onClick={() => chooseWhen('evening')}>Сегодня вечером</Choice>
         <Choice selected={when === 'after20'} disabled={new Date().getHours() >= 20} onClick={() => chooseWhen('after20')}>Сегодня после 20:00</Choice>
         <Choice selected={when === 'tomorrow'} onClick={() => chooseWhen('tomorrow')}>Завтра вечером</Choice>
         <Choice selected={when === 'weekend'} onClick={() => chooseWhen('weekend')}>На выходных</Choice>
         <Choice selected={when === 'custom'} onClick={() => chooseWhen('custom')}>Выбрать время</Choice>
       </div>{when === 'custom' ? <div className="form-row"><label>С<Input type="datetime-local" value={start} onChange={event => setStart(event.target.value)} /></label><label>До<Input type="datetime-local" value={end} onChange={event => setEnd(event.target.value)} /></label></div> : null}</div>
-      <div className="wizard__block"><h2>Что ок?</h2><div className="choices"><Choice selected={selectedCategories.includes('any')} onClick={() => toggleCategory('any')}>Всё равно</Choice>{categories.map(category => <Choice key={category} selected={selectedCategories.includes(category)} onClick={() => toggleCategory(category)}>{activityLabel(category)}</Choice>)}</div></div>
-      <div className="wizard__block"><h2>С кем?</h2><div className="choices">{groups.map(item => <Choice key={item.id} selected={groupIds.includes(item.id)} onClick={() => setGroupIds(current => current.includes(item.id) ? current.filter(id => id !== item.id) : [...current, item.id])}>{item.name}</Choice>)}</div>{cityMismatch ? <p className="form-error">Выбери компании из одного города</p> : null}</div>
-      <details className="wizard__block" open={conditionsOpen} onToggle={event => setConditionsOpen(event.currentTarget.open)}><summary>Условия</summary>
+      <div className="form-section"><h2>Что ок</h2><div className="choices"><Choice selected={selectedCategories.includes('any')} onClick={() => toggleCategory('any')}>Всё равно</Choice>{categories.map(category => <Choice key={category} selected={selectedCategories.includes(category)} onClick={() => toggleCategory(category)}>{activityLabel(category)}</Choice>)}</div></div>
+      <div className="form-section"><h2>С кем</h2><div className="company-options">{groups.map(item => {
+        const selected = groupIds.includes(item.id)
+        return <button type="button" key={item.id} className={`company-option ${selected ? 'is-selected' : ''}`} aria-pressed={selected} onClick={() => setGroupIds(current => current.includes(item.id) ? current.filter(id => id !== item.id) : [...current, item.id])}><span><strong>{item.name}</strong><small>{formatPeople(item.member_count)}</small></span><span className="company-option__check"><Icon name="check" size={17} /></span></button>
+      })}</div>{cityMismatch ? <p className="form-error">Выбери компании из одного города</p> : null}</div>
+      <details className="conditions" open={conditionsOpen} onToggle={event => setConditionsOpen(event.currentTarget.open)}><summary>Условия <span>необязательно</span></summary><div className="conditions__content">
         <label>Бюджет до, ₽<Input type="number" min="0" max="100000" placeholder="Неважно" value={budget} onChange={event => setBudget(event.target.value)} /></label>
         {places.length ? <><label>Расстояние до, км<Input type="number" min="0.1" max="100" step="0.1" placeholder="Неважно" value={radius} onChange={event => setRadius(event.target.value)} /></label>{radius ? <label>Откуда<select value={selectedLocationId} onChange={event => setLocationId(event.target.value)}>{places.map(place => <option key={place.id} value={place.id}>{place.label}{place.address_text ? ` · ${place.address_text}` : ''}</option>)}</select></label> : null}<p className="form-hint">≈ расстояние по прямой, не время в пути</p></> : <p>Добавь место в выбранном городе, чтобы ограничивать расстояние. <button type="button" className="back-link" onClick={() => onAddPlace(selectedCity || null)}>Добавить место</button></p>}
-        <h3>Пойдёшь, если соберётся…</h3><div className="choices"><Choice selected={people === 'any'} onClick={() => setPeople('any')}>Неважно</Choice><Choice selected={people === '3+'} onClick={() => setPeople('3+')}>Хотя бы 3</Choice><Choice selected={people === '5+'} onClick={() => setPeople('5+')}>Хотя бы 5</Choice><Choice selected={people === 'exact'} onClick={() => setPeople('exact')}>Ровно N</Choice></div>
+        <h3>Сколько человек</h3><div className="choices"><Choice selected={people === 'any'} onClick={() => setPeople('any')}>Неважно</Choice><Choice selected={people === '3+'} onClick={() => setPeople('3+')}>Хотя бы 3</Choice><Choice selected={people === '5+'} onClick={() => setPeople('5+')}>Хотя бы 5</Choice><Choice selected={people === 'exact'} onClick={() => setPeople('exact')}>Ровно N</Choice></div>
         {people === 'exact' ? <label>Сколько человек?<Input aria-label="Сколько человек?" type="number" min="2" max="12" step="1" value={exactPeople} onChange={event => setExactPeople(event.target.value)} /></label> : null}
-      </details>
+      </div></details>
       {budgetValue === undefined || radiusValue === undefined ? <p className="form-error">Проверь условия</p> : null}
       {peopleRange === undefined ? <p className="form-error">Укажи целое число участников от 2 до 12</p> : null}
       {radiusValue !== null && radiusValue !== undefined && !selectedLocationId ? <p className="form-error">Для расстояния выбери место в городе выбранных компаний</p> : null}
       {error ? <p className="form-error" role="alert">{error}</p> : null}
-      <div className="wizard__footer"><Button stretched variant="primary" type="submit" loading={busy} disabled={busy || cityMismatch || groupIds.length === 0 || budgetValue === undefined || radiusValue === undefined || peopleRange === undefined || (radiusValue !== null && !selectedLocationId)}>{existing ? 'Сохранить' : 'Подать сигнал ⚡'}</Button></div>
+      <div className="wizard__footer"><Button stretched variant="primary" type="submit" loading={busy} disabled={busy || cityMismatch || groupIds.length === 0 || budgetValue === undefined || radiusValue === undefined || peopleRange === undefined || (radiusValue !== null && !selectedLocationId)}>{existing ? 'Сохранить' : 'Подать сигнал'}</Button></div>
     </form>
   </section>
 }
