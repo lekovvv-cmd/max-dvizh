@@ -96,6 +96,8 @@ At minimum: session, groups/join, locations, Intents/AutoSignals, Offers list, e
 Playwright against the production Docker frontend/backend passed at 375×812, 430×932 and 1280×800 with no page or console errors and no horizontal overflow:
 
 - all five addressed Offers, including exact-N waitlist, a full non-exact range without an accept/waitlist action, explicit Near confirmation, a Place with address/distance/opening-hours warning and a free Event;
+- a separate CandidatePlan with eight private pending Offers and minimum three: the addressed user sees the normal `0 of 3` invitation without other users' identities;
+- the no-Signal empty state and its recovery action;
 - private conditional progress (3 of 5), collecting and confirmed states, participant names and the private waitlist state;
 - active wellness AutoSignal, multiple Companies, saved-place addresses and the default marker;
 - the no-saved-place Signal recovery path, with the distance control absent and no raw coordinates rendered.
