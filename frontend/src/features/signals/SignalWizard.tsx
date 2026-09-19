@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { api } from '../../app/api'
 import type { Group, Intent, Location } from '../../app/api'
 import { activityLabel } from '../../shared/lib/format'
-import { formatLocalDateTimeInput, groupSizeRange, parseOptionalInteger, parseOptionalRadius, type GroupSizeChoice } from '../../shared/lib/signalForm'
+import { formatLocalDateTimeInput, groupSizeRange, initialGroupSize, parseExactPeople, parseOptionalInteger, parseOptionalRadius, type GroupSizeChoice } from '../../shared/lib/signalForm'
 
 type When = 'evening' | 'after20' | 'tomorrow' | 'weekend' | 'custom'
 const categories = ['games', 'sport', 'exhibition', 'concert', 'wellness']
@@ -26,6 +26,7 @@ function Choice({ selected, onClick, children, disabled = false }: { selected: b
 
 export function SignalWizard({ group, groups, locations, activeBatch, onAddPlace, onDone }: { group: Group; groups: Group[]; locations: Location[]; activeBatch?: Intent[]; onAddPlace: (city: string | null) => void; onDone: () => void }) {
   const existing = activeBatch?.[0]
+  const initialSize = initialGroupSize(existing?.min_people, existing?.max_people)
   const [when, setWhen] = useState<When>(existing ? 'custom' : initialWhen())
   const [start, setStart] = useState(existing?.available_from ? formatLocalDateTimeInput(new Date(existing.available_from)) : formatLocalDateTimeInput(rangeFor(initialWhen())[0]))
   const [end, setEnd] = useState(existing?.available_to ? formatLocalDateTimeInput(new Date(existing.available_to)) : formatLocalDateTimeInput(rangeFor(initialWhen())[1]))
@@ -35,11 +36,14 @@ export function SignalWizard({ group, groups, locations, activeBatch, onAddPlace
   const [budget, setBudget] = useState(existing?.budget_max?.toString() || '')
   const [radius, setRadius] = useState(existing?.radius_km?.toString() || '')
   const [locationId, setLocationId] = useState(existing?.origin_location_id || '')
-  const [people, setPeople] = useState<GroupSizeChoice>(existing?.max_people === 5 && existing.min_people === 5 ? 'exactly-5' : existing?.min_people === 5 ? '5+' : existing?.min_people === 3 ? '3+' : 'any')
+  const [people, setPeople] = useState<GroupSizeChoice>(initialSize.choice)
+  const [exactPeople, setExactPeople] = useState(initialSize.exactPeople)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const budgetValue = parseOptionalInteger(budget, 0, 100_000)
   const radiusValue = parseOptionalRadius(radius)
+  const exactPeopleValue = parseExactPeople(exactPeople)
+  const peopleRange = groupSizeRange(people, exactPeopleValue)
   const selectedGroups = groups.filter(item => groupIds.includes(item.id))
   const cityMismatch = new Set(selectedGroups.map(item => item.city_slug)).size > 1
   const selectedCity = cityMismatch ? null : selectedGroups[0]?.city_slug
@@ -59,11 +63,11 @@ export function SignalWizard({ group, groups, locations, activeBatch, onAddPlace
   }
   async function submit(event: React.FormEvent) {
     event.preventDefault()
-    if (cityMismatch || groupIds.length === 0 || budgetValue === undefined || radiusValue === undefined || (radiusValue !== null && !selectedLocationId)) return
+    if (cityMismatch || groupIds.length === 0 || budgetValue === undefined || radiusValue === undefined || peopleRange === undefined || (radiusValue !== null && !selectedLocationId)) return
     const from = new Date(start); const to = new Date(end)
     if (!Number.isFinite(from.getTime()) || !Number.isFinite(to.getTime()) || from >= to || to <= new Date()) { setError('Укажи время, которое ещё не прошло'); return }
     setBusy(true); setError('')
-    const [minPeople, maxPeople] = groupSizeRange(people)
+    const [minPeople, maxPeople] = peopleRange
     const body = { group_ids: groupIds, activity_categories: selectedCategories, available_from: from.toISOString(), available_to: to.toISOString(), budget_max: budgetValue, origin_location_id: radiusValue === null ? null : selectedLocationId, radius_km: radiusValue, min_people: minPeople, max_people: maxPeople }
     try {
       if (existing?.signal_batch_id) await api.editSignalBatch(existing.signal_batch_id, body)
@@ -87,12 +91,14 @@ export function SignalWizard({ group, groups, locations, activeBatch, onAddPlace
       <details className="wizard__block" open={conditionsOpen} onToggle={event => setConditionsOpen(event.currentTarget.open)}><summary>Условия</summary>
         <label>Бюджет до, ₽<Input type="number" min="0" max="100000" placeholder="Неважно" value={budget} onChange={event => setBudget(event.target.value)} /></label>
         {places.length ? <><label>Расстояние до, км<Input type="number" min="0.1" max="100" step="0.1" placeholder="Неважно" value={radius} onChange={event => setRadius(event.target.value)} /></label>{radius ? <label>Откуда<select value={selectedLocationId} onChange={event => setLocationId(event.target.value)}>{places.map(place => <option key={place.id} value={place.id}>{place.label}{place.address_text ? ` · ${place.address_text}` : ''}</option>)}</select></label> : null}<p className="form-hint">≈ расстояние по прямой, не время в пути</p></> : <p>Добавь место в выбранном городе, чтобы ограничивать расстояние. <button type="button" className="back-link" onClick={() => onAddPlace(selectedCity || null)}>Добавить место</button></p>}
-        <h3>Пойдёшь, если соберётся…</h3><div className="choices"><Choice selected={people === 'any'} onClick={() => setPeople('any')}>Неважно</Choice><Choice selected={people === '3+'} onClick={() => setPeople('3+')}>Хотя бы 3</Choice><Choice selected={people === '5+'} onClick={() => setPeople('5+')}>Хотя бы 5</Choice><Choice selected={people === 'exactly-5'} onClick={() => setPeople('exactly-5')}>Ровно 5</Choice></div>
+        <h3>Пойдёшь, если соберётся…</h3><div className="choices"><Choice selected={people === 'any'} onClick={() => setPeople('any')}>Неважно</Choice><Choice selected={people === '3+'} onClick={() => setPeople('3+')}>Хотя бы 3</Choice><Choice selected={people === '5+'} onClick={() => setPeople('5+')}>Хотя бы 5</Choice><Choice selected={people === 'exact'} onClick={() => setPeople('exact')}>Ровно N</Choice></div>
+        {people === 'exact' ? <label>Сколько человек?<Input aria-label="Сколько человек?" type="number" min="2" max="12" step="1" value={exactPeople} onChange={event => setExactPeople(event.target.value)} /></label> : null}
       </details>
       {budgetValue === undefined || radiusValue === undefined ? <p className="form-error">Проверь условия</p> : null}
+      {peopleRange === undefined ? <p className="form-error">Укажи целое число участников от 2 до 12</p> : null}
       {radiusValue !== null && radiusValue !== undefined && !selectedLocationId ? <p className="form-error">Для расстояния выбери место в городе выбранных компаний</p> : null}
       {error ? <p className="form-error" role="alert">{error}</p> : null}
-      <div className="wizard__footer"><Button stretched variant="primary" type="submit" loading={busy} disabled={busy || cityMismatch || groupIds.length === 0 || budgetValue === undefined || radiusValue === undefined || (radiusValue !== null && !selectedLocationId)}>{existing ? 'Сохранить' : 'Подать сигнал ⚡'}</Button></div>
+      <div className="wizard__footer"><Button stretched variant="primary" type="submit" loading={busy} disabled={busy || cityMismatch || groupIds.length === 0 || budgetValue === undefined || radiusValue === undefined || peopleRange === undefined || (radiusValue !== null && !selectedLocationId)}>{existing ? 'Сохранить' : 'Подать сигнал ⚡'}</Button></div>
     </form>
   </section>
 }

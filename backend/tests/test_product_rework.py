@@ -6,11 +6,19 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi import BackgroundTasks, HTTPException
+from pydantic import ValidationError
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app.api.routes import product
-from app.api.schemas import AutoSignalIn, LocationIn, LocationRenameIn, OfferAction, SignalBatchIn
+from app.api.schemas import (
+    AutoSignalIn,
+    GroupCityUpdateIn,
+    LocationIn,
+    LocationRenameIn,
+    OfferAction,
+    SignalBatchIn,
+)
 from app.core.config import settings
 from app.core.timezones import display_timezone
 from app.db.models import (
@@ -22,6 +30,7 @@ from app.db.models import (
     Intent,
     Location,
     Offer,
+    OutboxNotification,
     User,
 )
 from app.modules.leisure.provider import NormalizedLeisureItem, ProviderResult
@@ -241,6 +250,82 @@ def test_company_share_timezone_accepts_kudago_gmt_offsets_and_iana() -> None:
     assert current.astimezone(display_timezone("Asia/Yekaterinburg")).hour == 21
     notification = SimpleNamespace(kind="OFFER", payload={"title": "Квиз", "group_name": "Друзья", "starts_at": current.isoformat(), "timezone": "GMT+03:00"})
     assert "19:00" in _text(notification)
+
+
+def test_exact_group_size_accepts_two_five_and_arbitrary_n() -> None:
+    current = datetime.now(UTC)
+    for size in (2, 5, 9):
+        payload = SignalBatchIn(
+            group_ids=["group"],
+            available_from=current + timedelta(hours=1),
+            available_to=current + timedelta(hours=4),
+            min_people=size,
+            max_people=size,
+        )
+        assert (payload.min_people, payload.max_people) == (size, size)
+    with pytest.raises(ValidationError):
+        SignalBatchIn(group_ids=["group"], available_from=current + timedelta(hours=1), available_to=current + timedelta(hours=4), min_people=1, max_people=1)
+    with pytest.raises(ValidationError):
+        SignalBatchIn(group_ids=["group"], available_from=current + timedelta(hours=1), available_to=current + timedelta(hours=4), min_people=13, max_people=13)
+
+
+def test_company_city_rejects_unsupported_provider_city(monkeypatch: pytest.MonkeyPatch) -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        owner = User(id="city-owner", max_user_id="city-owner", display_name="Owner")
+        group = Group(id="city-group", name="Friends", default_city_slug="ekb", timezone_name="Asia/Yekaterinburg", created_by=owner.id)
+        session.add_all([owner, group, GroupMember(group_id=group.id, user_id=owner.id, role="OWNER")])
+        session.commit()
+        monkeypatch.setattr(product, "supported_cities", lambda: {"ekb": {"slug": "ekb", "name": "Екатеринбург", "timezone": "Asia/Yekaterinburg"}})
+        with pytest.raises(HTTPException) as unsupported:
+            product.update_group_city(group.id, GroupCityUpdateIn(city_slug="moon"), session, owner)
+        assert unsupported.value.status_code == 422
+        assert group.default_city_slug == "ekb"
+
+
+def test_company_city_change_cancels_mutable_state_and_preserves_confirmed_core(monkeypatch: pytest.MonkeyPatch) -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        current = datetime.now(UTC)
+        owner = User(id="city-owner", max_user_id="city-owner", display_name="Owner")
+        friend = User(id="city-friend", max_user_id="city-friend", display_name="Friend")
+        group = Group(id="city-group", name="Friends", default_city_slug="ekb", timezone_name="Asia/Yekaterinburg", created_by=owner.id)
+        session.add_all([owner, friend, group])
+        session.flush()
+        session.add_all([
+            GroupMember(group_id=group.id, user_id=owner.id, role="OWNER"),
+            GroupMember(group_id=group.id, user_id=friend.id),
+            Intent(user_id=owner.id, group_id=group.id, type="ONE_TIME", status="ACTIVE", city_slug="ekb", activity_category="games", min_people=2),
+            Intent(user_id=friend.id, group_id=group.id, type="RECURRING", status="ACTIVE", city_slug="ekb", activity_category="games", min_people=2),
+        ])
+        collecting = CandidatePlan(group_id=group.id, city_slug="ekb", starts_at=current + timedelta(hours=2), ends_at=current + timedelta(hours=4), required_min_people=2, required_max_people=2, status="COLLECTING", expires_at=current + timedelta(hours=1))
+        confirmed = CandidatePlan(group_id=group.id, city_slug="ekb", starts_at=current + timedelta(days=1), ends_at=current + timedelta(days=1, hours=2), required_min_people=2, required_max_people=2, status="CONFIRMED_OPEN", expires_at=current + timedelta(hours=6))
+        session.add_all([collecting, confirmed])
+        session.flush()
+        collecting_pending = Offer(candidate_plan_id=collecting.id, user_id=owner.id, status="PENDING", expires_at=collecting.expires_at)
+        collecting_accepted = Offer(candidate_plan_id=collecting.id, user_id=friend.id, status="ACCEPTED", expires_at=collecting.expires_at)
+        confirmed_accepted = Offer(candidate_plan_id=confirmed.id, user_id=owner.id, status="ACCEPTED", expires_at=confirmed.expires_at)
+        confirmed_pending = Offer(candidate_plan_id=confirmed.id, user_id=friend.id, status="PENDING", expires_at=confirmed.expires_at)
+        session.add_all([collecting_pending, collecting_accepted, confirmed_accepted, confirmed_pending])
+        session.flush()
+        stale_notification = OutboxNotification(kind="OFFER", user_id=owner.id, payload={"offer_id": collecting_pending.id}, status="PENDING")
+        session.add(stale_notification)
+        session.commit()
+        monkeypatch.setattr(product, "supported_cities", lambda: {"msk": {"slug": "msk", "name": "Москва", "timezone": "Europe/Moscow"}})
+
+        result = product.update_group_city(group.id, GroupCityUpdateIn(city_slug="msk"), session, owner)
+
+        intents = list(session.scalars(select(Intent).order_by(Intent.type)))
+        assert {intent.type: intent.status for intent in intents} == {"ONE_TIME": "CANCELLED", "RECURRING": "PAUSED"}
+        assert collecting.status == "CANCELLED"
+        assert (collecting_pending.status, collecting_accepted.status) == ("INVALIDATED", "INVALIDATED")
+        assert confirmed.status == "CONFIRMED_OPEN"
+        assert (confirmed_accepted.status, confirmed_pending.status) == ("ACCEPTED", "INVALIDATED")
+        assert stale_notification.status == "CANCELLED"
+        assert (group.default_city_slug, group.timezone_name) == ("msk", "Europe/Moscow")
+        assert (result.cancelled_signals, result.paused_autosignals, result.cancelled_plans, result.invalidated_offers) == (1, 1, 1, 3)
 
 
 def test_collecting_response_keeps_overlapping_offer_invalidated() -> None:

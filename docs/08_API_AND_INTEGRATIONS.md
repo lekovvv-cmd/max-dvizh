@@ -120,6 +120,7 @@ The official [KudaGo API](https://docs.kudago.com/api/) documents `events` with 
 ### Added own API contracts
 
 - `POST /api/v1/signal-batches`, `PUT /api/v1/signal-batches/{id}`, `DELETE /api/v1/signal-batches/{id}`: atomic one-time Signal batch for same-city Companies.
+- `PUT /api/v1/groups/{id}/city`: owner-only provider-validated Company city change. The response reports cancelled Signals, paused AutoSignals, cancelled collecting plans and invalidated Offers.
 - `GET /api/v1/intents`: current user's own Intents across Companies, including safe owner-only display fields.
 - `PUT /api/v1/autosignals/{id}` and existing pause/resume/cancel action route: recurrence management.
 - AutoSignal create, edit and resume persist the rule and return immediately; a response background task evaluates the saved rule against the current seven-day provider slice with a separate database session. The periodic scheduler remains the fallback for later matching and provider recovery.
@@ -133,6 +134,8 @@ The [official KudaGo category API](https://docs.kudago.com/api/) documents `/pub
 `GET /offers` and action responses distinguish `accepted_count` from `conditional_count`. `remaining_capacity` accounts for both accepted and conditional responders because both occupy an admission slot. `can_accept` and `can_waitlist` explicitly control the primary action; only exact-size overflow can waitlist. `GET /plans` reports `participant_count` for accepted members only and gives a conditional owner `personal_response_count` and `personal_required_min`. Other members never receive that personal minimum.
 
 Saved place routes are `GET/POST /locations`, `PATCH /locations/{id}`, `POST /locations/{id}/default`, and `DELETE /locations/{id}`. Responses include the saved address text and default marker, never coordinates. A point can be created only for a city in one of the owner's Companies. Deleting a point referenced by an active Signal returns `409` with recovery guidance.
+
+Company city update reuses existing city/timezone fields and Intent/plan/Offer statuses, so it requires no database migration. Supported slugs and timezone values come from the current KudaGo locations response; an arbitrary client slug is rejected.
 
 One-time Signal batch create/edit fetches the provider slice before opening the mutation transaction. Intent rows, CandidatePlan/Offer recomputation and provider state commit together. Cancel also recomputes in the same transaction. Refresh re-fetches outside a write transaction, checks the batch is still current and applies an idempotent recompute. Place slots are evaluated on a bounded 30-minute grid and only the best feasible slot per Place/local day is materialized.
 

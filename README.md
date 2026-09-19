@@ -8,6 +8,8 @@ MAX Mini App + chatbot backend для компаний друзей 18–25: п�
 
 Город принадлежит Company. Одностраничный Signal может охватывать несколько компаний одного города и несколько категорий; его условия необязательны. «Неважно» для размера означает минимум двое и отсутствие личного верхнего предела. AutoSignal сохраняет IANA timezone, проверяет полный local interval и обрабатывается отдельным периодическим scheduler. Все совместимые участники получают Offer. План подтверждается при выполнимом составе и остаётся открытым до верхнего предела; новый участник с более строгим минимумом ждёт выполнения личного условия, не отменяя уже подтверждённый состав. Для «Ровно N» действует очередь по времени ответа. Координаты, бюджет, причины Near, отклонения и отказ никогда не возвращаются другим участникам. Near поддержан только для бюджета и требует отдельного подтверждения.
 
+Владелец может явно сменить город Company на другой город из актуального списка провайдера. Backend обновляет timezone, отменяет активные разовые Signals, ставит AutoSignals на паузу и закрывает неподтверждённые варианты старого города. Подтверждённые планы и сохранённые места не переписываются.
+
 ## Architecture
 
 `React/Vite Mini App → FastAPI modular monolith → PostgreSQL`, with Redis between KudaGo and matching for short-lived query-specific provider data.
@@ -47,6 +49,7 @@ Copy `.env.example` to `.env` for deployment values. Do not commit it. Runtime p
 
 ```powershell
 npm --prefix frontend ci
+npm --prefix frontend audit
 npm --prefix frontend run check
 docker compose build
 docker compose run --rm --no-deps backend ruff check .

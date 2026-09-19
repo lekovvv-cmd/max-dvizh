@@ -12,6 +12,8 @@ from app.api.deps import CurrentUser, DbSession
 from app.api.schemas import (
     AutoSignalIn,
     CityOut,
+    GroupCityUpdateIn,
+    GroupCityUpdateOut,
     GroupCreate,
     GroupOut,
     IntentIn,
@@ -39,6 +41,7 @@ from app.db.models import (
     Intent,
     Location,
     Offer,
+    OutboxNotification,
     User,
 )
 from app.modules.auth.service import optional_max_chat_id
@@ -91,6 +94,13 @@ def member(session: DbSession, group_id: str, user_id: str) -> Group:
     if group is None or is_member is None:
         raise error(status.HTTP_404_NOT_FOUND, "Группа не найдена")
     return group
+
+
+def supported_cities() -> dict[str, dict[str, str]]:
+    try:
+        return {city["slug"]: city for city in KudaGoProvider().cities()}
+    except Exception as exc:
+        raise error(status.HTTP_503_SERVICE_UNAVAILABLE, "Список городов временно недоступен") from exc
 
 
 def group_out(session: DbSession, group: Group, expose_token: bool = False) -> GroupOut:
@@ -191,10 +201,7 @@ def list_groups(session: DbSession, user: CurrentUser) -> list[GroupOut]:
 
 @router.post("/groups", response_model=GroupOut, status_code=status.HTTP_201_CREATED)
 def create_group(payload: GroupCreate, session: DbSession, user: CurrentUser, x_max_init_data: str | None = Header(default=None)) -> GroupOut:
-    try:
-        supported = {city["slug"]: city for city in KudaGoProvider().cities()}
-    except Exception as exc:
-        raise error(status.HTTP_503_SERVICE_UNAVAILABLE, "Список городов временно недоступен") from exc
+    supported = supported_cities()
     if payload.city_slug not in supported:
         raise error(status.HTTP_422_UNPROCESSABLE_ENTITY, "Город пока не поддерживается")
     chat_id = optional_max_chat_id(x_max_init_data) if payload.bind_current_chat else None
@@ -219,6 +226,103 @@ def create_group(payload: GroupCreate, session: DbSession, user: CurrentUser, x_
     session.add(GroupMember(group_id=group.id, user_id=user.id, role="OWNER"))
     session.commit()
     return group_out(session, group, expose_token=True)
+
+
+@router.put("/groups/{group_id}/city", response_model=GroupCityUpdateOut)
+def update_group_city(
+    group_id: str,
+    payload: GroupCityUpdateIn,
+    session: DbSession,
+    user: CurrentUser,
+) -> GroupCityUpdateOut:
+    group = member(session, group_id, user.id)
+    membership = session.scalar(select(GroupMember).where(GroupMember.group_id == group_id, GroupMember.user_id == user.id))
+    assert membership is not None
+    if group.created_by != user.id and membership.role != "OWNER":
+        raise error(status.HTTP_403_FORBIDDEN, "Только владелец компании может изменить город")
+    session.commit()
+
+    supported = supported_cities()
+    city = supported.get(payload.city_slug)
+    if city is None:
+        raise error(status.HTTP_422_UNPROCESSABLE_ENTITY, "Город пока не поддерживается")
+    locked_group = session.scalar(select(Group).where(Group.id == group_id).with_for_update())
+    if locked_group is None:
+        raise error(status.HTTP_404_NOT_FOUND, "Группа не найдена")
+    group = locked_group
+    if group.default_city_slug == payload.city_slug:
+        group.timezone_name = city.get("timezone") or "UTC"
+        session.commit()
+        return GroupCityUpdateOut(
+            group=group_out(session, group, expose_token=True),
+            cancelled_signals=0,
+            paused_autosignals=0,
+            cancelled_plans=0,
+            invalidated_offers=0,
+        )
+
+    active_intents = list(
+        session.scalars(
+            select(Intent).where(Intent.group_id == group.id, Intent.status == "ACTIVE")
+        )
+    )
+    cancelled_signals = 0
+    paused_autosignals = 0
+    for intent in active_intents:
+        if intent.type == "ONE_TIME":
+            intent.status = "CANCELLED"
+            cancelled_signals += 1
+        elif intent.type == "RECURRING":
+            intent.status = "PAUSED"
+            paused_autosignals += 1
+
+    mutable_plans = list(
+        session.scalars(
+            select(CandidatePlan).where(
+                CandidatePlan.group_id == group.id,
+                CandidatePlan.status.in_(("COLLECTING", "CONFIRMED_OPEN")),
+            )
+        )
+    )
+    cancelled_plans = 0
+    invalidated_offers = 0
+    invalidated_offer_ids: set[str] = set()
+    for plan in mutable_plans:
+        invalidatable: tuple[str, ...] = ("PENDING", "WAITING_CONDITION", "WAITLISTED")
+        if plan.status == "COLLECTING":
+            plan.status = "CANCELLED"
+            cancelled_plans += 1
+            invalidatable = (*invalidatable, "ACCEPTED")
+        for offer in session.scalars(
+            select(Offer).where(
+                Offer.candidate_plan_id == plan.id,
+                Offer.status.in_(invalidatable),
+            )
+        ):
+            offer.status = "INVALIDATED"
+            invalidated_offers += 1
+            invalidated_offer_ids.add(offer.id)
+
+    if invalidated_offer_ids:
+        for notification in session.scalars(
+            select(OutboxNotification).where(
+                OutboxNotification.kind == "OFFER",
+                OutboxNotification.status == "PENDING",
+            )
+        ):
+            if notification.payload.get("offer_id") in invalidated_offer_ids:
+                notification.status = "CANCELLED"
+
+    group.default_city_slug = payload.city_slug
+    group.timezone_name = city.get("timezone") or "UTC"
+    session.commit()
+    return GroupCityUpdateOut(
+        group=group_out(session, group, expose_token=True),
+        cancelled_signals=cancelled_signals,
+        paused_autosignals=paused_autosignals,
+        cancelled_plans=cancelled_plans,
+        invalidated_offers=invalidated_offers,
+    )
 
 
 @router.post("/groups/join/{token}", response_model=JoinOut)

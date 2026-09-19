@@ -28,6 +28,14 @@ checks:
     body: "Use label and real coordinates returned by device geolocation; city_slug must match a Company joined by this user."
     expected_statuses: [201]
     required_response_fields: [id, label, city_slug, address_text, is_default]
+  - id: update_group_city
+    method: PUT
+    path: /api/v1/groups/{group_id}/city
+    role: group_owner
+    headers: { X-Demo-User: anton }
+    body: { city_slug: "msk" }
+    expected_statuses: [200, 403, 404, 422, 503]
+    required_response_fields: [group, cancelled_signals, paused_autosignals, cancelled_plans, invalidated_offers]
   - id: rename_location
     method: PATCH
     path: /api/v1/locations/{location_id}

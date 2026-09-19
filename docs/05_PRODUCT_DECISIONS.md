@@ -96,3 +96,7 @@ Accepted. For each bounded Place and local day, choose the slot with the largest
 ## ADR-030 — Saved origin and Signal batch consistency
 
 Accepted. Saved places are private, city-scoped GPS points. The user may rename, delete an unused point, and set one default per city. A location used by an active Signal cannot be deleted until the distance condition is removed. Signal batch provider I/O finishes before the database mutation; Intent changes, plan recomputation and provider state commit together. A failed recomputation rolls the mutation back, and owner refresh is idempotent.
+
+## ADR-031 — Explicit Company city change
+
+Accepted. Only the Company owner may choose a new city, and the backend accepts only a current provider-supported city. The change updates the Company's provider slug and timezone in one transaction. Active one-time Signals are cancelled, active AutoSignals are paused, COLLECTING plans are cancelled, and their active Offers are invalidated. A CONFIRMED_OPEN plan keeps its accepted core and original facts, while pending, conditional and waitlisted Offers are invalidated so the old-city plan no longer collects new participants. Confirmed plans and user-owned saved locations are not rewritten or deleted.

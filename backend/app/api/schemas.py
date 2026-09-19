@@ -29,6 +29,18 @@ class GroupOut(BaseModel):
     max_chat_bound: bool = False
 
 
+class GroupCityUpdateIn(BaseModel):
+    city_slug: str = Field(min_length=2, max_length=64)
+
+
+class GroupCityUpdateOut(BaseModel):
+    group: GroupOut
+    cancelled_signals: int
+    paused_autosignals: int
+    cancelled_plans: int
+    invalidated_offers: int
+
+
 class JoinOut(BaseModel):
     group: GroupOut
     already_member: bool
@@ -67,8 +79,8 @@ class IntentIn(BaseModel):
     budget_max: int | None = Field(default=None, ge=0, le=100000)
     origin_location_id: str | None = None
     radius_km: float | None = Field(default=None, gt=0, le=100)
-    min_people: int = Field(ge=1, le=12)
-    max_people: int | None = Field(default=None, ge=1, le=12)
+    min_people: int = Field(ge=2, le=12)
+    max_people: int | None = Field(default=None, ge=2, le=12)
     expires_at: datetime | None = None
 
     @model_validator(mode="after")

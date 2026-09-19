@@ -265,6 +265,90 @@
         }
       }
     },
+    "/api/v1/groups/{group_id}/city": {
+      "put": {
+        "tags": [
+          "product"
+        ],
+        "summary": "Update Group City",
+        "operationId": "update_group_city_api_v1_groups__group_id__city_put",
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupCityUpdateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupCityUpdateOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/groups/join/{token}": {
       "post": {
         "tags": [
@@ -2152,7 +2236,7 @@
           "min_people": {
             "type": "integer",
             "maximum": 12.0,
-            "minimum": 1.0,
+            "minimum": 2.0,
             "title": "Min People"
           },
           "max_people": {
@@ -2160,7 +2244,7 @@
               {
                 "type": "integer",
                 "maximum": 12.0,
-                "minimum": 1.0
+                "minimum": 2.0
               },
               {
                 "type": "null"
@@ -2251,6 +2335,53 @@
           "source"
         ],
         "title": "CityOut"
+      },
+      "GroupCityUpdateIn": {
+        "properties": {
+          "city_slug": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 2,
+            "title": "City Slug"
+          }
+        },
+        "type": "object",
+        "required": [
+          "city_slug"
+        ],
+        "title": "GroupCityUpdateIn"
+      },
+      "GroupCityUpdateOut": {
+        "properties": {
+          "group": {
+            "$ref": "#/components/schemas/GroupOut"
+          },
+          "cancelled_signals": {
+            "type": "integer",
+            "title": "Cancelled Signals"
+          },
+          "paused_autosignals": {
+            "type": "integer",
+            "title": "Paused Autosignals"
+          },
+          "cancelled_plans": {
+            "type": "integer",
+            "title": "Cancelled Plans"
+          },
+          "invalidated_offers": {
+            "type": "integer",
+            "title": "Invalidated Offers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group",
+          "cancelled_signals",
+          "paused_autosignals",
+          "cancelled_plans",
+          "invalidated_offers"
+        ],
+        "title": "GroupCityUpdateOut"
       },
       "GroupCreate": {
         "properties": {
@@ -2449,7 +2580,7 @@
           "min_people": {
             "type": "integer",
             "maximum": 12.0,
-            "minimum": 1.0,
+            "minimum": 2.0,
             "title": "Min People"
           },
           "max_people": {
@@ -2457,7 +2588,7 @@
               {
                 "type": "integer",
                 "maximum": 12.0,
-                "minimum": 1.0
+                "minimum": 2.0
               },
               {
                 "type": "null"

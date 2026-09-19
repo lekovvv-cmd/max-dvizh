@@ -4,13 +4,15 @@ import { App } from './App'
 
 const group = { id: 'group', name: 'Друзья', city_slug: 'ekb', member_count: 4 }
 const city = { slug: 'ekb', name: 'Екатеринбург' }
+const moscow = { slug: 'msk', name: 'Москва' }
 const offer = { id: 'offer', status: 'PENDING', is_near: false, group_id: 'group', group_name: 'Друзья', title: 'Квиз', venue_name: 'Клуб', starts_at: '2027-09-17T18:00:00Z', ends_at: '2027-09-17T20:00:00Z', price_text: '400 ₽', price_min: 400, is_demo: false, source_url: null, source_fetched_at: '2026-09-16T18:00:00Z', distance_km: null, accepted_count: 2, conditional_count: 0, remaining_capacity: 3, required_min_people: 3, required_max_people: 5, effective_max: 5, remaining_to_confirm: 1, waitlist_count: 0, can_accept: true, can_waitlist: false, expires_at: '2027-09-17T17:00:00Z', budget_delta: null }
 
-function mockApi(data: { groups?: typeof group[]; locations?: object[]; offers?: typeof offer[]; plans?: object[]; intents?: object[]; mode?: string } = {}) {
+function mockApi(data: { groups?: typeof group[]; cities?: typeof city[]; locations?: object[]; offers?: typeof offer[]; plans?: object[]; intents?: object[]; mode?: string } = {}) {
   const requests = vi.fn((url: string, init?: RequestInit) => {
     const result = url.includes('/session') ? { id: '1', display_name: 'Антон', max_mode: data.mode ?? 'development', max_chat_id: null }
-      : url.includes('/cities') ? [city]
-        : url.includes('/groups') ? data.groups ?? [group]
+      : url.includes('/cities') ? data.cities ?? [city]
+        : url.includes('/groups/group/city') ? { group: { ...group, city_slug: 'msk' }, cancelled_signals: 1, paused_autosignals: 1, cancelled_plans: 1, invalidated_offers: 2 }
+          : url.includes('/groups') ? data.groups ?? [group]
           : url.includes('/locations') ? data.locations ?? []
           : url.includes('/offers') ? data.offers ?? []
             : url.includes('/plans') ? data.plans ?? []
@@ -111,6 +113,64 @@ describe('App', () => {
     await waitFor(() => expect(requests.mock.calls.some(([url]) => url === '/api/v1/signal-batches')).toBe(true))
     const call = requests.mock.calls.find(([url]) => url === '/api/v1/signal-batches')
     expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ group_ids: ['group'], activity_categories: ['any'], budget_max: null, radius_km: null, origin_location_id: null, min_people: 2, max_people: null })
+  })
+
+  it('submits an arbitrary exact group size', async () => {
+    const requests = mockApi()
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Подать сигнал ⚡' }))
+    fireEvent.click(screen.getByText('Условия'))
+    fireEvent.click(screen.getByRole('button', { name: 'Ровно N' }))
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Сколько человек?' }), { target: { value: '7' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Подать сигнал ⚡' }))
+    await waitFor(() => expect(requests.mock.calls.some(([url]) => url === '/api/v1/signal-batches')).toBe(true))
+    const call = requests.mock.calls.find(([url]) => url === '/api/v1/signal-batches')
+    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ min_people: 7, max_people: 7 })
+  })
+
+  it('restores an existing exact Signal value while editing', async () => {
+    mockApi({ intents: [{ id: 'intent', type: 'ONE_TIME', status: 'ACTIVE', provider_state: 'NO_SOURCE', signal_batch_id: 'batch', group_id: 'group', group_name: 'Друзья', activity_categories: ['games'], available_from: '2027-09-17T18:00:00Z', available_to: '2027-09-17T22:00:00Z', expires_at: '2027-09-17T22:30:00Z', budget_max: null, radius_km: null, origin_location_id: null, min_people: 4, max_people: 4 }] })
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Изменить' }))
+    expect(screen.getByRole('button', { name: 'Ровно N' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('spinbutton', { name: 'Сколько человек?' })).toHaveValue(4)
+  })
+
+  it('restores an existing exact AutoSignal value while editing', async () => {
+    mockApi({ intents: [{ id: 'auto', type: 'RECURRING', status: 'ACTIVE', provider_state: 'NO_SOURCE', signal_batch_id: null, group_id: 'group', group_name: 'Друзья', name: 'Семеро', activity_category: 'games', activity_categories: ['games'], weekdays: [4], local_start: '18:00', local_end: '23:00', budget_max: null, radius_km: null, origin_location_id: null, min_people: 7, max_people: 7 }] })
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Авто' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Изменить' }))
+    expect(screen.getByRole('button', { name: 'Ровно N' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('spinbutton', { name: 'Сколько человек?' })).toHaveValue(7)
+  })
+
+  it('confirms before cancelling an active Signal', async () => {
+    const requests = mockApi({ intents: [{ id: 'intent', type: 'ONE_TIME', status: 'ACTIVE', provider_state: 'NO_SOURCE', signal_batch_id: 'batch', group_id: 'group', group_name: 'Друзья', activity_categories: ['any'], available_from: '2027-09-17T18:00:00Z', expires_at: '2027-09-17T22:30:00Z' }] })
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Отменить' }))
+    expect(screen.getByRole('dialog', { name: 'Отменить сигнал?' })).toBeInTheDocument()
+    expect(requests.mock.calls.some(([url, init]) => url === '/api/v1/signal-batches/batch' && init?.method === 'DELETE')).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Оставить' }))
+    expect(screen.queryByRole('dialog', { name: 'Отменить сигнал?' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Отменить' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Отменить сигнал' }))
+    await waitFor(() => expect(requests.mock.calls.some(([url, init]) => url === '/api/v1/signal-batches/batch' && init?.method === 'DELETE')).toBe(true))
+  })
+
+  it('changes Company city only after explicit confirmation', async () => {
+    const requests = mockApi({ cities: [city, moscow] })
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Компания' }))
+    expect(await screen.findByText('Екатеринбург')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Изменить' }))
+    expect(screen.getByRole('dialog', { name: 'Сменить город компании?' })).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('combobox', { name: 'Город' }), { target: { value: 'msk' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Сменить город' }))
+    await waitFor(() => expect(requests.mock.calls.some(([url, init]) => url === '/api/v1/groups/group/city' && init?.method === 'PUT')).toBe(true))
+    const call = requests.mock.calls.find(([url]) => url === '/api/v1/groups/group/city')
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ city_slug: 'msk' })
+    expect(await screen.findByRole('status')).toHaveTextContent('Отменено сигналов: 1')
   })
 
   it('keeps AutoSignal and plan navigation reachable', async () => {

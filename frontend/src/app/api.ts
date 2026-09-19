@@ -1,4 +1,5 @@
 export type Group = { id: string; name: string; city_slug: string; member_count: number; max_chat_bound: boolean; invite_token?: string | null; invite_url?: string | null }
+export type GroupCityUpdateResult = { group: Group; cancelled_signals: number; paused_autosignals: number; cancelled_plans: number; invalidated_offers: number }
 export type Location = { id: string; label: string; city_slug: string; kind: string; address_text: string | null; is_default: boolean }
 export type Intent = { id: string; type: string; status: string; provider_state: string; name: string | null; city_slug: string; group_id: string; group_name: string | null; signal_batch_id: string | null; activity_category: string; activity_categories: string[]; available_from: string | null; available_to: string | null; budget_max: number | null; radius_km: number | null; origin_location_id: string | null; min_people: number; max_people: number | null; expires_at: string | null; weekdays: number[] | null; local_start: string | null; local_end: string | null }
 export type Offer = { id: string; status: string; is_near: boolean; group_id: string; group_name: string; title: string; venue_name: string | null; starts_at: string; ends_at: string; price_text: string | null; price_min: number | null; price_kind: string; address_text: string | null; opening_hours_unverified: boolean; is_demo: boolean; source_url: string | null; source_fetched_at: string; distance_km: number | null; required_min_people: number; required_max_people: number; accepted_count: number; conditional_count: number; effective_max: number; remaining_to_confirm: number; remaining_capacity: number; waitlist_count: number; can_waitlist: boolean; can_accept: boolean; expires_at: string; budget_delta: number | null }
@@ -32,6 +33,7 @@ export const api = {
   session: () => request<{ id: string; display_name: string; max_mode: string; max_chat_id: string | null }>('/session'),
   groups: () => request<Group[]>('/groups'),
   createGroup: (body: { name: string; city_slug: string; bind_current_chat?: boolean }) => request<Group>('/groups', { method: 'POST', body: JSON.stringify(body) }),
+  updateGroupCity: (id: string, city_slug: string) => request<GroupCityUpdateResult>(`/groups/${id}/city`, { method: 'PUT', body: JSON.stringify({ city_slug }) }),
   join: (token: string) => request<{ group: Group; already_member: boolean }>(`/groups/join/${token}`, { method: 'POST' }),
   locations: () => request<Location[]>('/locations'),
   createLocation: (body: object) => request<Location>('/locations', { method: 'POST', body: JSON.stringify(body) }),
