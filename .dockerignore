@@ -6,4 +6,4 @@ frontend/dist
 backend/.venv
 backend/__pycache__
 backend/.pytest_cache
-MAX_DVIZH_AGENT_PACK
+*_PACK

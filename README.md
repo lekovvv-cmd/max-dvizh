@@ -1,82 +1,67 @@
-# MAX ДВИЖ
+# ДВИЖ
 
-MAX Mini App + chatbot backend для компаний друзей 18–25: приватные условия превращаются в конкретные осуществимые планы, а не в подбор людей.
+ДВИЖ помогает друзьям выбрать, куда и когда пойти вместе. Каждый приватно указывает свободное время и интересы, а при желании — бюджет, расстояние и размер компании. Приложение находит подходящие события и места. Когда достаточно участников согласились, появляется общий план.
 
-## Реализованный поток
+Это MAX Mini App, связанное с ботом: в приложении выбирают планы, бот присылает приглашения и уведомляет о сборе компании.
 
-`MAX entry → private group/invite → Signal or AutoSignal → KudaGo/Redis CandidatePlan → Exact/Near/Conflict → complete private cross-group Offer pool → explicit choice → overlap invalidation/recompute → ConfirmedPlan → independently dispatched bot outbox → MAX share`.
+## Как работает
 
-Город принадлежит Company. Одностраничный Signal может охватывать несколько компаний одного города и несколько категорий; его условия необязательны. «Неважно» для размера означает минимум двое и отсутствие личного верхнего предела. AutoSignal сохраняет IANA timezone, проверяет полный local interval и обрабатывается отдельным периодическим scheduler. Все совместимые участники получают Offer. План подтверждается при выполнимом составе и остаётся открытым до верхнего предела; новый участник с более строгим минимумом ждёт выполнения личного условия, не отменяя уже подтверждённый состав. Для «Ровно N» действует очередь по времени ответа. Координаты, бюджет, причины Near, отклонения и отказ никогда не возвращаются другим участникам. Near поддержан только для бюджета и требует отдельного подтверждения.
+1. Создайте Компанию или войдите по приглашению.
+2. Подайте Сигнал на конкретное время либо сохраните регулярный Автосигнал.
+3. Получите личные Приглашения и выберите подходящее.
+4. Когда соберётся нужный состав, откройте План и поделитесь им в MAX.
 
-Владелец может явно сменить город Company на другой город из актуального списка провайдера. Backend обновляет timezone, отменяет активные разовые Signals, ставит AutoSignals на паузу и закрывает неподтверждённые варианты старого города. Подтверждённые планы и сохранённые места не переписываются.
+Для локального запуска нужен Docker Desktop с Compose v2:
 
-## Architecture
-
-`React/Vite Mini App → FastAPI modular monolith → PostgreSQL`, with Redis between KudaGo and matching for short-lived query-specific provider data.
-
-Backend verifies `WebApp.initData` server-side according to MAX HMAC rules, owns authorization/matching/locks, uses KudaGo Events and Places only server-side, cache-asides city/time/category provider slices, persists a source snapshot only for a CandidatePlan, and stores bot notifications in an outbox. A second backend service polls AutoSignals. Missing facts for a user-set hard constraint are `UNVERIFIED`, not an Offer. Place opening hours remain explicitly unverified when KudaGo cannot establish a specific slot. `frontend/src/app/api.ts` is the typed API boundary. The pure functions in `backend/app/modules/matching/domain.py` perform Haversine, compatibility and interval overlap.
-
-## Start
-
-Prerequisite: Docker Desktop with Compose v2.
-
-```powershell
+```sh
 docker compose up --build
 ```
 
-Open `http://localhost:8080`; OpenAPI is at `http://localhost:8000/openapi.json`; readiness is at `http://localhost:8000/api/v1/health/ready`.
+Приложение: http://localhost:8080. Пошаговая проверка — в [TESTING.md](docs/TESTING.md).
 
-Local development accepts `X-Demo-User` only when `APP_ENV=development`. In MAX, the app sends `window.WebApp.initData`; production (`APP_ENV=production`) rejects any unvalidated identity.
+## Возможности
 
-## Environment and ports
+- Сигнал для нескольких компаний одного города; редактирование и отмена.
+- Автосигналы по дням недели и местному времени, с паузой и возобновлением.
+- Все личные приглашения из разных компаний доступны одновременно; выбор делает пользователь.
+- Небольшое превышение бюджета требует отдельного согласия. Для точного размера компании есть личная очередь ожидания.
+- Сохранённые места и расстояние в километрах; события и места KudaGo в доступных городах.
 
-Copy `.env.example` to `.env` for deployment values. Do not commit it. Runtime ports: frontend `8080`, backend `8000`, PostgreSQL `5432`.
+## Стек и архитектура
 
-`MAX_BOT_TOKEN` is required for real MAX identity, chat-bound Company creation and Bot API notifications. `MAX_MINI_APP_URL` must be the public HTTPS Mini App URL registered for the bot. `MAX_BOT_USERNAME` forms public `startapp` links. `REDIS_URL` configures the provider cache. Compose runs an outbox `worker` and an AutoSignal `scheduler`. KudaGo needs no secret.
+React, TypeScript, Vite и MAX UI; FastAPI, PostgreSQL и Redis. Backend проверяет личность, права и совместимость условий, обращается к KudaGo. Отдельные процессы того же backend-образа проверяют Автосигналы и отправляют уведомления бота. Redis хранит временный кеш запросов, PostgreSQL — данные приложения и снимки источников для планов.
 
-## Verification walkthrough
+Внутренние сущности и состояния описаны в [ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-1. Start Compose and create a company in the web Mini App.
-2. In **Компания**, copy the invite link. In local QA use the explicitly labelled **Локальная проверка** control to switch to a second demo user, then open the link. A chat-bound Company can also be created from a signed MAX chat launch.
-3. Optionally save a real GPS point in **Компания**. Submit a Signal on one screen, optionally selecting multiple companies and categories. KudaGo Events and Places are queried. Model data, if seeded explicitly for QA, is labelled.
-4. Each member sees a private Offer. An Exact price can be accepted directly; for a 300→400 Near Offer the UI requires `Всё равно пойду` and only then counts the member.
-5. Accepting an Offer invalidates that user's pending Offers that overlap its interval. Before the minimum, **Собираем** is visible. At the minimum, the plan is confirmed and remains open for additional eligible participants until its effective maximum. Exact-N overflow joins a private waitlist. Users can cancel participation before cutoff; MAX sharing uses `WebApp.shareMaxContent`.
-6. To exercise unavailable-provider recovery, block `kudago.com` after one successful sync; the backend serves the still-valid Redis cache when present and otherwise returns an honest unavailable state. It never uses fake live data or a PostgreSQL provider catalogue.
+## Запуск и окружение
 
-`DATA-API.yaml` contains reviewer API calls. `scripts/export-openapi.ps1` exports the generated contract. The full product/API/integration limitations are in `docs/08_API_AND_INTEGRATIONS.md` and `docs/18_RISKS_NON_GOALS.md`.
+Compose автоматически применяет миграции. Порты по умолчанию: приложение `8080`, API `8000`, PostgreSQL `5432`; Redis доступен внутри Compose. [OpenAPI](http://localhost:8000/openapi.json), [Swagger UI](http://localhost:8000/docs), [готовность API](http://localhost:8000/api/v1/health/ready).
 
-## Checks
+При необходимости скопируйте [.env.example](.env.example) в `.env`. Для MAX нужны `APP_ENV=production`, `MAX_BOT_TOKEN`, `MAX_BOT_USERNAME` и регистрация публичного HTTPS URL приложения. KudaGo не требует ключа. Все параметры и особенности Compose — в [API.md](docs/API.md).
+
+Локально `APP_ENV=development` разрешает явно обозначенных демонстрационных пользователей. Модельные данные создаются только отдельным действием и помечаются; они не подтверждают работу внешних интеграций. Правила доступа и происхождения данных — в [SECURITY_AND_DATA.md](docs/SECURITY_AND_DATA.md).
+
+Остановка: `docker compose down`; повторный запуск: `docker compose up -d`. Команда `docker compose down -v` удаляет локальную базу; для развёрнутого сервиса она не подходит.
+
+## Проверки
 
 ```powershell
 npm --prefix frontend ci
-npm --prefix frontend audit
 npm --prefix frontend run check
 docker compose build
-docker compose run --rm --no-deps backend ruff check .
-docker compose run --rm --no-deps backend mypy app scripts
-docker compose exec -T postgres psql -U max_dvizh -d postgres -c "CREATE DATABASE max_dvizh_test OWNER max_dvizh;" # once per local database
-docker compose run --rm --no-deps -e TEST_DATABASE_URL=postgresql+psycopg://max_dvizh:local_development_only@postgres:5432/max_dvizh_test backend pytest
-./scripts/export-openapi.ps1
 ```
 
-The PostgreSQL reliability tests recreate tables in `TEST_DATABASE_URL`; use a dedicated test database. If `max_dvizh_test` already exists, skip its creation command. Replace the sample local credentials above when overriding Compose's PostgreSQL defaults. GitHub Actions also starts the full Compose stack and checks the backend readiness endpoint and Mini App HTTP response after the build.
+Backend lint, форматирование, типы, тесты с отдельной PostgreSQL, Compose smoke и сверка OpenAPI: [команды и сценарии](docs/TESTING.md). CI выполняет frontend/backend проверки, миграции и запуск контейнеров. Автоматизированного браузерного E2E в репозитории нет.
 
-## Real MAX hand-off
+## Подключение к MAX
 
-The repository contains the live adapter and Bridge integration but cannot create a MAX bot, register the Mini App or run mobile/web QA without the owner's MAX Business account and bot token. Owner steps:
+Создайте бота и Mini App в MAX Business, зарегистрируйте публичный HTTPS URL, задайте токен и имя бота в окружении deployment. Откройте Mini App из бота, пригласите второго участника ссылкой и пройдите сценарий до уведомления и отправки плана в чат. Повторите в MAX mobile и web. Подробности интеграции — в [API.md](docs/API.md), требования сдачи — в [HACKATHON.md](docs/HACKATHON.md).
 
-1. Create the bot and Mini App in MAX Business; set the deployed HTTPS URL.
-2. Set `MAX_BOT_TOKEN`, `MAX_BOT_USERNAME`, `MAX_MINI_APP_URL` and a public HTTPS webhook subscription in deployment only.
-3. Open the bot in MAX mobile and web; create a group through `startapp=<opaque invite token>`, complete the walkthrough, and verify the Bot API outbox notification plus in-MAX share.
+## Ограничения
 
-## Limitations
+- Публичный deployment, аккаунт бота и проверка в реальных MAX mobile/web требуют доступа владельца; локальный запуск их не заменяет.
+- Покрытие KudaGo зависит от города. Цена «от» может вырасти, часы работы места могут быть не подтверждены. Неизвестная цена не удовлетворяет заданному бюджету.
+- Нет бронирования, оплаты, расчёта времени в пути, чтения переписки, AI или переноса подтверждённой встречи.
+- Пользовательская валидация и измерение эффекта ещё предстоят; результатов интервью в репозитории нет.
 
-- A MAX bot/account, HTTPS deployment and manual MAX mobile/web verification remain external-account work; no token is committed.
-- KudaGo coverage and price quality vary by city. Unknown prices cannot satisfy a budget-constrained match; FROM prices are shown as lower bounds. Place opening hours are marked unverified when a concrete slot cannot be established. Model data is always labelled.
-- The MVP has no booking, payments, travel-time estimates, chat reading, public feed, AI, or post-confirmation rescheduling engine.
-
-Stop with `docker compose down`; `docker compose down -v` also deletes local PostgreSQL data.
-
-## Development database reset after provider-cache refactor
-
-Migration `20260916_0003` copies each existing CandidatePlan's source facts into `candidate_plan_source_snapshots` and removes the old provider catalogue tables. Migration `20260916_0004` makes budget/origin/radius and member distance nullable for optional constraints. Revisions `20260918_0006` through `0010` add Signal batches, provider and invitation states, place metadata, Company timezone and a per-city saved-place default. CI checks both a fresh PostgreSQL upgrade to head and an upgrade from populated `20260916_0005`, including data preservation and category backfill. For disposable local/demo data, reset explicitly with `docker compose down -v`, then run `docker compose up --build`; never use this procedure against a deployment database.
+Подробное поведение — [PRODUCT.md](docs/PRODUCT.md), причины ключевых решений — [DECISIONS.md](docs/DECISIONS.md). Проверочные API-запросы находятся в [DATA-API.yaml](DATA-API.yaml), экспорт контракта — в [docs/openapi.json](docs/openapi.json).

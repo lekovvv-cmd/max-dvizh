@@ -33,5 +33,5 @@ tmp/
 # Docker volumes
 postgres-data/
 
-# Original unpacked specification archive; source-of-truth files are copied to the repository root.
-MAX_DVIZH_AGENT_PACK/
+# Local source archives
+*_PACK/
