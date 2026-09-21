@@ -7,7 +7,9 @@ WORKDIR /app
 COPY requirements.lock ./
 RUN pip install --requirement requirements.lock
 COPY . .
-RUN useradd --create-home appuser && chown -R appuser:appuser /app
+RUN chmod +x /app/start.sh \
+    && useradd --create-home appuser \
+    && chown -R appuser:appuser /app
 USER appuser
 EXPOSE 8000
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+CMD ["/app/start.sh"]
