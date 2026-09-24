@@ -7,6 +7,50 @@ export type Group = {
   invite_token?: string | null
   invite_url?: string | null
 }
+export type Taxonomy = {
+  directions: { id: string; label: string }[]
+  activities: { id: string; label: string; directions: string[] }[]
+}
+export type DvizhCandidate = {
+  id: string
+  title: string
+  venue_name: string | null
+  starts_at: string
+  ends_at: string
+  price_text: string | null
+  price_min: number | null
+  distance_km: number | null
+  address_text: string | null
+  source_url: string | null
+  image_url: string | null
+  activity_ids: string[]
+  compatibility: string
+  budget_delta: number | null
+  expires_at: string
+  my_reaction: 'WOULD_GO' | 'PASS' | null
+  position: number
+}
+export type Dvizh = {
+  id: string
+  signal_batch_id: string | null
+  group_id: string
+  group_name: string
+  status: string
+  is_initiator: boolean
+  activity_ids: string[]
+  min_people: number
+  max_people: number
+  available_from: string | null
+  available_to: string | null
+  expires_at: string
+  active_candidate_id: string | null
+  candidates: DvizhCandidate[]
+  chosen_count: number
+  reaction_count: number
+  confirmed_count: number
+  my_confirmation: string | null
+  participants: { id: string; display_name: string }[]
+}
 export type GroupMember = { id: string; display_name: string; is_me: boolean }
 export type GroupCityUpdateResult = {
   group: Group
@@ -47,67 +91,6 @@ export type Intent = {
   local_start: string | null
   local_end: string | null
 }
-export type Offer = {
-  id: string
-  compatibility_kind?: string
-  status: string
-  is_near: boolean
-  group_id: string
-  group_name: string
-  title: string
-  venue_name: string | null
-  starts_at: string
-  ends_at: string
-  price_text: string | null
-  price_min: number | null
-  price_kind: string
-  address_text: string | null
-  opening_hours_unverified: boolean
-  is_demo: boolean
-  source_url: string | null
-  source_fetched_at: string
-  distance_km: number | null
-  required_min_people: number
-  required_max_people: number
-  accepted_count: number
-  conditional_count: number
-  effective_max: number
-  remaining_to_confirm: number
-  remaining_capacity: number
-  waitlist_count: number
-  can_waitlist: boolean
-  can_accept: boolean
-  expires_at: string
-  budget_delta: number | null
-}
-export type Plan = {
-  id: string
-  status: string
-  title: string
-  venue_name: string | null
-  starts_at: string
-  ends_at: string
-  price_text: string | null
-  price_kind: string
-  address_text: string | null
-  opening_hours_unverified: boolean
-  source_url: string | null
-  participant_count: number
-  conditional_count: number
-  personal_response_count: number | null
-  personal_required_min: number | null
-  required_min_people: number
-  required_max_people: number
-  group_id: string
-  group_name: string
-  remaining_to_confirm: number
-  remaining_capacity: number
-  participants: { id: string; display_name: string }[]
-  my_offer_id: string | null
-  my_status: string | null
-  share_text: string
-}
-
 declare global {
   interface Window {
     WebApp?: {
@@ -151,6 +134,14 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     window.clearTimeout(timeout)
   }
   if (!response.ok) {
+    let detail = ''
+    try {
+      const body = await response.json()
+      if (typeof body.detail === 'string') detail = body.detail
+    } catch {
+      // Keep a useful local fallback when the server did not send JSON.
+    }
+    if (detail && /[А-Яа-яЁё]/.test(detail)) throw new Error(detail)
     if (response.status === 422) throw new Error('Проверь заполненные поля и попробуй ещё раз.')
     if (response.status === 404) throw new Error('Этот вариант больше недоступен. Обнови страницу.')
     throw new Error('Сервис временно недоступен. Попробуй ещё раз.')
@@ -188,36 +179,52 @@ export const api = {
   deleteLocation: (id: string) =>
     request<{ status: string }>(`/locations/${id}`, { method: 'DELETE' }),
   intents: () => request<Intent[]>('/intents'),
-  signalBatch: (body: object) =>
-    request<{ signal_batch_id: string; intents: Intent[] }>('/signal-batches', {
+  signalBatch: (body: object, requestId?: string) =>
+    request<{ signal_batch_id: string; dvizhi: Dvizh[] }>('/signals', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: requestId ? { 'X-Request-ID': requestId } : undefined,
+    }),
+  editSignalBatch: (id: string, body: object, requestId?: string) =>
+    request<{ signal_batch_id: string; dvizhi: Dvizh[] }>(`/signals/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+      headers: requestId ? { 'X-Request-ID': requestId } : undefined,
+    }),
+  cancelSignalBatch: (id: string) =>
+    request<{ status: string }>(`/signals/${id}`, { method: 'DELETE' }),
+  recurringSignal: (body: object) =>
+    request<{ id: string; status: string }>('/recurring-signals', {
       method: 'POST',
       body: JSON.stringify(body),
     }),
-  editSignalBatch: (id: string, body: object) =>
-    request<{ signal_batch_id: string; intents: Intent[] }>(`/signal-batches/${id}`, {
+  editRecurringSignal: (id: string, body: object) =>
+    request<{ id: string; status: string }>(`/recurring-signals/${id}`, {
       method: 'PUT',
       body: JSON.stringify(body),
     }),
-  refreshSignalBatch: (id: string) =>
-    request<{ signal_batch_id: string; intents: Intent[] }>(`/signal-batches/${id}/refresh`, {
-      method: 'POST',
-    }),
-  cancelSignalBatch: (id: string) =>
-    request<{ status: string }>(`/signal-batches/${id}`, { method: 'DELETE' }),
-  autosignal: (body: object) =>
-    request<Intent>('/autosignals', { method: 'POST', body: JSON.stringify(body) }),
-  editAutosignal: (id: string, body: object) =>
-    request<Intent>(`/autosignals/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
-  autoAction: (id: string, action: string) =>
-    request<Intent>(`/autosignals/${id}/${action}`, { method: 'POST' }),
-  offers: () => request<Offer[]>('/offers'),
-  accept: (id: string, near: boolean) =>
-    request<Offer>(`/offers/${id}/accept`, {
-      method: 'POST',
-      body: JSON.stringify({ confirm_near_exception: near }),
-    }),
-  reject: (id: string) => request<Offer>(`/offers/${id}/reject`, { method: 'POST' }),
-  cancelAcceptance: (id: string) => request<Offer>(`/offers/${id}/cancel`, { method: 'POST' }),
-  plans: () => request<Plan[]>('/plans'),
+  cancelRecurringSignal: (id: string) =>
+    request<{ id: string; status: string }>(`/recurring-signals/${id}`, { method: 'DELETE' }),
   cities: () => request<{ slug: string; name: string }[]>('/leisure/cities'),
+  taxonomy: () => request<Taxonomy>('/leisure/taxonomy'),
+  dvizhi: () => request<Dvizh[]>('/dvizhi'),
+  dvizh: (id: string) => request<Dvizh>(`/dvizhi/${id}`),
+  react: (id: string, candidate: string, value: 'WOULD_GO' | 'PASS', near = false) =>
+    request<Dvizh>(`/dvizhi/${id}/candidates/${candidate}/reaction`, {
+      method: 'PUT',
+      body: JSON.stringify({ value, confirm_near_exception: near }),
+    }),
+  launch: (id: string) => request<Dvizh>(`/dvizhi/${id}/launch`, { method: 'POST' }),
+  confirmDvizh: (id: string, candidateId: string, near = false) =>
+    request<Dvizh>(`/dvizhi/${id}/confirm`, {
+      method: 'POST',
+      body: JSON.stringify({ candidate_id: candidateId, confirm_near_exception: near }),
+    }),
+  declineDvizh: (id: string) => request<Dvizh>(`/dvizhi/${id}/decline`, { method: 'POST' }),
+  moreDvizh: (id: string) => request<Dvizh>(`/dvizhi/${id}/more`, { method: 'POST' }),
+  searchPlace: (id: string, query: string) =>
+    request<Dvizh>(`/dvizhi/${id}/places/search`, {
+      method: 'POST',
+      body: JSON.stringify({ query }),
+    }),
 }

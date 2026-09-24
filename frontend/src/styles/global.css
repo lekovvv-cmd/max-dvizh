@@ -5,8 +5,8 @@
 @import './company.css';
 @import './overlays.css';
 @import './redesign.css';
-@import './event-card.css';
 @import './activity-catalog.css';
+@import './dvizh.css';
 
 @keyframes spin {
   to {

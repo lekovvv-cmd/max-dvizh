@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiTimeoutError, api } from '../../app/api'
 import type { Group, Intent, Location } from '../../app/api'
-import { activityCatalog, searchActivities } from '../../shared/lib/activityCatalog'
+import { getActivityTaxonomy, searchActivities } from '../../shared/lib/activityCatalog'
 import { activityLabel, formatPeople, formatSignalWindow, weekDays } from '../../shared/lib/format'
 import {
   formatLocalDateTimeInput,
@@ -35,7 +35,6 @@ type Form = {
   localEnd: string
 }
 
-const quickCategories = ['any', 'games', 'sport', 'concert']
 const weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 const budgetOptions = ['', '500', '1000', '2000', 'custom']
 const radiusOptions = ['', '2', '5', '10']
@@ -72,7 +71,7 @@ function initialForm(groups: Group[], group: Group, existing?: Intent): Form {
     when: existing?.available_from ? 'custom' : new Date().getHours() < 20 ? 'today' : 'tomorrow',
     start: formatLocalDateTimeInput(start),
     end: formatLocalDateTimeInput(end),
-    categories: existing?.activity_categories?.length ? existing.activity_categories : ['any'],
+    categories: existing?.activity_categories?.length ? existing.activity_categories : [],
     groupIds: [selected],
     budget: existing?.budget_max?.toString() ?? '',
     radius: existing?.radius_km?.toString() ?? '',
@@ -92,7 +91,22 @@ function readDraft(key: string, fallback: Form): Form {
     if (!raw) return fallback
     const saved: Partial<Form> = JSON.parse(raw)
     if (!Array.isArray(saved.categories) || !Array.isArray(saved.groupIds)) return fallback
-    return { ...fallback, ...saved }
+    const taxonomy = getActivityTaxonomy()
+    const valid = new Set([
+      ...taxonomy.activities.map((activity) => activity.id),
+      ...taxonomy.directions.map((direction) => `${direction.id}/*`),
+    ])
+    return {
+      ...fallback,
+      ...saved,
+      categories: [
+        ...new Set(
+          saved.categories.filter(
+            (category): category is string => typeof category === 'string' && valid.has(category),
+          ),
+        ),
+      ],
+    }
   } catch {
     return fallback
   }
@@ -100,7 +114,7 @@ function readDraft(key: string, fallback: Form): Form {
 
 function adjusted(form: Form, adjustment: SignalAdjustment): Form {
   if (adjustment === 'repeat') return { ...form, repeat: true }
-  if (adjustment === 'any') return { ...form, categories: ['any'] }
+  if (adjustment === 'any') return { ...form, categories: ['games/*'] }
   if (adjustment === 'radius') return { ...form, radius: '10' }
   if (adjustment === 'budget') return { ...form, budget: String((Number(form.budget) || 0) + 200) }
   if (adjustment === 'tomorrow') {
@@ -171,6 +185,7 @@ export function SignalComposer({
   const [form, setForm] = useState<Form>(() =>
     adjusted(readDraft(key, initial.current), adjustment),
   )
+  const submissionId = useRef(crypto.randomUUID())
   const [conditionsOpen, setConditionsOpen] = useState(
     Boolean(
       (existing?.budget_max !== null && existing?.budget_max !== undefined) ||
@@ -192,6 +207,8 @@ export function SignalComposer({
   const [locatingCurrent, setLocatingCurrent] = useState(false)
   const [catalogOpen, setCatalogOpen] = useState(false)
   const [categorySearch, setCategorySearch] = useState('')
+  const taxonomy = getActivityTaxonomy()
+  const [direction, setDirection] = useState(taxonomy.directions[0]?.id || '')
   const visibleActivities = searchActivities(categorySearch)
 
   useEffect(() => {
@@ -209,6 +226,7 @@ export function SignalComposer({
   const selectedPlace = places.find((item) => item.id === form.locationId)
   const valid = Boolean(
     form.groupIds.length &&
+      form.categories.length > 0 &&
       !cityMismatch &&
       budget !== undefined &&
       radius !== undefined &&
@@ -233,12 +251,11 @@ export function SignalComposer({
                 new Date(form.end).toISOString(),
               )
             : 'Выбери время'
-  const selectedActivitySummary = form.categories.includes('any')
-    ? 'Любой вариант'
-    : form.categories.length > 3
+  const selectedActivitySummary =
+    form.categories.length > 3
       ? form.categories.slice(0, 2).map(activityLabel).join(', ') +
         ` и ещё ${form.categories.length - 2}`
-      : form.categories.map(activityLabel).join(', ')
+      : form.categories.map(activityLabel).join(' или ')
   const summary = [
     whenLabel,
     selectedActivitySummary,
@@ -263,11 +280,21 @@ export function SignalComposer({
 
   function toggleCategory(value: string) {
     setForm((current) => {
-      if (value === 'any') return { ...current, categories: ['any'] }
+      const wildcardDirection = value.endsWith('/*') ? value.slice(0, -2) : null
       const next = current.categories.includes(value)
         ? current.categories.filter((item) => item !== value)
-        : [...current.categories.filter((item) => item !== 'any'), value]
-      return { ...current, categories: next.length ? next : ['any'] }
+        : [
+            ...current.categories.filter((item) =>
+              wildcardDirection
+                ? !taxonomy.activities
+                    .find((activity) => activity.id === item)
+                    ?.directions.includes(wildcardDirection)
+                : item !==
+                  `${taxonomy.activities.find((activity) => activity.id === value)?.directions[0]}/*`,
+            ),
+            value,
+          ]
+      return { ...current, categories: next }
     })
   }
 
@@ -280,18 +307,24 @@ export function SignalComposer({
     setChecking(true)
     try {
       const intents = await api.intents()
-      const saved = intents.some(
-        (intent) =>
-          intent.status === 'ACTIVE' &&
-          (form.repeat
-            ? intent.type === 'RECURRING' &&
+      const dvizhi = await api.dvizhi()
+      const saved = form.repeat
+        ? intents.some(
+            (intent) =>
+              intent.type === 'RECURRING' &&
+              intent.status === 'ACTIVE' &&
               intent.group_id === form.groupIds[0] &&
               intent.local_start === form.localStart &&
-              intent.local_end === form.localEnd
-            : intent.type === 'ONE_TIME' &&
+              intent.local_end === form.localEnd,
+          )
+        : dvizhi.some((item) => item.signal_batch_id === submissionId.current) ||
+          intents.some(
+            (intent) =>
+              intent.status === 'ACTIVE' &&
+              intent.type === 'ONE_TIME' &&
               intent.available_from === from &&
-              form.groupIds.includes(intent.group_id)),
-      )
+              form.groupIds.includes(intent.group_id),
+          )
       if (saved) {
         localStorage.removeItem(key)
         await onDone()
@@ -346,14 +379,14 @@ export function SignalComposer({
           local_end: form.localEnd,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }
-        if (activeRecurring) await api.editAutosignal(activeRecurring.id, body)
+        if (activeRecurring) await api.editRecurringSignal(activeRecurring.id, body)
         else {
-          const created = await api.autosignal(body)
+          const created = await api.recurringSignal(body)
           if (activeBatch?.[0]?.signal_batch_id) {
             try {
               await api.cancelSignalBatch(activeBatch[0].signal_batch_id)
             } catch (reason) {
-              await api.autoAction(created.id, 'cancel').catch(() => undefined)
+              await api.cancelRecurringSignal(created.id).catch(() => undefined)
               throw reason
             }
           }
@@ -366,12 +399,12 @@ export function SignalComposer({
           available_to: to.toISOString(),
         }
         if (activeBatch?.[0]?.signal_batch_id)
-          await api.editSignalBatch(activeBatch[0].signal_batch_id, body)
+          await api.editSignalBatch(activeBatch[0].signal_batch_id, body, submissionId.current)
         else {
-          const created = await api.signalBatch(body)
+          const created = await api.signalBatch(body, submissionId.current)
           if (activeRecurring) {
             try {
-              await api.autoAction(activeRecurring.id, 'cancel')
+              await api.cancelRecurringSignal(activeRecurring.id)
             } catch (reason) {
               await api.cancelSignalBatch(created.signal_batch_id).catch(() => undefined)
               throw reason
@@ -470,15 +503,9 @@ export function SignalComposer({
     return (
       <section className="search-saving" aria-live="polite">
         <PulseMark />
-        <h1>{checking ? 'Проверяем сохранение' : 'Ищем подходящий план'}</h1>
-        <p>Проверяем события, места и условия друзей.</p>
+        <h1>{checking ? 'Проверяем сохранение' : 'Ищем варианты'}</h1>
+        <p>Проверяем события и места. Если найдём подходящие, ты выберешь, куда пошёл бы.</p>
         <p className="search-saving__summary">{summary}</p>
-        <ol className="search-steps">
-          <li className="is-active">Сохраняем сигнал</li>
-          <li>Ищем варианты</li>
-          <li>Проверяем компанию</li>
-        </ol>
-        <p className="text-muted">Можно закрыть приложение — мы пришлём приглашение в MAX.</p>
       </section>
     )
 
@@ -586,16 +613,16 @@ export function SignalComposer({
           ) : null}
         </section>
         <section className="form-section" aria-labelledby="category-title">
-          <h2 id="category-title">Что подходит</h2>
-          <p className="form-hint">Выбери несколько направлений или найди занятие в каталоге.</p>
-          <div className="choices activity-quick" role="group" aria-label="Что подходит">
-            {quickCategories.map((category) => (
+          <h2 id="category-title">Что хочется?</h2>
+          <p className="form-hint">Сначала выбери направление, затем конкретное занятие.</p>
+          <div className="choices activity-quick" role="group" aria-label="Направление">
+            {taxonomy.directions.map((item) => (
               <Choice
-                key={category}
-                active={form.categories.includes(category)}
-                onClick={() => toggleCategory(category)}
+                key={item.id}
+                active={direction === item.id}
+                onClick={() => setDirection(item.id)}
               >
-                {category === 'any' ? 'Любой вариант' : activityLabel(category)}
+                {item.label}
               </Choice>
             ))}
             <button
@@ -607,8 +634,27 @@ export function SignalComposer({
             >
               <Icon name="search" size={20} />
               <span>Все занятия</span>
-              <span className="activity-search-trigger__count">{activityCatalog.length}</span>
+              <span className="activity-search-trigger__count">{taxonomy.activities.length}</span>
             </button>
+          </div>
+          <div className="choices activity-quick" role="group" aria-label="Занятие">
+            <Choice
+              active={form.categories.includes(`${direction}/*`)}
+              onClick={() => toggleCategory(`${direction}/*`)}
+            >
+              Неважно внутри направления
+            </Choice>
+            {taxonomy.activities
+              .filter((item) => item.directions.includes(direction))
+              .map((item) => (
+                <Choice
+                  key={item.id}
+                  active={form.categories.includes(item.id)}
+                  onClick={() => toggleCategory(item.id)}
+                >
+                  {item.label}
+                </Choice>
+              ))}
           </div>
           {catalogOpen ? (
             <div className="activity-catalog" id="activity-catalog">
@@ -636,7 +682,12 @@ export function SignalComposer({
                   >
                     <span>
                       <strong>{category.label}</strong>
-                      <small>{category.detail}</small>
+                      <small>
+                        {category.directions
+                          .map((id) => taxonomy.directions.find((item) => item.id === id)?.label)
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </small>
                     </span>
                     <span className="activity-catalog__check" aria-hidden="true">
                       {form.categories.includes(category.id) ? (
@@ -647,15 +698,15 @@ export function SignalComposer({
                 ))}
                 {visibleActivities.length === 0 ? (
                   <p className="activity-catalog__empty">
-                    Ничего не нашли. Выбери «Любой вариант», чтобы видеть весь доступный досуг.
+                    Ничего не нашли. Попробуй другое занятие.
                   </p>
                 ) : null}
               </div>
             </div>
           ) : null}
-          {!form.categories.includes('any') ? (
+          {form.categories.length ? (
             <p className="activity-selection">
-              Выбрано: {form.categories.map(activityLabel).join(', ')}
+              Выбрано: {form.categories.map(activityLabel).join(' или ')}
             </p>
           ) : null}
         </section>

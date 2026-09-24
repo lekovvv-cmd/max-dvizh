@@ -70,6 +70,7 @@ def _active_intents(session: Session, group_id: str, city: str) -> list[Intent]:
         session.scalars(
             select(Intent).where(
                 Intent.group_id == group_id,
+                Intent.flow_version == 1,
                 Intent.status == "ACTIVE",
                 Intent.city_slug == city,
                 (Intent.expires_at.is_(None) | (Intent.expires_at > current)),

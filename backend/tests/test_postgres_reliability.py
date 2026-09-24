@@ -24,6 +24,7 @@ from app.db.models import (
     CandidatePlan,
     CandidatePlanMember,
     CandidatePlanSourceSnapshot,
+    DvizhSession,
     Group,
     GroupMember,
     Intent,
@@ -416,6 +417,55 @@ def test_second_scheduler_skips_when_first_holds_advisory_lock(
             first.execute(
                 text("SELECT pg_advisory_unlock(:lock_id)"), {"lock_id": scheduler.LOCK_ID}
             )
+
+
+def test_scheduler_persists_expired_no_source_rounds(
+    engine: Engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(scheduler, "engine", engine)
+    with Session(engine) as session:
+        user = User(max_user_id="expiry-owner", display_name="Owner")
+        session.add(user)
+        session.flush()
+        group = Group(name="Expiry company", default_city_slug="msk", created_by=user.id)
+        session.add(group)
+        session.flush()
+        ids: list[tuple[str, str]] = []
+        for status in ("NO_SOURCE", "PROVIDER_UNAVAILABLE"):
+            signal = Intent(
+                user_id=user.id,
+                group_id=group.id,
+                type="ONE_TIME",
+                status="ACTIVE",
+                flow_version=2,
+                city_slug="msk",
+                activity_category="quest",
+                activity_categories=["quest"],
+                min_people=2,
+                max_people=2,
+                expires_at=datetime.now(UTC) - timedelta(minutes=1),
+            )
+            session.add(signal)
+            session.flush()
+            dvizh = DvizhSession(
+                signal_id=signal.id,
+                group_id=group.id,
+                initiator_id=user.id,
+                status=status,
+                activity_ids=["quest"],
+                min_people=2,
+                max_people=2,
+                expires_at=signal.expires_at,
+            )
+            session.add(dvizh)
+            session.flush()
+            ids.append((signal.id, dvizh.id))
+        session.commit()
+    scheduler.run_once()
+    with Session(engine) as session:
+        for signal_id, dvizh_id in ids:
+            assert session.get(Intent, signal_id).status == "EXPIRED"
+            assert session.get(DvizhSession, dvizh_id).status == "EXPIRED"
 
 
 def test_last_slot_and_same_user_overlap_are_atomic(engine: Engine) -> None:

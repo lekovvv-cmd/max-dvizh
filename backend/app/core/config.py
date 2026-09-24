@@ -25,6 +25,8 @@ class Settings:
     max_bot_api_base: str = getenv("MAX_BOT_API_BASE", "https://platform-api2.max.ru")
     max_bot_username: str = getenv("MAX_BOT_USERNAME", "")
     max_mini_app_url: str = getenv("MAX_MINI_APP_URL", "")
+    max_webhook_url: str = getenv("MAX_WEBHOOK_URL", "")
+    max_webhook_secret: str = getenv("MAX_WEBHOOK_SECRET", "")
     kudago_base_url: str = getenv("KUDAGO_BASE_URL", "https://kudago.com/public-api/v1.4")
     kudago_timeout_seconds: float = float(getenv("KUDAGO_TIMEOUT_SECONDS", "5"))
     redis_url: str = getenv("REDIS_URL", "redis://redis:6379/0")

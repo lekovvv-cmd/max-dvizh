@@ -73,6 +73,8 @@ REDIS_URL=<from RelaxDev>
 MAX_BOT_TOKEN=<secret>
 MAX_BOT_USERNAME=<bot username>
 MAX_BOT_API_BASE=https://platform-api2.max.ru
+MAX_WEBHOOK_URL=https://<api-project-domain>/api/v1/integrations/max/webhook
+MAX_WEBHOOK_SECRET=<random secret 5-256 permitted characters>
 KUDAGO_BASE_URL=https://kudago.com/public-api/v1.4
 KUDAGO_TIMEOUT_SECONDS=5
 KUDAGO_MAX_PAGES=3
@@ -92,6 +94,8 @@ REDIS_URL=<same as API>
 MAX_BOT_TOKEN=<secret>
 MAX_BOT_USERNAME=<bot username>
 MAX_BOT_API_BASE=https://platform-api2.max.ru
+MAX_WEBHOOK_URL=https://<api-project-domain>/api/v1/integrations/max/webhook
+MAX_WEBHOOK_SECRET=<same secret as API>
 KUDAGO_BASE_URL=https://kudago.com/public-api/v1.4
 KUDAGO_TIMEOUT_SECONDS=5
 KUDAGO_MAX_PAGES=3
@@ -131,7 +135,8 @@ AUTOSIGNAL_LOOKAHEAD_DAYS=7
 2. Подставьте публичный HTTPS origin API в `BACKEND_URL` проекта `dvizh-frontend` и
    разверните frontend.
 3. Разверните worker и scheduler с общими URL ресурсов.
-4. Проверьте:
+4. После готовности публичного HTTPS API выполните в среде API (или в локальном shell с теми же секретами): `python -m app.modules.max_integration.subscribe_webhook`. Команда делает POST `/subscriptions` и проверяет GET `/subscriptions`. Повторите её при смене домена или секрета. В production используйте только Webhook, не запускайте Long Polling.
+5. Проверьте:
 
 ```text
 https://<api-project-domain>/api/v1/health
@@ -152,6 +157,8 @@ REDIS_URL=<from RelaxDev>
 BACKEND_URL=https://<api-project-domain>
 MAX_BOT_TOKEN=<secret>
 MAX_BOT_USERNAME=<bot username>
+MAX_WEBHOOK_URL=https://<api-project-domain>/api/v1/integrations/max/webhook
+MAX_WEBHOOK_SECRET=<secret>
 ```
 
 Также сохраните поля `dvizh-api` domain и `dvizh-frontend` domain. Они появляются

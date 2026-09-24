@@ -85,6 +85,7 @@ class Intent(Base):
     group_id: Mapped[str] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), index=True)
     type: Mapped[str] = mapped_column(String(20))
     status: Mapped[str] = mapped_column(String(20), default="ACTIVE")
+    flow_version: Mapped[int] = mapped_column(Integer, default=1)
     name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     city_slug: Mapped[str] = mapped_column(String(64))
     activity_category: Mapped[str] = mapped_column(String(64))
@@ -204,3 +205,79 @@ class OutboxNotification(Base):
     next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DvizhSession(Base):
+    __tablename__ = "dvizh_sessions"
+    __table_args__ = (Index("ix_dvizh_group_status", "group_id", "status"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    signal_id: Mapped[str] = mapped_column(ForeignKey("intents.id"), unique=True)
+    group_id: Mapped[str] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), index=True)
+    initiator_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    status: Mapped[str] = mapped_column(String(32), default="CHOOSING_CANDIDATES")
+    activity_ids: Mapped[list[str]] = mapped_column(JSON)
+    min_people: Mapped[int] = mapped_column(Integer)
+    max_people: Mapped[int] = mapped_column(Integer)
+    active_candidate_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DvizhCandidate(Base):
+    __tablename__ = "dvizh_candidates"
+    __table_args__ = (
+        UniqueConstraint("session_id", "provider", "provider_item_id", "starts_at"),
+        Index("ix_dvizh_candidates_order", "session_id", "position"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    session_id: Mapped[str] = mapped_column(ForeignKey("dvizh_sessions.id", ondelete="CASCADE"))
+    position: Mapped[int] = mapped_column(Integer)
+    provider: Mapped[str] = mapped_column(String(40))
+    provider_item_id: Mapped[str] = mapped_column(String(100))
+    item_type: Mapped[str] = mapped_column(String(20))
+    title: Mapped[str] = mapped_column(String(250))
+    activity_ids: Mapped[list[str]] = mapped_column(JSON)
+    venue_name: Mapped[str | None] = mapped_column(String(250), nullable=True)
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    price_text: Mapped[str | None] = mapped_column(String(250), nullable=True)
+    price_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    distance_km: Mapped[float | None] = mapped_column(Float, nullable=True)
+    budget_delta: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    compatibility: Mapped[str] = mapped_column(String(20))
+    address_text: Mapped[str | None] = mapped_column(String(250), nullable=True)
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    seed: Mapped[bool] = mapped_column(Boolean, default=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class DvizhReaction(Base):
+    __tablename__ = "dvizh_reactions"
+    __table_args__ = (UniqueConstraint("candidate_id", "user_id"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    candidate_id: Mapped[str] = mapped_column(ForeignKey("dvizh_candidates.id", ondelete="CASCADE"))
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    value: Mapped[str] = mapped_column(String(16))
+    near_consented_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DvizhConfirmation(Base):
+    __tablename__ = "dvizh_confirmations"
+    __table_args__ = (UniqueConstraint("candidate_id", "user_id"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    candidate_id: Mapped[str] = mapped_column(ForeignKey("dvizh_candidates.id", ondelete="CASCADE"))
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    status: Mapped[str] = mapped_column(String(16), default="CONFIRMED")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class MaxWebhookEvent(Base):
+    __tablename__ = "max_webhook_events"
+    fingerprint: Mapped[str] = mapped_column(String(128), primary_key=True)
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

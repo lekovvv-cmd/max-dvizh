@@ -1,6 +1,6 @@
 import { Icon, type IconName } from './Icon'
 
-export type Screen = 'home' | 'signal' | 'plans' | 'group'
+export type Screen = 'home' | 'signal' | 'dvizhi' | 'group'
 
 const items: Array<{
   id: Exclude<Screen, 'signal'>
@@ -9,7 +9,7 @@ const items: Array<{
   label: string
 }> = [
   { id: 'home', icon: 'home', activeIcon: 'homeSolid', label: 'Главная' },
-  { id: 'plans', icon: 'list', activeIcon: 'listSolid', label: 'Планы' },
+  { id: 'dvizhi', icon: 'list', activeIcon: 'listSolid', label: 'Движи' },
   { id: 'group', icon: 'users', activeIcon: 'usersSolid', label: 'Компания' },
 ]
 
@@ -35,6 +35,7 @@ export function AppShell({
           {items.map((item) => (
             <button
               key={item.id}
+              data-coach={item.id === 'dvizhi' ? 'dvizhi' : undefined}
               className={screen === item.id ? 'is-active' : ''}
               onClick={() => onNavigate(item.id)}
               aria-current={screen === item.id ? 'page' : undefined}

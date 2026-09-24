@@ -1,119 +1,84 @@
-config_version: "1.0"
-solution: { name: "MAX ДВИЖ", team: "TBD", stage: "MVP" }
-base_url: "http://localhost:8000"
+config_version: "2.0"
+solution:
+  name: "MAX ДВИЖ"
+  stage: "MVP"
+  repository: "https://github.com/lekovvv-cmd/max-dvizh"
+base_url: null # Fill with the deployed HTTPS API origin when assigned; never substitute localhost for production.
 authentication:
-  production: "X-MAX-Init-Data with validated MAX WebApp.initData"
-  local_demo: "X-Demo-User is accepted only when APP_ENV=development"
+  production: "X-MAX-Init-Data: signed MAX WebApp.initData"
+  development: "X-Demo-User: anton (APP_ENV=development only)"
+  max_webhook: "X-Max-Bot-Api-Secret: value from MAX_WEBHOOK_SECRET"
 checks:
   - id: session
     method: GET
     path: /api/v1/session
     role: authenticated_user
-    headers: { X-Demo-User: anton }
     expected_statuses: [200]
     required_response_fields: [id, display_name]
-  - id: create_group
+  - id: create_company
     method: POST
     path: /api/v1/groups
     role: authenticated_user
-    headers: { X-Demo-User: anton }
-    body: { name: "Тестовая компания", city_slug: "ekb" }
+    body: { name: "Друзья", city_slug: "msk" }
     expected_statuses: [201]
     required_response_fields: [id, name, invite_token]
-  - id: create_location
-    method: POST
-    path: /api/v1/locations
-    role: authenticated_user
-    headers: { X-Demo-User: anton }
-    body: "Use label and real coordinates returned by device geolocation; city_slug must match a Company joined by this user."
-    expected_statuses: [201]
-    required_response_fields: [id, label, city_slug, address_text, is_default]
-  - id: update_group_city
-    method: PUT
-    path: /api/v1/groups/{group_id}/city
-    role: group_owner
-    headers: { X-Demo-User: anton }
-    body: { city_slug: "msk" }
-    expected_statuses: [200, 403, 404, 422, 503]
-    required_response_fields: [group, cancelled_signals, paused_autosignals, cancelled_plans, invalidated_offers]
-  - id: rename_location
-    method: PATCH
-    path: /api/v1/locations/{location_id}
-    role: location_owner
-    headers: { X-Demo-User: anton }
-    body: { label: "Дом" }
-    expected_statuses: [200, 404]
-    required_response_fields: [id, label, is_default]
-  - id: default_location
-    method: POST
-    path: /api/v1/locations/{location_id}/default
-    role: location_owner
-    headers: { X-Demo-User: anton }
-    expected_statuses: [200, 404]
-    required_response_fields: [id, is_default]
-  - id: delete_location
-    method: DELETE
-    path: /api/v1/locations/{location_id}
-    role: location_owner
-    headers: { X-Demo-User: anton }
-    expected_statuses: [200, 404, 409]
-    required_response_fields: [status]
+  - id: taxonomy
+    method: GET
+    path: /api/v1/leisure/taxonomy
+    role: public
+    expected_statuses: [200]
+    required_response_fields: [directions, activities]
   - id: create_signal
     method: POST
-    path: /api/v1/signal-batches
-    role: group_member
-    headers: { X-Demo-User: anton }
-    body: "Use group_ids from groups (same city), activity_categories, future available_from/available_to, min_people >= 2; budget/radius/location/max_people may be null."
-    expected_statuses: [201, 422]
-    required_response_fields: [signal_batch_id, intents]
-  - id: active_signals
+    path: /api/v1/signals
+    role: company_member
+    headers: { X-Request-ID: "stable-request-uuid" }
+    body: { group_ids: ["<group_id>"], activity_categories: ["quest"], available_from: "<future ISO-8601>", available_to: "<later ISO-8601>", budget_max: 1500, min_people: 3 }
+    expected_statuses: [201, 422, 503]
+    required_response_fields: [signal_batch_id, dvizhi]
+  - id: private_dvizh
     method: GET
-    path: /api/v1/intents
-    role: authenticated_user
-    headers: { X-Demo-User: anton }
-    expected_statuses: [200]
-    required_response_fields: []
-  - id: retry_signal_search
-    method: POST
-    path: /api/v1/signal-batches/{batch_id}/refresh
-    role: signal_owner
-    headers: { X-Demo-User: anton }
+    path: /api/v1/dvizhi/{dvizh_id}
+    role: company_member
     expected_statuses: [200, 404]
-    required_response_fields: [signal_batch_id, intents]
-  - id: offers
+    required_response_fields: [id, status, candidates, my_confirmation, participants]
+  - id: soft_reaction
+    method: PUT
+    path: /api/v1/dvizhi/{dvizh_id}/candidates/{candidate_id}/reaction
+    role: company_member
+    body: { value: "WOULD_GO", confirm_near_exception: false }
+    expected_statuses: [200, 403, 404, 409]
+    required_response_fields: [id, status, chosen_count]
+  - id: launch
+    method: POST
+    path: /api/v1/dvizhi/{dvizh_id}/launch
+    role: initiator
+    expected_statuses: [200, 403, 409]
+    required_response_fields: [id, status]
+  - id: confirmation
+    method: POST
+    path: /api/v1/dvizhi/{dvizh_id}/confirm
+    role: interested_company_member
+    body: { candidate_id: "<active_candidate_id>", confirm_near_exception: false }
+    expected_statuses: [200, 403, 409]
+    required_response_fields: [id, status, my_confirmation, confirmed_count]
+  - id: list_dvizhi
     method: GET
-    path: /api/v1/offers
+    path: /api/v1/dvizhi
     role: authenticated_user
-    headers: { X-Demo-User: anton }
     expected_statuses: [200]
     required_response_fields: []
-  - id: accept_exact_offer
+  - id: recurring_signal
     method: POST
-    path: /api/v1/offers/{offer_id}/accept
-    role: offer_owner
-    headers: { X-Demo-User: anton }
-    body: { confirm_near_exception: false }
-    expected_statuses: [200, 409]
+    path: /api/v1/recurring-signals
+    role: company_member
+    body: { group_id: "<group_id>", name: "По пятницам", activity_category: "quest", activity_categories: ["quest"], weekdays: [4], local_start: "18:00", local_end: "23:00", timezone: "Europe/Moscow", min_people: 3 }
+    expected_statuses: [201, 422]
     required_response_fields: [id, status]
-  - id: accept_near_offer
+  - id: max_webhook
     method: POST
-    path: /api/v1/offers/{offer_id}/accept
-    role: offer_owner
-    headers: { X-Demo-User: anton }
-    body: { confirm_near_exception: true }
-    expected_statuses: [200, 409]
-    required_response_fields: [id, status]
-  - id: confirmed_plans
-    method: GET
-    path: /api/v1/plans
-    role: participant
-    headers: { X-Demo-User: anton }
-    expected_statuses: [200]
-    required_response_fields: []
-  - id: cancel_participation
-    method: POST
-    path: /api/v1/offers/{offer_id}/cancel
-    role: offer_owner
-    headers: { X-Demo-User: anton }
-    expected_statuses: [200, 409]
-    required_response_fields: [id, status]
+    path: /api/v1/integrations/max/webhook
+    role: max_signed_delivery
+    body: { update_type: "bot_started", timestamp: 1750000000000, user: { user_id: 123, name: "Антон" } }
+    expected_statuses: [200, 403]
+    required_response_fields: [ok]

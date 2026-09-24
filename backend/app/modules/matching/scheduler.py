@@ -10,9 +10,10 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.models import CandidatePlanMember, Intent, Offer
+from app.db.models import CandidatePlanMember, DvizhSession, Intent, Offer, User
 from app.db.session import SessionLocal, engine
 from app.modules.leisure.provider import ProviderQuery, fetch_items
+from app.modules.matching.dvizh import recompute as recompute_dvizh
 from app.modules.matching.service import regenerate_group
 
 logger = logging.getLogger(__name__)
@@ -23,7 +24,11 @@ def evaluate_active_autosignals(session: Session, current: datetime | None = Non
     """Fetch each city/category slice once, then match every relevant company."""
     current = current or datetime.now(UTC)
     active = list(
-        session.scalars(select(Intent).where(Intent.type == "RECURRING", Intent.status == "ACTIVE"))
+        session.scalars(
+            select(Intent).where(
+                Intent.type == "RECURRING", Intent.status == "ACTIVE", Intent.flow_version == 1
+            )
+        )
     )
     slices: dict[tuple[str, tuple[str, ...]], set[str]] = {}
     for intent in active:
@@ -109,7 +114,12 @@ def evaluate_auto_signal(intent_id: str) -> None:
     try:
         with SessionLocal() as session:
             intent = session.get(Intent, intent_id)
-            if intent is None or intent.type != "RECURRING" or intent.status != "ACTIVE":
+            if (
+                intent is None
+                or intent.type != "RECURRING"
+                or intent.status != "ACTIVE"
+                or intent.flow_version != 1
+            ):
                 return
             categories = tuple(
                 sorted(
@@ -159,15 +169,58 @@ def evaluate_auto_signal(intent_id: str) -> None:
 
 def run_once() -> int:
     with engine.connect() as connection:
-        if not connection.scalar(
+        acquired = connection.scalar(
             text("SELECT pg_try_advisory_lock(:lock_id)"), {"lock_id": LOCK_ID}
-        ):
+        )
+        # Advisory locks are session-scoped. End the implicit SELECT transaction so
+        # the bound Session can commit its own state changes instead of joining it.
+        connection.commit()
+        if not acquired:
             return 0
         try:
             with Session(bind=connection) as session:
-                return evaluate_active_autosignals(session)
+                refreshed = (
+                    0 if settings.app_env == "production" else evaluate_active_autosignals(session)
+                )
+                from app.api.routes.dvizh import materialize_recurring
+
+                for rule in list(
+                    session.scalars(
+                        select(Intent).where(
+                            Intent.type == "RECURRING",
+                            Intent.flow_version == 2,
+                            Intent.status == "ACTIVE",
+                        )
+                    )
+                ):
+                    user = session.get(User, rule.user_id)
+                    if user:
+                        materialize_recurring(session, rule, user)
+                for dvizh in session.scalars(
+                    select(DvizhSession)
+                    .where(
+                        DvizhSession.status.in_(
+                            (
+                                "CHOOSING_CANDIDATES",
+                                "NO_SOURCE",
+                                "PROVIDER_UNAVAILABLE",
+                                "COLLECTING_REACTIONS",
+                                "AWAITING_CONFIRMATION",
+                            )
+                        )
+                    )
+                    .with_for_update(skip_locked=True)
+                ):
+                    recompute_dvizh(session, dvizh)
+                session.commit()
+                connection.commit()
+                return refreshed
+        except Exception:
+            connection.rollback()
+            raise
         finally:
             connection.execute(text("SELECT pg_advisory_unlock(:lock_id)"), {"lock_id": LOCK_ID})
+            connection.commit()
 
 
 def main() -> None:

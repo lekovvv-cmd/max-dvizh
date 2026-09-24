@@ -47,6 +47,7 @@ def verify_upgrade(engine: Engine) -> None:
         row = (
             connection.execute(
                 text("""SELECT i.activity_category, i.activity_categories, i.signal_batch_id, i.provider_state, i.budget_max, i.max_people,
+                       i.status, i.flow_version,
                        g.name AS group_name, g.timezone_name, g.invite_expires_at, l.label AS location_label, l.address_text, l.is_default
                     FROM intents AS i JOIN groups AS g ON g.id = i.group_id
                     JOIN locations AS l ON l.id = i.origin_location_id
@@ -60,11 +61,16 @@ def verify_upgrade(engine: Engine) -> None:
         assert row["signal_batch_id"] is None
         assert row["provider_state"] == "NOT_CHECKED"
         assert row["budget_max"] == 500 and row["max_people"] == 5
+        assert row["status"] == "CANCELLED" and row["flow_version"] == 1
         assert row["group_name"] == "Legacy friends" and row["location_label"] == "Home"
         assert row["timezone_name"] is None and row["invite_expires_at"] is None
         assert row["address_text"] is None
         assert row["is_default"] is False
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20260918_0010"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20260924_0011"
+        assert (
+            connection.scalar(text("SELECT to_regclass('public.dvizh_sessions')"))
+            == "dvizh_sessions"
+        )
 
 
 def create_clean_database(database_url: str) -> None:

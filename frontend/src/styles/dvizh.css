@@ -1,0 +1,314 @@
+.dvizh-flow {
+  display: grid;
+  gap: 14px;
+  max-width: 560px;
+  margin: 0 auto;
+  padding-bottom: 24px;
+}
+.signal-card {
+  display: grid;
+  gap: 5px;
+  padding: 15px 18px;
+  border: 1px solid var(--dvizh-line);
+  border-radius: 18px;
+  background: var(--dvizh-blue-soft);
+}
+.signal-card p,
+.signal-card h2 {
+  margin: 0;
+}
+.signal-card__label {
+  color: var(--dvizh-blue);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.signal-card__time,
+.signal-card__details {
+  color: var(--dvizh-muted);
+  font-size: 13px;
+}
+.signal-card h2 {
+  color: var(--dvizh-ink);
+  font-size: 17px;
+  line-height: 1.3;
+}
+.dvizh-flow__lead {
+  color: var(--dvizh-muted);
+  margin: 0;
+}
+.dvizh-flow__progress {
+  color: var(--dvizh-violet);
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+}
+.swipe-surface {
+  position: relative;
+  touch-action: pan-y;
+  transition: transform 180ms ease;
+  user-select: none;
+}
+.swipe-surface:active {
+  transition: none;
+  cursor: grabbing;
+}
+.swipe-hint {
+  position: absolute;
+  z-index: 2;
+  top: 16px;
+  left: 16px;
+  padding: 8px 12px;
+  color: var(--dvizh-ink);
+  background: white;
+  border: 2px solid currentColor;
+  border-radius: 12px;
+  font-weight: 600;
+  transform: rotate(-8deg);
+}
+.swipe-hint--yes {
+  left: auto;
+  right: 16px;
+  color: var(--dvizh-violet);
+  transform: rotate(8deg);
+}
+.activity-card {
+  overflow: hidden;
+  border-radius: 26px;
+  background: white;
+  border: 1px solid var(--dvizh-line);
+  box-shadow: 0 16px 40px rgb(40 13 92 / 10%);
+}
+.activity-card__image,
+.activity-card__art {
+  display: block;
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+}
+.activity-card__art {
+  display: grid;
+  place-items: center;
+  color: white;
+  background: linear-gradient(135deg, #471aff, #6e1aff 60%, #9500ff);
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+}
+.activity-card__body {
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+}
+.activity-card__body h2 {
+  font-size: 24px;
+  overflow-wrap: anywhere;
+}
+.activity-card__body p {
+  margin: 0;
+}
+.activity-card__status {
+  width: fit-content;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: var(--dvizh-blue-soft);
+  color: var(--dvizh-blue);
+  font-size: 12px;
+  font-weight: 600;
+}
+.activity-card__facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.activity-card__facts div {
+  min-width: 0;
+}
+.activity-card__facts dt {
+  color: var(--dvizh-muted);
+  font-size: 12px;
+}
+.activity-card__facts dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+.activity-card__warning {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f4edff;
+  color: #4d1688;
+  font-size: 13px;
+}
+.activity-card__body a {
+  color: var(--dvizh-blue);
+  font-size: 13px;
+  font-weight: 600;
+}
+.swipe-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.swipe-actions button {
+  min-height: 48px;
+  border-radius: 14px;
+  border: 1px solid var(--dvizh-line-strong);
+  background: white;
+  color: var(--dvizh-ink);
+  font-weight: 600;
+}
+.swipe-actions button:last-child {
+  border-color: #d5c4ff;
+  background: var(--dvizh-blue-soft);
+  color: var(--dvizh-blue);
+}
+.swipe-actions button:disabled {
+  opacity: 0.55;
+}
+.dvizh-flow__hint {
+  margin: 0;
+  color: var(--dvizh-muted);
+  text-align: center;
+  font-size: 12px;
+}
+.dvizh-result {
+  display: grid;
+  gap: 14px;
+  padding: 24px;
+  border: 1px solid var(--dvizh-line);
+  border-radius: 24px;
+  background: white;
+}
+.dvizh-result p {
+  color: var(--dvizh-muted);
+  margin: 0;
+}
+.dvizh-result .inline-actions {
+  flex-wrap: wrap;
+}
+.dvizh-list {
+  display: grid;
+  gap: 24px;
+}
+.dvizh-list > section {
+  display: grid;
+  gap: 10px;
+}
+.dvizh-list__item {
+  display: grid;
+  width: 100%;
+  gap: 6px;
+  padding: 18px;
+  text-align: left;
+  border: 1px solid var(--dvizh-line);
+  border-radius: 18px;
+  background: white;
+  color: var(--dvizh-ink);
+}
+.dvizh-list__item strong {
+  font-size: 18px;
+}
+.dvizh-list__item span {
+  color: var(--dvizh-muted);
+  font-size: 13px;
+}
+.dvizh-list__item small {
+  color: var(--dvizh-blue);
+  font-size: 12px;
+  font-weight: 600;
+}
+@media (max-width: 360px) {
+  .activity-card__image,
+  .activity-card__art {
+    height: 170px;
+  }
+  .activity-card__body {
+    padding: 16px;
+  }
+  .activity-card__facts {
+    gap: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .swipe-surface {
+    transition: none;
+  }
+}
+.coach {
+  position: fixed;
+  z-index: 1002;
+  left: max(16px, calc((100vw - 520px) / 2));
+  right: max(16px, calc((100vw - 520px) / 2));
+  bottom: max(88px, env(safe-area-inset-bottom));
+  display: grid;
+  gap: 10px;
+  padding: 20px;
+  border-radius: 20px;
+  background: white;
+  box-shadow: 0 16px 50px rgb(0 0 0 / 25%);
+}
+.coach span {
+  color: var(--dvizh-blue);
+  font-size: 12px;
+  font-weight: 600;
+}
+.coach p {
+  margin: 0;
+  color: var(--dvizh-muted);
+}
+.coach__actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.coach__actions button {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--dvizh-blue-soft);
+  color: var(--dvizh-blue);
+}
+.coach__actions button:first-child {
+  background: transparent;
+  color: var(--dvizh-muted);
+}
+.place-search {
+  display: grid;
+  gap: 10px;
+}
+.place-search form {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--dvizh-blue-soft);
+}
+.place-search label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+.place-search input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px;
+  border: 1px solid var(--dvizh-line-strong);
+  border-radius: 10px;
+  background: white;
+}
+.place-search form button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--dvizh-blue);
+  color: white;
+}
+.place-search form p {
+  margin: 0;
+  color: var(--dvizh-muted);
+  font-size: 12px;
+}

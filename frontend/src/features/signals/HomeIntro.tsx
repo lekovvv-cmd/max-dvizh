@@ -1,24 +1,36 @@
 import { PulseMark } from '../../shared/ui/PulseMark'
 
-export function HomeIntro({ onSignal, onRepeat }: { onSignal: () => void; onRepeat: () => void }) {
+export function HomeIntro({
+  onSignal,
+  onRepeat,
+  hasRepeat,
+}: {
+  onSignal: () => void
+  onRepeat: () => void
+  hasRepeat?: boolean
+}) {
   return (
     <section className="home-intro" aria-labelledby="home-title">
       <PulseMark />
-      <h1 id="home-title">Когда двигаемся?</h1>
-      <p>Сигнал — это когда и куда ты готов пойти. ДВИЖ найдёт общий вариант для друзей.</p>
-      <button type="button" className="primary-button" onClick={onSignal}>
+      <h1 id="home-title">Есть идея на вечер?</h1>
+      <p>Скажи, когда и что хочется. Остальных спросит ДВИЖ.</p>
+      <button type="button" className="primary-button" data-coach="signal" onClick={onSignal}>
         Подать сигнал
       </button>
       <p className="home-intro__steps">
-        Выбрали условия <span>→</span> получили приглашение <span>→</span> план собран
+        Подай сигнал <span>→</span> выбери место <span>→</span> остальное сделает ДВИЖ
       </p>
       <div className="home-intro__repeat">
         <div>
-          <strong>Собираетесь регулярно?</strong>
-          <p>Настрой повторение, например каждую пятницу.</p>
+          <strong>{hasRepeat ? 'Регулярный сигнал настроен' : 'Собираетесь регулярно?'}</strong>
+          <p>
+            {hasRepeat
+              ? 'Можно изменить дни, время и условия.'
+              : 'Настрой повторение, например каждую пятницу.'}
+          </p>
         </div>
         <button type="button" className="text-action" onClick={onRepeat}>
-          Настроить
+          {hasRepeat ? 'Изменить' : 'Настроить'}
         </button>
       </div>
     </section>

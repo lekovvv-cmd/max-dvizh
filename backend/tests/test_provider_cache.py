@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 import httpx
+import pytest
 
 from app.modules.leisure.provider import (
     KudaGoProvider,
@@ -67,6 +68,50 @@ def item() -> NormalizedLeisureItem:
 def query() -> ProviderQuery:
     start = datetime(2026, 9, 17, 18, tzinfo=UTC)
     return ProviderQuery("ekb", start, start + timedelta(hours=4), ("concert",))
+
+
+def test_source_recheck_distinguishes_cancelled_slot_closed_place_and_outage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = item()
+
+    def response(data: dict[str, object], status: int = 200) -> httpx.Response:
+        return httpx.Response(status, json=data, request=httpx.Request("GET", "https://kudago.com"))
+
+    monkeypatch.setattr(
+        httpx,
+        "get",
+        lambda url, **kwargs: response(
+            {
+                "id": 42,
+                "dates": [
+                    {
+                        "start": int(source.starts_at.timestamp()),
+                        "end": int(source.ends_at.timestamp()),
+                    }
+                ],
+            }
+        ),
+    )
+    assert KudaGoProvider().item_available("EVENT", "42", source.starts_at, source.ends_at)
+    monkeypatch.setattr(httpx, "get", lambda url, **kwargs: response({"id": 42, "dates": []}))
+    assert KudaGoProvider().item_available("EVENT", "42", source.starts_at, source.ends_at) is False
+    monkeypatch.setattr(httpx, "get", lambda url, **kwargs: response({}, 404))
+    assert KudaGoProvider().item_available("EVENT", "42", source.starts_at, source.ends_at) is False
+    monkeypatch.setattr(httpx, "get", lambda url, **kwargs: response({"id": 42, "is_closed": True}))
+    assert KudaGoProvider().item_available("PLACE", "42", source.starts_at, source.ends_at) is False
+
+    def unavailable(url: str, **kwargs: object) -> httpx.Response:
+        raise httpx.ConnectError("source unavailable")
+
+    monkeypatch.setattr(httpx, "get", unavailable)
+    assert KudaGoProvider().item_available("EVENT", "42", source.starts_at, source.ends_at) is None
+    assert (
+        KudaGoProvider().item_available(
+            "EVENT", "not-a-kudago-id", source.starts_at, source.ends_at
+        )
+        is None
+    )
 
 
 def test_redis_hit_skips_provider_and_miss_populates_cache() -> None:

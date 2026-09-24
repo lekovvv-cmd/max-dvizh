@@ -37,6 +37,7 @@ from app.db.models import (
     CandidatePlan,
     CandidatePlanMember,
     CandidatePlanSourceSnapshot,
+    DvizhSession,
     Group,
     GroupMember,
     Intent,
@@ -316,6 +317,26 @@ def update_group_city(
         if intent.type == "ONE_TIME":
             intent.status = "CANCELLED"
             cancelled_signals += 1
+            if intent.flow_version == 2:
+                dvizh = session.scalar(
+                    select(DvizhSession).where(DvizhSession.signal_id == intent.id)
+                )
+                if dvizh and dvizh.status not in {"GATHERED", "CANCELLED", "EXPIRED"}:
+                    dvizh.status = "CANCELLED"
+                    for notification in session.scalars(
+                        select(OutboxNotification).where(
+                            OutboxNotification.status == "PENDING",
+                            OutboxNotification.kind.in_(
+                                (
+                                    "DVIZH_INITIATOR_REVIEW",
+                                    "DVIZH_REVIEW_REQUIRED",
+                                    "DVIZH_MATCH_FOUND",
+                                )
+                            ),
+                        )
+                    ):
+                        if notification.payload.get("dvizh_id") == dvizh.id:
+                            notification.status = "CANCELLED"
         elif intent.type == "RECURRING":
             intent.status = "PAUSED"
             paused_autosignals += 1
@@ -593,6 +614,8 @@ def _provider_query(payload: IntentIn, intent_type: str, city_slug: str) -> Prov
 
 @router.post("/intents", response_model=IntentOut, status_code=status.HTTP_201_CREATED)
 def create_signal(payload: IntentIn, session: DbSession, user: CurrentUser) -> IntentOut:
+    if settings.app_env == "production":
+        raise error(status.HTTP_410_GONE, "Используй новый экран сигналов")
     return _create_intent(payload, session, user, "ONE_TIME")
 
 
@@ -719,6 +742,8 @@ def _save_batch(
 
 @router.post("/signal-batches/{batch_id}/refresh", response_model=SignalBatchOut)
 def refresh_signal_batch(batch_id: str, session: DbSession, user: CurrentUser) -> SignalBatchOut:
+    if settings.app_env == "production":
+        raise error(status.HTTP_410_GONE, "Используй новый экран сигналов")
     intents = list(
         session.scalars(
             select(Intent).where(
@@ -776,6 +801,8 @@ def refresh_signal_batch(batch_id: str, session: DbSession, user: CurrentUser) -
 def create_signal_batch(
     payload: SignalBatchIn, session: DbSession, user: CurrentUser
 ) -> SignalBatchOut:
+    if settings.app_env == "production":
+        raise error(status.HTTP_410_GONE, "Используй новый экран сигналов")
     return _save_batch(payload, session, user)
 
 
@@ -783,6 +810,8 @@ def create_signal_batch(
 def edit_signal_batch(
     batch_id: str, payload: SignalBatchIn, session: DbSession, user: CurrentUser
 ) -> SignalBatchOut:
+    if settings.app_env == "production":
+        raise error(status.HTTP_410_GONE, "Используй новый экран сигналов")
     current = session.scalar(
         select(Intent).where(
             Intent.signal_batch_id == batch_id,
@@ -846,6 +875,8 @@ def list_intents(
 def create_auto_signal(
     payload: AutoSignalIn, background_tasks: BackgroundTasks, session: DbSession, user: CurrentUser
 ) -> IntentOut:
+    if settings.app_env == "production":
+        raise error(status.HTTP_410_GONE, "Используй новый экран сигналов")
     recurrence: dict[str, object] = {
         "weekdays": payload.weekdays,
         "local_start": payload.local_start,
