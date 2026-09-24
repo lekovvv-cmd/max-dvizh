@@ -33,7 +33,7 @@ def test_every_documented_occurrence_becomes_concrete_item() -> None:
     items = normalize_events(raw, "ekb", fetched)
     assert len(items) == 2
     assert items[0].starts_at != items[1].starts_at
-    assert set(items[0].categories) == {"games", "concert"}
+    assert set(items[0].categories) == {"games", "quest", "concert"}
     assert items[0].latitude == 56.8
 
 
@@ -54,7 +54,7 @@ def test_place_and_price_floor_are_explicitly_uncertain() -> None:
     )
     assert place is not None and place.item_type == "PLACE"
     assert place.opening_hours_unverified and place.address_text == "Улица 1"
-    assert place.categories == ("games",)
+    assert place.categories == ("anticafe", "games")
     assert price_kind("от 400 ₽", False) == ("FROM", 400)
     assert price_kind(None, False) == ("UNKNOWN", None)
 

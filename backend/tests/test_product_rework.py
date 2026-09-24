@@ -98,6 +98,19 @@ def seed(
     return users, group, item
 
 
+def test_group_members_returns_names_only_to_members() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        users, group, _ = seed(session, 3, [2, 2, 2])
+        members = product.list_group_members(group.id, session, SimpleNamespace(id=users[0].id))
+        assert [person.display_name for person in members] == ["User 0", "User 1", "User 2"]
+        assert [person.is_me for person in members] == [True, False, False]
+        with pytest.raises(HTTPException) as denied:
+            product.list_group_members(group.id, session, SimpleNamespace(id="stranger"))
+        assert denied.value.status_code == 404
+
+
 def test_all_eight_get_offers_and_plan_stays_open_after_three_responses() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)

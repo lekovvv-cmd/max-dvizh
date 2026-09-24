@@ -1,8 +1,6 @@
-export type StatusTone = 'active' | 'confirmed' | 'collecting' | 'conditional' | 'waitlist'
-
-export function StatusLabel({ tone, children }: { tone: StatusTone; children: React.ReactNode }) {
+export function StatusLabel({ children }: { children: React.ReactNode }) {
   return (
-    <span className={`status-label status-label--${tone}`}>
+    <span className="status-label">
       <i aria-hidden="true" />
       {children}
     </span>

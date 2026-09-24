@@ -1,26 +1,7 @@
-.wizard,
-.auto-form {
-  display: grid;
-  gap: var(--space-4);
-}
-.wizard form,
-.auto-form form,
 .start-card form,
 .dev-tools {
   display: grid;
   gap: var(--space-5);
-}
-.back-link {
-  display: inline-flex;
-  width: fit-content;
-  min-height: 44px;
-  align-items: center;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: var(--dvizh-blue);
-  font-size: 14px;
-  font-weight: 700;
 }
 .form-section {
   display: grid;
@@ -45,7 +26,7 @@
   background: var(--dvizh-surface);
   color: var(--dvizh-ink);
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 500;
 }
 .choice--selected {
   border-color: var(--dvizh-blue);
@@ -108,11 +89,11 @@
   border-bottom: 1px solid var(--dvizh-line);
 }
 .conditions summary,
-.add-place summary {
+.add-place__trigger {
   min-height: 52px;
   padding: 15px 0;
   color: var(--dvizh-ink);
-  font-weight: 750;
+  font-weight: 500;
   cursor: pointer;
 }
 .conditions summary span {
@@ -139,7 +120,7 @@
   margin: 0;
   color: var(--dvizh-danger);
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 500;
 }
 .wizard__footer {
   position: sticky;
@@ -147,51 +128,4 @@
   bottom: 0;
   padding: var(--space-3) 0 max(var(--space-2), env(safe-area-inset-bottom));
   background: linear-gradient(to bottom, transparent, var(--dvizh-bg) 24%);
-}
-
-.autos-list {
-  gap: 0;
-  border-top: 1px solid var(--dvizh-line);
-}
-.autosignal-row {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  column-gap: var(--space-3);
-  border-bottom: 1px solid var(--dvizh-line);
-  padding: var(--space-4) 0;
-}
-.autosignal-row__main {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: var(--dvizh-ink);
-  text-align: left;
-}
-.autosignal-row__main strong {
-  font-size: 16px;
-  overflow-wrap: anywhere;
-}
-.autosignal-row__main span {
-  color: var(--dvizh-muted);
-  font-size: 13px;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
-}
-.switch-control {
-  padding-top: 2px;
-}
-.autosignal-row__delete {
-  grid-column: 1 / -1;
-  width: fit-content;
-  min-height: 36px;
-  margin-top: 5px;
-  font-size: 12px;
-}
-.new-auto {
-  width: fit-content;
 }

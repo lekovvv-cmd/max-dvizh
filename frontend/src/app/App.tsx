@@ -1,24 +1,51 @@
 import { Button } from '@maxhub/max-ui'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { AutoSignals } from '../features/autosignals/AutoSignals'
 import { Company } from '../features/groups/Company'
 import { CreateCompany } from '../features/groups/CreateCompany'
 import { OfferPool } from '../features/offers/OfferPool'
-import { PlanCard } from '../features/plans/PlanCard'
 import { Plans } from '../features/plans/Plans'
-import { SignalWizard } from '../features/signals/SignalWizard'
+import { SignalComposer } from '../features/signals/SignalComposer'
+import type { SignalAdjustment } from '../features/signals/SignalComposer'
 import { ActiveSignalSummary } from '../features/signals/ActiveSignalSummary'
+import { HomeIntro } from '../features/signals/HomeIntro'
+import { activityLabel } from '../shared/lib/format'
 import { AppShell } from '../shared/ui/AppShell'
 import type { Screen } from '../shared/ui/AppShell'
 import { ConfirmDialog } from '../shared/ui/ConfirmDialog'
 import { api } from './api'
 import type { Group, GroupCityUpdateResult, Intent, Location, Offer, Plan } from './api'
 
+function restoreFormNavigation() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('dvizh-form-navigation') || 'null')
+    if (saved?.screen === 'signal')
+      return {
+        screen: 'signal' as Screen,
+        editingBatch: typeof saved.editingBatch === 'string' ? saved.editingBatch : null,
+        editingRecurring:
+          typeof saved.editingRecurring === 'string' ? saved.editingRecurring : null,
+      }
+  } catch {
+    // A malformed local draft should never block opening the app.
+  }
+  return { screen: 'home' as Screen, editingBatch: null, editingRecurring: null }
+}
+
+function searchStatus(providerState?: string | null) {
+  if (providerState === 'NO_SOURCE') return 'Ничего не нашли'
+  if (providerState === 'NO_FEASIBLE_PLAN') return 'Нет совпадений'
+  if (providerState === 'PROVIDER_UNAVAILABLE') return 'Источник недоступен'
+  return 'Ищем варианты'
+}
+
 export function App() {
-  const [screen, setScreen] = useState<Screen>('home')
+  const restoredNavigation = useRef(restoreFormNavigation())
+  const [screen, setScreen] = useState<Screen>(restoredNavigation.current.screen)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [refreshError, setRefreshError] = useState('')
+  const loadedOnce = useRef(false)
   const [group, setGroup] = useState<Group | null>(null)
   const [groups, setGroups] = useState<Group[]>([])
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
@@ -26,19 +53,34 @@ export function App() {
   const [intents, setIntents] = useState<Intent[]>([])
   const [offers, setOffers] = useState<Offer[]>([])
   const [plans, setPlans] = useState<Plan[]>([])
-  const [name, setName] = useState('')
   const [mode, setMode] = useState('MAX')
   const [chatAvailable, setChatAvailable] = useState(false)
-  const [editingBatch, setEditingBatch] = useState<string | null>(null)
+  const [editingBatch, setEditingBatch] = useState<string | null>(
+    restoredNavigation.current.editingBatch,
+  )
+  const [editingRecurring, setEditingRecurring] = useState<string | null>(
+    restoredNavigation.current.editingRecurring,
+  )
+  const [signalAdjustment, setSignalAdjustment] = useState<SignalAdjustment>(null)
   const [creatingGroup, setCreatingGroup] = useState(false)
   const [joinState, setJoinState] = useState('')
   const handledJoinToken = useRef<string | null>(null)
   const [targetId, setTargetId] = useState('')
   const [cancelBatchId, setCancelBatchId] = useState<string | null>(null)
+  const [cancelRecurringId, setCancelRecurringId] = useState<string | null>(null)
   const [cancelBusy, setCancelBusy] = useState(false)
+  const [resumeBusyId, setResumeBusyId] = useState<string | null>(null)
+  useEffect(() => {
+    if (screen === 'signal')
+      localStorage.setItem(
+        'dvizh-form-navigation',
+        JSON.stringify({ screen, editingBatch, editingRecurring }),
+      )
+    else localStorage.removeItem('dvizh-form-navigation')
+  }, [screen, editingBatch, editingRecurring])
   const load = useCallback(async () => {
-    setLoading(true)
     setError('')
+    setRefreshError('')
     try {
       const [session, nextGroups, nextLocations, nextOffers, nextPlans, nextIntents] =
         await Promise.all([
@@ -51,7 +93,6 @@ export function App() {
         ])
       const selected =
         nextGroups.find((item) => item.id === selectedGroupId) ?? nextGroups[0] ?? null
-      setName(session.display_name)
       setMode(session.max_mode)
       setChatAvailable(Boolean(session.max_chat_id))
       setGroups(nextGroups)
@@ -61,8 +102,11 @@ export function App() {
       setPlans(nextPlans)
       setIntents(nextIntents)
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Сервис временно недоступен')
+      const message = reason instanceof Error ? reason.message : 'Сервис временно недоступен'
+      if (loadedOnce.current) setRefreshError(message)
+      else setError(message)
     } finally {
+      loadedOnce.current = true
       setLoading(false)
     }
   }, [selectedGroupId])
@@ -134,16 +178,31 @@ export function App() {
     )
   const refresh = () => void load()
   const cancelSignal = async () => {
-    if (!cancelBatchId) return
+    if (!cancelBatchId && !cancelRecurringId) return
     setCancelBusy(true)
     try {
-      await api.cancelSignalBatch(cancelBatchId)
+      if (cancelBatchId) await api.cancelSignalBatch(cancelBatchId)
+      if (cancelRecurringId) await api.autoAction(cancelRecurringId, 'cancel')
       setCancelBatchId(null)
+      setCancelRecurringId(null)
       await load()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Не удалось отменить сигнал')
     } finally {
       setCancelBusy(false)
+    }
+  }
+  const resumeRecurring = async (id: string) => {
+    if (resumeBusyId) return
+    setResumeBusyId(id)
+    setRefreshError('')
+    try {
+      await api.autoAction(id, 'resume')
+      await load()
+    } catch (reason) {
+      setRefreshError(reason instanceof Error ? reason.message : 'Не удалось возобновить поиск')
+    } finally {
+      setResumeBusyId(null)
     }
   }
   const changeGroupCity = async (groupId: string, city: string): Promise<GroupCityUpdateResult> => {
@@ -180,6 +239,24 @@ export function App() {
     setLocations((current) => [location, ...current])
     return location
   }
+  const createLocationAt = async (
+    label: string,
+    latitude: number,
+    longitude: number,
+    city: string,
+    kind: 'SAVED' | 'CURRENT' = 'SAVED',
+  ) => {
+    const location = await api.createLocation({
+      label,
+      latitude,
+      longitude,
+      city_slug: city,
+      kind,
+      is_ephemeral: false,
+    })
+    setLocations((current) => [location, ...current])
+    return location
+  }
   const activeBatches = (() => {
     const batches = new Map<string, Intent[]>()
     for (const intent of intents)
@@ -196,18 +273,43 @@ export function App() {
     return [...batches.values()]
   })()
   const providerStates = activeBatches.flat().map((intent) => intent.provider_state)
+  const recurringIntents = intents.filter(
+    (intent) => intent.type === 'RECURRING' && intent.status !== 'CANCELLED',
+  )
   const providerState = ['PROVIDER_UNAVAILABLE', 'NO_FEASIBLE_PLAN', 'NO_SOURCE'].find((state) =>
     providerStates.includes(state),
   )
-  const confirmedPlans = plans.filter(
-    (plan) =>
-      plan.status.startsWith('CONFIRMED') &&
-      ['ACCEPTED', 'WAITING_CONDITION'].includes(plan.my_status || ''),
-  )
   const collectingPlans = plans.filter((plan) => plan.status === 'COLLECTING')
+  const hasActiveSignal =
+    activeBatches.length > 0 ||
+    collectingPlans.length > 0 ||
+    recurringIntents.some((item) => item.status === 'ACTIVE')
+  const openNewSignal = () => {
+    setEditingBatch(null)
+    setEditingRecurring(null)
+    setSignalAdjustment(null)
+    setScreen('signal')
+  }
   const content =
     screen === 'home' ? (
       <div className="page-stack home-page">
+        <HomeIntro
+          onSignal={openNewSignal}
+          onRepeat={() => {
+            setEditingBatch(null)
+            setEditingRecurring(null)
+            setSignalAdjustment('repeat')
+            setScreen('signal')
+          }}
+        />
+        {refreshError ? (
+          <p className="inline-notice" role="alert">
+            {refreshError}{' '}
+            <button type="button" className="text-action" onClick={refresh}>
+              Повторить
+            </button>
+          </p>
+        ) : null}
         {joinState ? (
           <p className="inline-notice" role="status">
             {joinState}
@@ -220,8 +322,25 @@ export function App() {
                 key={batch[0].signal_batch_id}
                 batch={batch}
                 groups={groups}
+                status={
+                  offers.some(
+                    (offer) =>
+                      offer.status === 'PENDING' &&
+                      batch.some((intent) => intent.group_id === offer.group_id),
+                  )
+                    ? 'Есть приглашение'
+                    : collectingPlans.some((plan) =>
+                          batch.some((intent) => intent.group_id === plan.group_id),
+                        )
+                      ? 'Ждём друзей'
+                      : searchStatus(
+                          batch.find((intent) => intent.provider_state !== 'SEARCHING')
+                            ?.provider_state,
+                        )
+                }
                 onEdit={() => {
                   setEditingBatch(batch[0].signal_batch_id)
+                  setSignalAdjustment(null)
                   setScreen('signal')
                 }}
                 onCancel={() => setCancelBatchId(batch[0].signal_batch_id)}
@@ -229,31 +348,71 @@ export function App() {
             ))}
           </section>
         ) : null}
-        {confirmedPlans.length ? (
-          <section className="home-section" aria-label="Подтверждённые планы">
-            <div className="plans-list">
-              {confirmedPlans.map((plan) => (
-                <PlanCard key={plan.id} plan={plan} onChanged={refresh} />
-              ))}
-            </div>
-          </section>
-        ) : null}
-        {collectingPlans.length ? (
-          <section className="home-section" aria-labelledby="home-collecting">
-            <h2 id="home-collecting" className="home-section__title">
-              Твои планы
-            </h2>
-            <div className="plans-list">
-              {collectingPlans.map((plan) => (
-                <PlanCard key={plan.id} plan={plan} onChanged={refresh} />
-              ))}
-            </div>
+        {recurringIntents.length ? (
+          <section className="home-section" aria-label="Повторяющиеся сигналы">
+            {recurringIntents.map((intent) => (
+              <article className="active-signal" key={intent.id}>
+                <span className="context-label">
+                  {intent.status === 'ACTIVE'
+                    ? searchStatus(intent.provider_state)
+                    : intent.status === 'PAUSED'
+                      ? 'Поиск на паузе'
+                      : 'Поиск остановлен'}
+                </span>
+                <strong className="active-signal__time">
+                  Повторяется ·{' '}
+                  {intent.weekdays
+                    ?.map((day) => ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'][day])
+                    .join(', ')}
+                </strong>
+                <p>
+                  {intent.activity_categories.map(activityLabel).join(', ')} ·{' '}
+                  {intent.group_name || group.name}
+                </p>
+                <div className="inline-actions">
+                  <button
+                    className="text-action"
+                    type="button"
+                    onClick={() => {
+                      setEditingBatch(null)
+                      setEditingRecurring(intent.id)
+                      setSignalAdjustment(null)
+                      setScreen('signal')
+                    }}
+                  >
+                    Изменить
+                  </button>
+                  {intent.status === 'ACTIVE' ? (
+                    <button
+                      className="text-action text-action--danger"
+                      type="button"
+                      onClick={() => setCancelRecurringId(intent.id)}
+                    >
+                      Остановить
+                    </button>
+                  ) : intent.status === 'PAUSED' ? (
+                    <button
+                      className="text-action"
+                      type="button"
+                      disabled={resumeBusyId === intent.id}
+                      onClick={() => void resumeRecurring(intent.id)}
+                    >
+                      {resumeBusyId === intent.id ? 'Возобновляем…' : 'Возобновить'}
+                    </button>
+                  ) : null}
+                </div>
+              </article>
+            ))}
           </section>
         ) : null}
         <OfferPool
           offers={offers}
-          hasActiveSignal={activeBatches.length > 0}
-          providerState={providerState}
+          group={group}
+          hasActiveSignal={hasActiveSignal}
+          providerState={
+            providerState ||
+            recurringIntents.find((item) => item.status === 'ACTIVE')?.provider_state
+          }
           onRetry={
             activeBatches.length
               ? () => {
@@ -273,43 +432,66 @@ export function App() {
                 }
               : undefined
           }
-          onSignal={() => {
-            setEditingBatch(null)
+          onStop={() => {
+            const batchId = activeBatches[0]?.[0]?.signal_batch_id
+            if (batchId) setCancelBatchId(batchId)
+            else {
+              const recurringId = recurringIntents.find((item) => item.status === 'ACTIVE')?.id
+              if (recurringId) setCancelRecurringId(recurringId)
+            }
+          }}
+          onEdit={(adjustment) => {
+            setEditingBatch(activeBatches[0]?.[0]?.signal_batch_id || null)
+            setEditingRecurring(
+              activeBatches.length
+                ? null
+                : recurringIntents.find((item) => item.status === 'ACTIVE')?.id || null,
+            )
+            setSignalAdjustment(adjustment)
             setScreen('signal')
           }}
+          onInvite={() => setScreen('group')}
+          currentIntent={
+            activeBatches[0]?.[0] || recurringIntents.find((item) => item.status === 'ACTIVE')
+          }
+          waitingCount={collectingPlans.length}
           onChanged={refresh}
         />
       </div>
     ) : screen === 'signal' ? (
-      <SignalWizard
+      <SignalComposer
+        key={editingBatch || editingRecurring || 'new'}
         group={group}
         groups={groups}
         locations={locations}
         activeBatch={activeBatches.find((batch) => batch[0].signal_batch_id === editingBatch)}
-        onAddPlace={(city) => {
-          const selected = groups.find((item) => item.city_slug === city)
-          if (selected) {
-            setGroup(selected)
-            setSelectedGroupId(selected.id)
-          }
-          setScreen('group')
-        }}
-        onDone={() => {
+        activeRecurring={recurringIntents.find((item) => item.id === editingRecurring)}
+        adjustment={signalAdjustment}
+        onCreateLocation={createLocationAt}
+        onBack={() => {
           setScreen('home')
           setEditingBatch(null)
-          refresh()
+          setEditingRecurring(null)
+          setSignalAdjustment(null)
+        }}
+        onDone={async () => {
+          await load()
+          setScreen('home')
+          setEditingBatch(null)
+          setEditingRecurring(null)
+          setSignalAdjustment(null)
         }}
       />
-    ) : screen === 'autos' ? (
-      <AutoSignals
-        group={group}
-        groups={groups}
-        locations={locations}
-        intents={intents}
-        onChanged={refresh}
-      />
     ) : screen === 'plans' ? (
-      <Plans plans={plans} onChanged={refresh} />
+      <Plans
+        plans={plans}
+        onChanged={refresh}
+        onSignal={() => {
+          setEditingBatch(null)
+          setEditingRecurring(null)
+          setScreen('signal')
+        }}
+      />
     ) : (
       <Company
         groups={groups}
@@ -336,25 +518,29 @@ export function App() {
         }}
         onNew={() => setCreatingGroup(true)}
         onSelect={(selected) => {
+          if (selected.id === group.id) return
+          setGroup(selected)
           setSelectedGroupId(selected.id)
-          setScreen('home')
         }}
       />
     )
   return (
     <>
-      <AppShell screen={screen} name={name} onNavigate={setScreen}>
+      <AppShell screen={screen} onNavigate={setScreen}>
         {content}
       </AppShell>
-      {cancelBatchId ? (
+      {cancelBatchId || cancelRecurringId ? (
         <ConfirmDialog
-          title="Отменить сигнал?"
+          title="Остановить поиск?"
           description="Новые варианты по нему больше не будут собираться."
-          confirmLabel="Отменить сигнал"
-          cancelLabel="Оставить"
+          confirmLabel="Остановить"
+          cancelLabel="Назад"
           busy={cancelBusy}
           onConfirm={() => void cancelSignal()}
-          onCancel={() => setCancelBatchId(null)}
+          onCancel={() => {
+            setCancelBatchId(null)
+            setCancelRecurringId(null)
+          }}
         />
       ) : null}
     </>

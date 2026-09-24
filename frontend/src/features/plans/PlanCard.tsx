@@ -1,41 +1,50 @@
-import { Button } from '@maxhub/max-ui'
 import { useState } from 'react'
 import { api } from '../../app/api'
 import type { Plan } from '../../app/api'
-import { formatDateTime, formatPeople } from '../../shared/lib/format'
+import { eventFacts } from '../../shared/lib/eventFacts'
+import { formatPeople } from '../../shared/lib/format'
+import { ConfirmDialog } from '../../shared/ui/ConfirmDialog'
 import { DvizhProgress } from '../../shared/ui/DvizhProgress'
-import { StatusLabel, type StatusTone } from '../../shared/ui/StatusLabel'
+import { EventCard } from '../../shared/ui/EventCard'
+import { Icon } from '../../shared/ui/Icon'
 
 export function PlanCard({ plan, onChanged }: { plan: Plan; onChanged: () => void }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [shared, setShared] = useState(false)
   const collecting = plan.status === 'COLLECTING'
-  const waitlisted = plan.my_status === 'WAITLISTED'
   const conditional = plan.my_status === 'WAITING_CONDITION'
-  const state = waitlisted
-    ? { tone: 'waitlist' as StatusTone, label: 'Лист ожидания' }
-    : conditional
-      ? { tone: 'conditional' as StatusTone, label: 'Ждём ещё людей' }
-      : collecting
-        ? { tone: 'collecting' as StatusTone, label: 'Собираем' }
-        : { tone: 'confirmed' as StatusTone, label: 'ДВИЖ СОБРАЛСЯ' }
-  const cancel = async () => {
-    if (!plan.my_offer_id) return
+  const waitlisted = plan.my_status === 'WAITLISTED'
+  const confirmed = plan.status.startsWith('CONFIRMED') && !conditional
+
+  async function cancel() {
+    if (!plan.my_offer_id || busy) return
     setBusy(true)
     setError('')
     try {
       await api.cancelAcceptance(plan.my_offer_id)
+      setCancelOpen(false)
       onChanged()
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Не удалось отменить участие')
+      setError(reason instanceof Error ? reason.message : 'Не удалось отменить участие.')
     } finally {
       setBusy(false)
     }
   }
-  const share = () => {
-    if (window.WebApp?.shareMaxContent) window.WebApp.shareMaxContent({ text: plan.share_text })
-    else void navigator.clipboard?.writeText(plan.share_text)
+
+  async function share() {
+    try {
+      if (window.WebApp?.shareMaxContent) window.WebApp.shareMaxContent({ text: plan.share_text })
+      else {
+        await navigator.clipboard.writeText(plan.share_text)
+        setShared(true)
+      }
+    } catch {
+      setError('Не удалось поделиться. Попробуй ещё раз.')
+    }
   }
+
   const progressCurrent =
     conditional && plan.personal_response_count !== null
       ? plan.personal_response_count
@@ -45,69 +54,117 @@ export function PlanCard({ plan, onChanged }: { plan: Plan; onChanged: () => voi
       ? plan.personal_required_min
       : plan.required_min_people
   const progressLabel = waitlisted
-    ? 'Если освободится место, сообщим'
+    ? 'Если освободится место, сообщим.'
     : conditional && plan.personal_required_min !== null && plan.personal_response_count !== null
-      ? `Твоё условие: ${formatPeople(plan.personal_required_min)} · сейчас готовы ${plan.personal_response_count}`
+      ? 'Твоё условие: ' +
+        plan.personal_response_count +
+        ' из ' +
+        plan.personal_required_min +
+        ' готовы'
       : collecting
-        ? `${plan.participant_count} из ${plan.required_min_people} · ${plan.remaining_to_confirm === 1 ? 'нужен' : 'нужно'} ещё ${plan.remaining_to_confirm}`
-        : `${plan.participant_count} в деле${plan.remaining_capacity > 0 ? ' · можно присоединиться' : ''}`
+        ? plan.participant_count + ' из ' + plan.required_min_people + ' подтвердили'
+        : 'Пойдут ' + formatPeople(plan.participant_count)
+
+  const facts = eventFacts(plan)
+
   return (
-    <article id={`plan-${plan.id}`} className={`plan-card plan-card--${state.tone}`}>
-      <StatusLabel tone={state.tone}>{state.label}</StatusLabel>
-      <div className="plan-card__title">
-        <h2>{plan.title}</h2>
-        <span className="context-label">{plan.group_name}</span>
-      </div>
-      {plan.venue_name ? <p className="plan-card__venue">{plan.venue_name}</p> : null}
-      {plan.address_text ? <p>{plan.address_text}</p> : null}
-      <p>
-        {formatDateTime(plan.starts_at)}
-        {plan.price_text ? <> · {plan.price_text}</> : null}
-      </p>
-      {plan.price_kind === 'FROM' ? <p className="inline-caveat">Цена может быть выше</p> : null}
-      {plan.opening_hours_unverified ? (
-        <p className="inline-caveat">Режим работы лучше проверить</p>
-      ) : null}
-      {!waitlisted ? (
-        <DvizhProgress current={progressCurrent} target={progressTarget} label={progressLabel} />
-      ) : (
-        <p className="plan-card__note">{progressLabel}</p>
-      )}
-      {!collecting && plan.participants.length ? (
-        <p className="plan-card__participants">
-          {plan.participants.map((person) => person.display_name).join(', ')}
-        </p>
-      ) : null}
-      {error ? (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      ) : null}
-      <div className="plan-card__actions">
-        {plan.source_url ? (
-          <Button
-            variant="secondary"
-            onClick={() => window.open(plan.source_url ?? '', '_blank', 'noopener,noreferrer')}
+    <EventCard
+      id={'plan-' + plan.id}
+      badge={
+        confirmed
+          ? 'ДВИЖ собрался'
+          : conditional
+            ? 'Ждём твоё условие'
+            : waitlisted
+              ? 'Лист ожидания'
+              : 'Ты в деле'
+      }
+      title={plan.title}
+      subtitle={'Для компании «' + plan.group_name + '»'}
+      facts={facts}
+      groupName={plan.group_name}
+      groupSummary={waitlisted ? progressLabel : undefined}
+      groupContent={
+        waitlisted ? undefined : confirmed && plan.participants.length ? (
+          <div className="event-card__participants">
+            <strong>С вами пойдут</strong>
+            <div className="event-card__avatars" aria-hidden="true">
+              {plan.participants.slice(0, 5).map((person) => (
+                <span key={person.id}>{person.display_name.trim().slice(0, 1).toUpperCase()}</span>
+              ))}
+            </div>
+            <p>{plan.participants.map((person) => person.display_name).join(', ')}</p>
+          </div>
+        ) : (
+          <DvizhProgress current={progressCurrent} target={progressTarget} label={progressLabel} />
+        )
+      }
+      tone={confirmed ? 'confirmed' : 'default'}
+      note={
+        plan.opening_hours_unverified ? (
+          <p className="inline-caveat">Режим работы лучше проверить.</p>
+        ) : undefined
+      }
+      error={error}
+      primary={
+        confirmed && plan.source_url ? (
+          <a
+            className="primary-button event-card__accept"
+            href={plan.source_url}
+            target="_blank"
+            rel="noreferrer"
           >
-            Источник
-          </Button>
-        ) : null}
-        {!collecting && !waitlisted && !conditional ? (
-          <Button variant="primary" onClick={share}>
-            Поделиться
-          </Button>
-        ) : null}
-        {plan.my_offer_id ? (
-          <button
-            type="button"
-            className="text-action text-action--danger"
-            disabled={busy}
-            onClick={() => void cancel()}
-          >
-            {busy ? 'Отменяем…' : 'Передумал'}
-          </button>
-        ) : null}
-      </div>
-    </article>
+            <span>Подробнее о плане</span>
+            <Icon name="arrowRight" size={23} />
+          </a>
+        ) : undefined
+      }
+      actions={
+        confirmed || plan.my_offer_id ? (
+          <>
+            {confirmed ? (
+              <button
+                type="button"
+                className={
+                  plan.source_url
+                    ? 'event-card__action'
+                    : 'primary-button event-card__action--primary'
+                }
+                onClick={() => void share()}
+              >
+                <Icon name="share" size={20} />
+                {window.WebApp?.shareMaxContent
+                  ? 'Поделиться'
+                  : shared
+                    ? 'Скопировано'
+                    : 'Скопировать'}
+              </button>
+            ) : null}
+            {plan.my_offer_id ? (
+              <button
+                type="button"
+                className="event-card__action"
+                onClick={() => setCancelOpen(true)}
+              >
+                <Icon name="ban" size={20} /> Не смогу пойти
+              </button>
+            ) : null}
+          </>
+        ) : undefined
+      }
+      dialog={
+        cancelOpen ? (
+          <ConfirmDialog
+            title="Отменить участие?"
+            description="Другие участники увидят, что план снова собирается."
+            confirmLabel="Отменить участие"
+            cancelLabel="Остаться"
+            busy={busy}
+            onConfirm={() => void cancel()}
+            onCancel={() => setCancelOpen(false)}
+          />
+        ) : undefined
+      }
+    />
   )
 }

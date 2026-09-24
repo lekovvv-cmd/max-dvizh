@@ -15,6 +15,7 @@ from app.api.schemas import (
     GroupCityUpdateIn,
     GroupCityUpdateOut,
     GroupCreate,
+    GroupMemberOut,
     GroupOut,
     IntentIn,
     IntentOut,
@@ -203,6 +204,23 @@ def list_groups(session: DbSession, user: CurrentUser) -> list[GroupOut]:
         )
     )
     return [group_out(session, group, expose_token=True) for group in groups]
+
+
+@router.get("/groups/{group_id}/members", response_model=list[GroupMemberOut])
+def list_group_members(
+    group_id: str, session: DbSession, user: CurrentUser
+) -> list[GroupMemberOut]:
+    member(session, group_id, user.id)
+    rows = session.execute(
+        select(User.id, User.display_name)
+        .join(GroupMember, GroupMember.user_id == User.id)
+        .where(GroupMember.group_id == group_id)
+        .order_by(GroupMember.joined_at, GroupMember.id)
+    ).all()
+    return [
+        GroupMemberOut(id=user_id, display_name=display_name, is_me=user_id == user.id)
+        for user_id, display_name in rows
+    ]
 
 
 @router.post("/groups", response_model=GroupOut, status_code=status.HTTP_201_CREATED)

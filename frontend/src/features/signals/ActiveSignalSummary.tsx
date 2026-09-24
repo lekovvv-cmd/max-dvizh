@@ -5,11 +5,13 @@ import { StatusLabel } from '../../shared/ui/StatusLabel'
 export function ActiveSignalSummary({
   batch,
   groups,
+  status,
   onEdit,
   onCancel,
 }: {
   batch: Intent[]
   groups: Group[]
+  status: string
   onEdit: () => void
   onCancel: () => void
 }) {
@@ -25,7 +27,7 @@ export function ActiveSignalSummary({
 
   return (
     <article className="active-signal">
-      <StatusLabel tone="active">Сигнал активен</StatusLabel>
+      <StatusLabel>{status}</StatusLabel>
       <p className="active-signal__time">
         {formatSignalWindow(first.available_from, first.available_to)}
       </p>
@@ -39,7 +41,7 @@ export function ActiveSignalSummary({
           Изменить
         </button>
         <button type="button" className="text-action text-action--danger" onClick={onCancel}>
-          Отменить
+          Остановить
         </button>
       </div>
     </article>

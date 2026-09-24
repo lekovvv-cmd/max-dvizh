@@ -27,25 +27,8 @@
   background: transparent;
   color: var(--dvizh-ink);
   font-size: 17px;
-  font-weight: 800;
+  font-weight: 500;
   letter-spacing: -0.02em;
-}
-.brand > span {
-  display: grid;
-  width: 26px;
-  height: 26px;
-  place-items: center;
-  border-radius: 7px;
-  background: var(--dvizh-yellow);
-  color: #3d3300;
-}
-.topbar__user {
-  max-width: 45%;
-  overflow: hidden;
-  color: var(--dvizh-muted);
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .bottom-nav {
   position: fixed;
@@ -80,7 +63,7 @@
 }
 .bottom-nav button.is-active {
   color: var(--dvizh-blue);
-  font-weight: 750;
+  font-weight: 500;
 }
 
 .section-header {
@@ -99,9 +82,6 @@
 .home-section {
   display: grid;
   gap: var(--space-3);
-}
-.home-section__title {
-  font-size: 17px;
 }
 .inline-notice {
   margin: 0;
@@ -135,7 +115,7 @@
   background: transparent;
   color: var(--dvizh-blue);
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 500;
 }
 .text-action--danger {
   color: var(--dvizh-danger);

@@ -1,6 +1,8 @@
-import { Button, Input } from '@maxhub/max-ui'
+import { Button } from '@maxhub/max-ui'
 import { useEffect, useState } from 'react'
 import { api, type Group } from '../../app/api'
+import { PulseMark } from '../../shared/ui/PulseMark'
+import { CityPicker } from '../../shared/ui/CityPicker'
 
 export function CreateCompany({
   onCreated,
@@ -13,7 +15,7 @@ export function CreateCompany({
   chatAvailable: boolean
   joinState: string
 }) {
-  const [name, setName] = useState('Наша компания')
+  const [name, setName] = useState('')
   const [city, setCity] = useState('')
   const [cities, setCities] = useState<{ slug: string; name: string }[]>([])
   const [error, setError] = useState('')
@@ -29,11 +31,16 @@ export function CreateCompany({
   }, [])
   async function submit(event: React.FormEvent, bindCurrentChat = false) {
     event.preventDefault()
+    if (!name.trim() || !city) return
     setBusy(true)
     setError('')
     try {
       onCreated(
-        await api.createGroup({ name, city_slug: city, bind_current_chat: bindCurrentChat }),
+        await api.createGroup({
+          name: name.trim(),
+          city_slug: city,
+          bind_current_chat: bindCurrentChat,
+        }),
       )
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Не удалось создать компанию')
@@ -45,22 +52,21 @@ export function CreateCompany({
     <main className="start-screen">
       <section className="start-card">
         {joinState ? <p role="status">{joinState}</p> : null}
+        <PulseMark />
         <h1>Создать компанию</h1>
+        <p>Позови друзей, и ДВИЖ подберёт план, который подходит всем.</p>
         <form onSubmit={(event) => void submit(event)}>
           <label>
             Название
-            <Input value={name} onChange={(event) => setName(event.target.value)} required />
+            <input
+              value={name}
+              placeholder="Например, Наши друзья"
+              maxLength={80}
+              onChange={(event) => setName(event.target.value)}
+              required
+            />
           </label>
-          <label>
-            Город
-            <select value={city} onChange={(event) => setCity(event.target.value)} required>
-              {cities.map((item) => (
-                <option key={item.slug} value={item.slug}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <CityPicker cities={cities} value={city} onChange={setCity} />
           {error ? (
             <p className="form-error" role="alert">
               {error}
@@ -87,10 +93,11 @@ export function CreateCompany({
           {chatAvailable ? (
             <Button
               stretched
+              className="create-company__chat"
               variant="primary"
               type="button"
               loading={busy}
-              disabled={busy || !city}
+              disabled={busy || !city || !name.trim()}
               onClick={(event) => void submit(event, true)}
             >
               Для этого чата MAX
@@ -98,12 +105,13 @@ export function CreateCompany({
           ) : null}
           <Button
             stretched
+            className="create-company__submit"
             variant={chatAvailable ? 'secondary' : 'primary'}
             type="submit"
             loading={busy}
-            disabled={busy || !city}
+            disabled={busy || !city || !name.trim()}
           >
-            Приватная компания
+            {chatAvailable ? 'Создать личную компанию' : 'Создать компанию'}
           </Button>
           {onCancel ? (
             <Button type="button" variant="secondary" onClick={onCancel}>

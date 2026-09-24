@@ -1,40 +1,34 @@
-import { Icon } from './Icon'
+import { Icon, type IconName } from './Icon'
 
-export type Screen = 'home' | 'signal' | 'autos' | 'plans' | 'group'
+export type Screen = 'home' | 'signal' | 'plans' | 'group'
 
 const items: Array<{
   id: Exclude<Screen, 'signal'>
-  icon: 'home' | 'repeat' | 'calendar' | 'users'
+  icon: IconName
+  activeIcon: IconName
   label: string
 }> = [
-  { id: 'home', icon: 'home', label: 'Главная' },
-  { id: 'autos', icon: 'repeat', label: 'Авто' },
-  { id: 'plans', icon: 'calendar', label: 'Планы' },
-  { id: 'group', icon: 'users', label: 'Компания' },
+  { id: 'home', icon: 'home', activeIcon: 'homeSolid', label: 'Главная' },
+  { id: 'plans', icon: 'list', activeIcon: 'listSolid', label: 'Планы' },
+  { id: 'group', icon: 'users', activeIcon: 'usersSolid', label: 'Компания' },
 ]
 
 export function AppShell({
   screen,
-  name,
   children,
   onNavigate,
 }: {
   screen: Screen
-  name: string
   children: React.ReactNode
   onNavigate: (screen: Screen) => void
 }) {
   return (
     <main className="app-shell">
-      <header className="topbar">
-        <button className="brand" onClick={() => onNavigate('home')} aria-label="На главную ДВИЖ">
-          <span>
-            <Icon name="bolt" size={17} />
-          </span>{' '}
-          ДВИЖ
-        </button>
-        <span className="topbar__user">{name}</span>
-      </header>
+      {screen === 'home' ? (
+        <header className="topbar">
+          <span className="brand">ДВИЖ</span>
+        </header>
+      ) : null}
       <div className="screen-content">{children}</div>
       {screen !== 'signal' ? (
         <nav className="bottom-nav" aria-label="Основная навигация">
@@ -45,7 +39,7 @@ export function AppShell({
               onClick={() => onNavigate(item.id)}
               aria-current={screen === item.id ? 'page' : undefined}
             >
-              <Icon name={item.icon} />
+              <Icon name={screen === item.id ? item.activeIcon : item.icon} />
               {item.label}
             </button>
           ))}

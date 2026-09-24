@@ -129,7 +129,7 @@ def test_kudago_request_uses_the_same_city_time_category_slice(monkeypatch: obje
     assert events[1]["location"] == places[1]["location"] == "ekb"
     assert events[1]["actual_since"] == int(requested.starts_at.timestamp())
     assert events[1]["actual_until"] == int(requested.ends_at.timestamp())
-    assert events[1]["categories"] == "concert"
+    assert events[1]["categories"] == "concert,party"
     assert places[1]["categories"] == "clubs,concert-hall"
 
 
@@ -157,3 +157,27 @@ def test_wellness_query_uses_real_place_slugs_without_unfiltered_events(
     assert len(captured) == 1
     assert captured[0][0].endswith("/places/")
     assert captured[0][1]["categories"] == "amusement,recreation,salons,suburb"
+
+
+def test_museum_query_reads_only_matching_places(monkeypatch: object) -> None:
+    captured: list[tuple[str, dict[str, object]]] = []
+
+    class Response:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, list[object]]:
+            return {"results": []}
+
+    def fake_get(url: str, *, params: dict[str, object], timeout: float) -> Response:
+        captured.append((url, dict(params)))
+        return Response()
+
+    monkeypatch.setattr("app.modules.leisure.provider.httpx.get", fake_get)  # type: ignore[attr-defined]
+    requested = query()
+    KudaGoProvider().items(
+        ProviderQuery(requested.city_slug, requested.starts_at, requested.ends_at, ("museum",))
+    )
+    assert len(captured) == 1
+    assert captured[0][0].endswith("/places/")
+    assert captured[0][1]["categories"] == "museums"

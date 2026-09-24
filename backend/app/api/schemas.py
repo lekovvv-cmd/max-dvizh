@@ -29,6 +29,12 @@ class GroupOut(BaseModel):
     max_chat_bound: bool = False
 
 
+class GroupMemberOut(BaseModel):
+    id: str
+    display_name: str
+    is_me: bool
+
+
 class GroupCityUpdateIn(BaseModel):
     city_slug: str = Field(min_length=2, max_length=64)
 
@@ -91,7 +97,7 @@ class IntentIn(BaseModel):
             raise ValueError("Минимум участников больше максимума")
         if self.activity_categories is not None and (
             not self.activity_categories
-            or len(self.activity_categories) > 8
+            or len(self.activity_categories) > 12
             or any(not item or len(item) > 64 for item in self.activity_categories)
         ):
             raise ValueError("Выберите категории")
@@ -101,7 +107,7 @@ class IntentIn(BaseModel):
 class SignalBatchIn(BaseModel):
     group_ids: list[str] = Field(min_length=1, max_length=12)
     activity_categories: list[str] = Field(
-        default_factory=lambda: ["any"], min_length=1, max_length=8
+        default_factory=lambda: ["any"], min_length=1, max_length=12
     )
     available_from: datetime
     available_to: datetime

@@ -1,108 +1,171 @@
-import { Button } from '@maxhub/max-ui'
-import { useState } from 'react'
-
+import { useRef, useState } from 'react'
 import { api } from '../../app/api'
 import type { Offer } from '../../app/api'
-import { formatDateTime, formatTime } from '../../shared/lib/format'
+import { eventFacts } from '../../shared/lib/eventFacts'
+import { formatPeopleNeeded } from '../../shared/lib/format'
+import { ConfirmDialog } from '../../shared/ui/ConfirmDialog'
 import { DvizhProgress } from '../../shared/ui/DvizhProgress'
-import { StatusLabel } from '../../shared/ui/StatusLabel'
+import { EventCard } from '../../shared/ui/EventCard'
+import { Icon } from '../../shared/ui/Icon'
 
 export function OfferCard({ offer, onChanged }: { offer: Offer; onChanged: () => void }) {
   const [busy, setBusy] = useState(false)
+  const busyRef = useRef(false)
   const [error, setError] = useState('')
+  const [details, setDetails] = useState(false)
+  const [nearOpen, setNearOpen] = useState(false)
+  const [accepted, setAccepted] = useState(false)
 
   async function act(accept: boolean) {
+    if (busyRef.current) return
+    busyRef.current = true
     setBusy(true)
     setError('')
     try {
-      if (accept) await api.accept(offer.id, offer.is_near)
-      else await api.reject(offer.id)
+      if (accept) {
+        await api.accept(offer.id, offer.is_near)
+        setAccepted(true)
+      } else await api.reject(offer.id)
+      setNearOpen(false)
       onChanged()
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Не удалось обработать выбор')
+      setError(
+        reason instanceof Error ? reason.message : 'Не удалось сохранить выбор. Попробуй ещё раз.',
+      )
     } finally {
       setBusy(false)
+      busyRef.current = false
     }
   }
 
-  const hasDetails = offer.price_text !== null || offer.distance_km !== null
-  const progressLabel =
+  const progress =
     offer.remaining_to_confirm > 0
-      ? `${offer.accepted_count} из ${offer.required_min_people} · ${offer.remaining_to_confirm === 1 ? 'нужен' : 'нужно'} ещё ${offer.remaining_to_confirm}`
-      : offer.remaining_capacity > 0
-        ? `${offer.accepted_count} в деле · можно присоединиться`
-        : `${offer.accepted_count} из ${offer.effective_max} · мест нет`
-  const progressTarget =
-    offer.remaining_to_confirm > 0 ? offer.required_min_people : offer.effective_max
+      ? offer.accepted_count + ' из ' + offer.required_min_people + ' подтвердили'
+      : offer.accepted_count + ' готовы'
+  const facts = eventFacts(offer)
+  if (accepted)
+    return (
+      <EventCard
+        id={'offer-' + offer.id}
+        badge="Ты в деле"
+        title={offer.title}
+        subtitle="Ждём подтверждения остальных."
+        facts={facts}
+        groupName={offer.group_name}
+        groupContent={
+          <DvizhProgress
+            current={offer.accepted_count + 1}
+            target={offer.required_min_people}
+            label={offer.accepted_count + 1 + ' из ' + offer.required_min_people + ' подтвердили'}
+          />
+        }
+      />
+    )
   return (
-    <article
-      id={`offer-${offer.id}`}
-      className={`offer-card ${offer.is_near ? 'offer-card--near' : ''}`}
-    >
-      <div className="offer-card__head">
-        <span className="context-label">{offer.group_name}</span>
-        {offer.is_demo ? <span className="demo-mark">Демо</span> : null}
-      </div>
-      <div className="offer-card__title">
-        <h3>{offer.title}</h3>
-        {offer.is_near ? <StatusLabel tone="conditional">Чуть дороже</StatusLabel> : null}
-      </div>
-      <p className="offer-card__when">
-        {formatDateTime(offer.starts_at)}–{formatTime(offer.ends_at)}
-      </p>
-      {offer.venue_name ? <p className="offer-card__venue">{offer.venue_name}</p> : null}
-      {offer.address_text ? <p>{offer.address_text}</p> : null}
-      {hasDetails ? (
-        <p className="offer-card__details">
-          {offer.price_text}
-          {offer.price_text && offer.distance_km !== null ? ' · ' : null}
-          {offer.distance_km !== null ? `${offer.distance_km.toFixed(1)} км` : null}
-        </p>
-      ) : null}
-      {offer.price_kind === 'FROM' ? <p className="inline-caveat">Цена может быть выше</p> : null}
-      {offer.opening_hours_unverified ? (
-        <p className="inline-caveat">Режим работы лучше проверить</p>
-      ) : null}
-      <DvizhProgress current={offer.accepted_count} target={progressTarget} label={progressLabel} />
-      {offer.is_near ? (
-        <aside className="near-note" aria-label="Нужно подтверждение исключения">
-          <strong>
+    <EventCard
+      id={'offer-' + offer.id}
+      badge="Есть вариант!"
+      title={offer.title}
+      subtitle={'Для компании «' + offer.group_name + '»'}
+      facts={facts}
+      groupName={offer.group_name}
+      groupSummary={progress}
+      groupContent={
+        <DvizhProgress
+          current={offer.accepted_count}
+          target={offer.required_min_people}
+          label={
+            offer.remaining_to_confirm > 0
+              ? formatPeopleNeeded(offer.remaining_to_confirm)
+              : 'Компания готова собраться.'
+          }
+        />
+      }
+      tone={offer.is_near ? 'near' : 'default'}
+      note={
+        offer.is_near ? (
+          <p className="near-note">
             {offer.budget_delta !== null
-              ? `На ${offer.budget_delta} ₽ выше твоего лимита`
-              : 'Немного выше твоего лимита'}
-          </strong>
-          <p>Нужно подтвердить отдельно.</p>
-        </aside>
-      ) : null}
-      {error ? (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      ) : null}
-      <div className="offer-card__actions">
-        {offer.can_accept || offer.can_waitlist ? (
-          <Button variant="primary" loading={busy} disabled={busy} onClick={() => void act(true)}>
-            {offer.can_waitlist
-              ? 'Встать в лист ожидания'
-              : offer.is_near
-                ? 'Всё равно впишусь'
-                : 'Я в деле'}
-          </Button>
-        ) : null}
-        <Button variant="secondary" disabled={busy} onClick={() => void act(false)}>
-          Пас
-        </Button>
-      </div>
-      <footer>
-        {offer.is_demo
-          ? 'Демонстрационные данные'
-          : `KudaGo · ${formatDateTime(offer.source_fetched_at)}`}
-        {offer.source_url ? (
-          <a href={offer.source_url} target="_blank" rel="noreferrer">
-            Источник
-          </a>
-        ) : null}
-      </footer>
-    </article>
+              ? 'На ' + offer.budget_delta.toLocaleString('ru-RU') + ' ₽ дороже твоего бюджета.'
+              : 'Этот вариант выходит за твой бюджет.'}
+          </p>
+        ) : undefined
+      }
+      error={error}
+      primary={
+        offer.can_accept || offer.can_waitlist ? (
+          <button
+            type="button"
+            className="primary-button event-card__accept"
+            disabled={busy}
+            onClick={() => (offer.is_near ? setNearOpen(true) : void act(true))}
+          >
+            <span>{busy ? 'Сохраняем…' : offer.can_waitlist ? 'В лист ожидания' : 'Я пойду'}</span>
+            <Icon name="arrowRight" size={24} />
+          </button>
+        ) : undefined
+      }
+      actions={
+        <>
+          <button
+            type="button"
+            className="event-card__action"
+            aria-expanded={details}
+            onClick={() => setDetails((value) => !value)}
+          >
+            <Icon name="document" size={22} />
+            Подробнее
+          </button>
+          <button
+            type="button"
+            className="event-card__action"
+            disabled={busy}
+            onClick={() => void act(false)}
+          >
+            <Icon name="ban" size={22} />
+            Не подходит
+          </button>
+        </>
+      }
+      more={
+        details ? (
+          <>
+            {offer.address_text ? <p>{offer.address_text}</p> : null}
+            {offer.price_kind === 'FROM' ? <p>Цена может быть выше.</p> : null}
+            {offer.opening_hours_unverified ? <p>Режим работы лучше проверить.</p> : null}
+            {offer.source_url ? (
+              <a
+                className="event-card__source"
+                href={offer.source_url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Страница события
+              </a>
+            ) : null}
+            {!offer.address_text && !offer.source_url ? <p>Других подробностей пока нет.</p> : null}
+          </>
+        ) : undefined
+      }
+      dialog={
+        nearOpen ? (
+          <ConfirmDialog
+            title="Подтвердить этот вариант?"
+            description={
+              offer.budget_delta !== null
+                ? 'Он на ' +
+                  offer.budget_delta.toLocaleString('ru-RU') +
+                  ' ₽ дороже твоего бюджета.'
+                : 'Он выходит за твой бюджет.'
+            }
+            confirmLabel="Всё равно пойду"
+            cancelLabel="Вернуться"
+            busy={busy}
+            onConfirm={() => void act(true)}
+            onCancel={() => setNearOpen(false)}
+          />
+        ) : undefined
+      }
+    />
   )
 }

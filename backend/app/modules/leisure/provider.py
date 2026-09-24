@@ -92,26 +92,26 @@ class ProviderQuery:
 
 
 EVENT_CATEGORY_MAP = {
-    "quest": ("games",),
+    "quest": ("games", "quest"),
     "entertainment": ("games",),
     "recreation": ("sport",),
     "exhibition": ("exhibition",),
-    "theater": ("exhibition",),
-    "tour": ("exhibition",),
+    "theater": ("exhibition", "theater"),
+    "tour": ("exhibition", "tour"),
     "concert": ("concert",),
-    "party": ("concert",),
+    "party": ("concert", "party"),
 }
 PLACE_CATEGORY_MAP = {
-    "anticafe": ("games",),
-    "questroom": ("games",),
+    "anticafe": ("games", "anticafe"),
+    "questroom": ("games", "quest"),
     "amusement": ("games", "sport"),
-    "clubs": ("games", "concert"),
+    "clubs": ("games", "concert", "party"),
     "recreation": ("sport",),
-    "stable": ("sport",),
-    "museums": ("exhibition",),
+    "stable": ("sport", "stable"),
+    "museums": ("exhibition", "museum"),
     "art-centers": ("exhibition",),
     "art-space": ("exhibition",),
-    "theatre": ("exhibition",),
+    "theatre": ("exhibition", "theater"),
     "concert-hall": ("concert",),
 }
 WELLNESS_PLACE_CATEGORIES = {"salons", "suburb", "recreation", "amusement"}
@@ -291,24 +291,31 @@ class KudaGoProvider:
         fetched_at = utcnow()
         result: list[NormalizedLeisureItem] = []
         event_filters = {
-            "games": "quest",
+            "games": "quest,entertainment",
+            "quest": "quest",
             "sport": "recreation",
-            "exhibition": "exhibition",
-            "concert": "concert",
+            "exhibition": "exhibition,theater,tour",
+            "theater": "theater",
+            "tour": "tour",
+            "concert": "concert,party",
+            "party": "party",
         }
         place_filters = {
             "games": "anticafe,questroom,amusement,clubs",
+            "quest": "questroom",
+            "anticafe": "anticafe",
             "sport": "recreation,amusement,stable",
+            "stable": "stable",
             "exhibition": "museums,art-centers,art-space,theatre",
+            "museum": "museums",
+            "theater": "theatre",
             "concert": "concert-hall,clubs",
+            "party": "clubs",
             "wellness": "salons,suburb,recreation,amusement",
         }
         for kind in ("events", "places"):
-            if (
-                kind == "events"
-                and query.categories
-                and all(category == "wellness" for category in query.categories)
-            ):
+            filters = event_filters if kind == "events" else place_filters
+            if query.categories and all(category not in filters for category in query.categories):
                 continue
             params: dict[str, str | int] = {"location": query.city_slug, "page_size": 100}
             if kind == "events":
@@ -322,9 +329,10 @@ class KudaGoProvider:
                 )
                 selected = sorted(
                     {
-                        event_filters[category]
+                        slug
                         for category in query.categories
-                        if category in event_filters
+                        for slug in event_filters.get(category, "").split(",")
+                        if slug
                     }
                 )
             else:
@@ -339,11 +347,7 @@ class KudaGoProvider:
                         if slug
                     }
                 )
-            known = event_filters if kind == "events" else place_filters
-            if selected and all(
-                category in known or (kind == "events" and category == "wellness")
-                for category in query.categories
-            ):
+            if selected:
                 params["categories"] = ",".join(selected)
             for page in range(1, max(1, settings.kudago_max_pages) + 1):
                 params["page"] = page

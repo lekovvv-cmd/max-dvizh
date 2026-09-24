@@ -1,11 +1,12 @@
-import { Button, Input } from '@maxhub/max-ui'
+import { Button } from '@maxhub/max-ui'
 import { useEffect, useState } from 'react'
 import { api, setDemoUser } from '../../app/api'
-import type { Group, GroupCityUpdateResult, Location } from '../../app/api'
+import type { Group, GroupCityUpdateResult, GroupMember, Location } from '../../app/api'
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog'
 import { Icon } from '../../shared/ui/Icon'
 import { formatPeople } from '../../shared/lib/format'
 import { SectionHeader } from '../../shared/ui/SectionHeader'
+import { CityPicker } from '../../shared/ui/CityPicker'
 
 export function Company({
   groups,
@@ -33,10 +34,13 @@ export function Company({
   onDeletePlace: (id: string) => Promise<void>
 }) {
   const [copied, setCopied] = useState(false)
+  const [inviteOpen, setInviteOpen] = useState(false)
   const [person, setPerson] = useState('anton')
-  const [label, setLabel] = useState('Дом')
+  const [label, setLabel] = useState('')
+  const [placeOpen, setPlaceOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [placeError, setPlaceError] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingLabel, setEditingLabel] = useState('')
   const [placeMenuId, setPlaceMenuId] = useState<string | null>(null)
@@ -44,6 +48,8 @@ export function Company({
   const [changeCityOpen, setChangeCityOpen] = useState(false)
   const [nextCity, setNextCity] = useState(active.city_slug)
   const [cityResult, setCityResult] = useState('')
+  const [members, setMembers] = useState<GroupMember[]>([])
+  const [membersStatus, setMembersStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   useEffect(() => {
     void api
       .cities()
@@ -55,6 +61,25 @@ export function Company({
   }, [active.city_slug])
   useEffect(() => {
     setCityResult('')
+  }, [active.id])
+  useEffect(() => {
+    let current = true
+    setMembers([])
+    setMembersStatus('loading')
+    void api.groupMembers(active.id).then(
+      (items) => {
+        if (current) {
+          setMembers(items)
+          setMembersStatus('ready')
+        }
+      },
+      () => {
+        if (current) setMembersStatus('error')
+      },
+    )
+    return () => {
+      current = false
+    }
   }, [active.id])
   const invite = active.invite_url || `${window.location.origin}#startapp=${active.invite_token}`
   async function shareInvite() {
@@ -73,13 +98,23 @@ export function Company({
       setError('Не удалось поделиться. Скопируй приглашение вручную.')
     }
   }
+  async function copyInvite() {
+    try {
+      await navigator.clipboard.writeText(invite)
+      setCopied(true)
+    } catch {
+      setError('Не удалось скопировать ссылку.')
+    }
+  }
   async function addPlace() {
     setBusy(true)
-    setError('')
+    setPlaceError('')
     try {
-      await onAddPlace(label)
+      await onAddPlace(label.trim())
+      setLabel('')
+      setPlaceOpen(false)
     } catch (reason) {
-      setError(
+      setPlaceError(
         reason instanceof Error
           ? reason.message
           : 'Геопозиция недоступна. Расстояние останется выключенным.',
@@ -114,7 +149,12 @@ export function Company({
       setBusy(false)
     }
   }
-  const cityName = cities.find((city) => city.slug === active.city_slug)?.name || active.city_slug
+  const cityName =
+    cities.find((city) => city.slug === active.city_slug)?.name ||
+    ({ ekb: 'Екатеринбург', msk: 'Москва', spb: 'Санкт-Петербург' } as Record<string, string>)[
+      active.city_slug
+    ] ||
+    'Твой город'
   const cityLocations = locations.filter((item) => item.city_slug === active.city_slug)
   return (
     <section className="page-stack company-page">
@@ -127,10 +167,16 @@ export function Company({
         }
       />
       <div className="company-overview">
+        <span className="company-overview__icon" aria-hidden="true">
+          <Icon name="users" size={30} />
+        </span>
         <strong>{active.name}</strong>
         <span>
-          {formatPeople(active.member_count)} · {cityName}
+          {cityName} · {formatPeople(active.member_count)}
         </span>
+        <Button variant="primary" stretched onClick={() => setInviteOpen(true)}>
+          Пригласить друзей
+        </Button>
       </div>
       {groups.length > 1 ? (
         <section className="settings-section">
@@ -152,22 +198,38 @@ export function Company({
           </div>
         </section>
       ) : null}
-      <section className="settings-section">
+      <section className="settings-section company-members" aria-labelledby="company-members-title">
         <div className="settings-section__head">
           <div>
-            <h2>Участники и приглашение</h2>
-            <p>Добавь друзей в «{active.name}».</p>
+            <h2 id="company-members-title">Кто в компании</h2>
+            <p>{formatPeople(active.member_count)}</p>
           </div>
-          <button type="button" className="text-action" onClick={() => void shareInvite()}>
-            {window.WebApp?.shareMaxContent ? 'Поделиться' : copied ? 'Скопировано' : 'Пригласить'}
-          </button>
         </div>
+        {membersStatus === 'loading' ? <p className="text-muted">Загружаем участников…</p> : null}
+        {membersStatus === 'error' ? (
+          <p className="form-error" role="alert">
+            Не удалось загрузить участников.
+          </p>
+        ) : null}
+        {membersStatus === 'ready' ? (
+          <ul className="company-members__list">
+            {members.map((person) => (
+              <li key={person.id}>
+                <span className="company-members__avatar" aria-hidden="true">
+                  {person.display_name.trim().slice(0, 1).toUpperCase()}
+                </span>
+                <span>{person.display_name}</span>
+                {person.is_me ? <small>Ты</small> : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </section>
       <section className="settings-section">
         <div className="settings-section__head">
           <div>
             <h2>Мои места</h2>
-            <p>Видны только тебе.</p>
+            <p>Эти точки видны только тебе.</p>
           </div>
         </div>
         {cityLocations.length ? (
@@ -178,7 +240,7 @@ export function Company({
                   {editingId === place.id ? (
                     <label>
                       Название места
-                      <Input
+                      <input
                         value={editingLabel}
                         maxLength={80}
                         onChange={(event) => setEditingLabel(event.target.value)}
@@ -272,27 +334,58 @@ export function Company({
             Сохранённых мест пока нет. Без них расстояние в сигнале недоступно.
           </p>
         )}
-        <details className="add-place">
-          <summary>+ Добавить место</summary>
-          <div className="add-place__form">
-            <label>
-              Название
-              <Input
-                value={label}
-                maxLength={80}
-                onChange={(event) => setLabel(event.target.value)}
-              />
-            </label>
-            <Button
-              variant="secondary"
-              loading={busy}
-              disabled={busy || !label.trim()}
-              onClick={() => void addPlace()}
-            >
-              Использовать геопозицию
-            </Button>
-          </div>
-        </details>
+        <div className={'add-place' + (placeOpen ? ' is-open' : '')}>
+          <button
+            type="button"
+            className="add-place__trigger"
+            aria-expanded={placeOpen}
+            onClick={() => {
+              setPlaceOpen((current) => !current)
+              setPlaceMenuId(null)
+              setPlaceError('')
+            }}
+          >
+            <span className="add-place__icon" aria-hidden="true">
+              <Icon name="pin" size={20} />
+            </span>
+            <span>Добавить место</span>
+            <span className="add-place__toggle" aria-hidden="true">
+              <span className="add-place__plus">
+                <Icon name="plus" size={21} />
+              </span>
+              <span className="add-place__minus">
+                <Icon name="minus" size={21} />
+              </span>
+            </span>
+          </button>
+          {placeOpen ? (
+            <div className="add-place__form">
+              <label>
+                Название
+                <input
+                  value={label}
+                  maxLength={80}
+                  placeholder="Например, Дом"
+                  onChange={(event) => setLabel(event.target.value)}
+                />
+              </label>
+              <p className="form-hint">Нужна геопозиция. Точка будет видна только тебе.</p>
+              {placeError ? (
+                <p className="form-error" role="alert">
+                  {placeError}
+                </p>
+              ) : null}
+              <Button
+                variant="primary"
+                loading={busy}
+                disabled={busy || !label.trim()}
+                onClick={() => void addPlace()}
+              >
+                Сохранить текущее место
+              </Button>
+            </div>
+          ) : null}
+        </div>
       </section>
       <section className="settings-section">
         <div className="settings-section__head">
@@ -322,7 +415,7 @@ export function Company({
           {error}
         </p>
       ) : null}
-      {mode === 'development' ? (
+      {mode === 'development' && new URLSearchParams(window.location.search).has('dev') ? (
         <section className="dev-tools">
           <p>Dev / demo tools</p>
           <label>
@@ -351,16 +444,23 @@ export function Company({
           onConfirm={() => void changeCity()}
           onCancel={() => setChangeCityOpen(false)}
         >
-          <label>
-            Город
-            <select value={nextCity} onChange={(event) => setNextCity(event.target.value)}>
-              {cities.map((city) => (
-                <option key={city.slug} value={city.slug}>
-                  {city.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <CityPicker cities={cities} value={nextCity} onChange={setNextCity} />
+        </ConfirmDialog>
+      ) : null}
+      {inviteOpen ? (
+        <ConfirmDialog
+          title="Позвать друзей"
+          description={'Приглашение в «' + active.name + '»'}
+          confirmLabel={window.WebApp?.shareMaxContent ? 'Поделиться в MAX' : 'Скопировать ссылку'}
+          cancelLabel="Закрыть"
+          onConfirm={() => void shareInvite()}
+          onCancel={() => setInviteOpen(false)}
+        >
+          {window.WebApp?.shareMaxContent ? (
+            <button type="button" className="secondary-button" onClick={() => void copyInvite()}>
+              {copied ? 'Скопировано' : 'Скопировать ссылку'}
+            </button>
+          ) : null}
         </ConfirmDialog>
       ) : null}
     </section>

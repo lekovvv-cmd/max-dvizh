@@ -1,18 +1,32 @@
+@font-face {
+  font-family: 'Max Sans';
+  src: url('../assets/fonts/Max_Sans_Regular.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Max Sans';
+  src: url('../assets/fonts/Max_Sans_Medium.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
 :root {
-  --dvizh-bg: #f6f7f9;
+  --dvizh-bg: #f8f7fc;
   --dvizh-surface: #ffffff;
-  --dvizh-surface-muted: #f0f2f5;
-  --dvizh-ink: #171a21;
-  --dvizh-muted: #69707d;
-  --dvizh-line: #dfe3e8;
-  --dvizh-line-strong: #c9ced7;
-  --dvizh-blue: #1976ed;
-  --dvizh-blue-strong: #0f62c9;
-  --dvizh-blue-soft: #eaf3ff;
-  --dvizh-yellow: #ffd43b;
-  --dvizh-warm: #8a4c12;
-  --dvizh-warm-soft: #fff4e5;
-  --dvizh-collecting: #68720e;
+  --dvizh-surface-muted: #f1effa;
+  --dvizh-ink: #0d001a;
+  --dvizh-muted: #68647a;
+  --dvizh-line: #e4e1ed;
+  --dvizh-line-strong: #817b93;
+  --dvizh-blue: #471aff;
+  --dvizh-blue-strong: #3511d4;
+  --dvizh-blue-soft: #f0ecff;
+  --dvizh-violet: #6e1aff;
+  --dvizh-cyan: #00bfff;
+  --dvizh-warm: #5421a8;
+  --dvizh-warm-soft: #f0ecff;
   --dvizh-danger: #b5382a;
   --space-1: 4px;
   --space-2: 8px;
@@ -21,21 +35,12 @@
   --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
-  --radius-control: 8px;
-  --radius-row: 12px;
-  --radius-modal: 16px;
-  font-family:
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    sans-serif;
+  --family-base: 'Max Sans', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  font-family: var(--family-base);
   color: var(--dvizh-ink);
   background: var(--dvizh-bg);
   font-synthesis: none;
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
 * {
@@ -50,8 +55,7 @@ body {
   background: var(--dvizh-bg);
 }
 button,
-input,
-select {
+input {
   font: inherit;
 }
 button {
@@ -62,7 +66,6 @@ button:disabled {
 }
 button:focus-visible,
 input:focus-visible,
-select:focus-visible,
 summary:focus-visible,
 a:focus-visible,
 [tabindex]:focus-visible {
@@ -103,28 +106,11 @@ label {
   gap: 6px;
   color: var(--dvizh-ink);
   font-size: 14px;
-  font-weight: 650;
-}
-select {
-  min-height: 44px;
-  width: 100%;
-  border: 1px solid var(--dvizh-line-strong);
-  border-radius: var(--radius-control);
-  padding: 0 12px;
-  background: var(--dvizh-surface);
-  color: var(--dvizh-ink);
+  font-weight: 500;
 }
 .icon {
   display: block;
   flex: 0 0 auto;
-}
-.sr-only {
-  position: absolute;
-  overflow: hidden;
-  width: 1px;
-  height: 1px;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
 }
 .text-muted {
   color: var(--dvizh-muted);

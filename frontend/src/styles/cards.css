@@ -3,28 +3,15 @@
   width: fit-content;
   align-items: center;
   gap: 7px;
-  color: var(--dvizh-muted);
+  color: var(--dvizh-blue-strong);
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 500;
 }
 .status-label i {
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: currentColor;
-}
-.status-label--active,
-.status-label--confirmed {
-  color: var(--dvizh-blue-strong);
-}
-.status-label--collecting {
-  color: var(--dvizh-collecting);
-}
-.status-label--conditional {
-  color: var(--dvizh-warm);
-}
-.status-label--waitlist {
-  color: var(--dvizh-muted);
 }
 
 .active-signal {
@@ -43,16 +30,12 @@
 .active-signal .active-signal__time {
   color: var(--dvizh-ink);
   font-size: 16px;
-  font-weight: 750;
+  font-weight: 500;
 }
 
 .offer-pool {
   display: grid;
   gap: var(--space-4);
-}
-.offer-pool--empty {
-  border-top: 1px solid var(--dvizh-line);
-  padding-top: var(--space-5);
 }
 .offer-day-groups {
   display: grid;
@@ -67,48 +50,15 @@
   color: var(--dvizh-muted);
 }
 .offer-list,
-.plans-list,
-.autos-list {
+.plans-list {
   display: grid;
   gap: var(--space-3);
-}
-.offer-card {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-  border: 1px solid var(--dvizh-line);
-  border-radius: var(--radius-row);
-  padding: var(--space-4);
-  background: var(--dvizh-surface);
-}
-.offer-card--near {
-  border-color: #e4b86e;
-}
-.offer-card__head,
-.offer-card__title {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-.offer-card__title {
-  align-items: start;
-}
-.offer-card h3 {
-  min-width: 0;
-  font-size: 19px;
-  overflow-wrap: anywhere;
-}
-.offer-card p {
-  margin-bottom: 0;
 }
 .context-label {
   color: var(--dvizh-muted);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 500;
 }
-.demo-mark,
 .quiet-label {
   display: inline-flex;
   width: fit-content;
@@ -117,17 +67,7 @@
   background: var(--dvizh-surface-muted);
   color: var(--dvizh-muted);
   font-size: 11px;
-  font-weight: 750;
-}
-.offer-card__when {
-  font-weight: 700;
-}
-.offer-card__venue {
-  color: var(--dvizh-muted);
-}
-.offer-card__details {
-  font-size: 15px;
-  font-weight: 700;
+  font-weight: 500;
 }
 .inline-caveat {
   color: var(--dvizh-muted);
@@ -145,36 +85,12 @@
 .near-note p {
   font-size: 13px;
 }
-.offer-card__actions,
-.plan-card__actions,
 .form-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   margin-top: var(--space-1);
-}
-.offer-card__actions > :first-child {
-  flex: 1 1 180px;
-}
-.offer-card__actions > :last-child {
-  flex: 0 0 auto;
-}
-.offer-card footer {
-  display: flex;
-  min-width: 0;
-  justify-content: space-between;
-  gap: var(--space-2);
-  border-top: 1px solid var(--dvizh-line);
-  padding-top: 10px;
-  color: var(--dvizh-muted);
-  font-size: 11px;
-  overflow-wrap: anywhere;
-}
-.offer-card footer a {
-  flex: 0 0 auto;
-  font-size: inherit;
-  font-weight: 700;
 }
 
 .dvizh-progress {
@@ -184,7 +100,7 @@
   gap: 10px;
   color: var(--dvizh-muted);
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 500;
 }
 .dvizh-progress__dots {
   display: flex;
@@ -202,59 +118,9 @@
   border-color: var(--dvizh-blue);
   background: var(--dvizh-blue);
 }
-
-.plan-card {
-  display: grid;
-  gap: 8px;
-  border: 1px solid var(--dvizh-line);
-  border-radius: var(--radius-row);
-  padding: var(--space-4);
-  background: var(--dvizh-surface);
-}
-.plan-card--confirmed {
-  border-left: 4px solid var(--dvizh-blue);
-}
-.plan-card__title {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-.plan-card__title h2 {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.plan-card p {
-  margin-bottom: 0;
-}
-.plan-card__venue {
-  color: var(--dvizh-muted);
-  font-weight: 650;
-}
-.plan-card__participants {
-  color: var(--dvizh-ink);
-  font-size: 14px;
-}
-.plan-card__note {
-  color: var(--dvizh-muted);
-  font-size: 14px;
-}
-.plan-card__actions > * {
-  flex: 0 1 auto;
-}
 .plans-list--screen {
   gap: 0;
   border-top: 1px solid var(--dvizh-line);
-}
-.plans-list--screen .plan-card {
-  border-width: 0 0 1px;
-  border-radius: 0;
-  padding-right: 0;
-  padding-left: 0;
-  background: transparent;
-}
-.plans-list--screen .plan-card--confirmed {
-  border-left-width: 0;
 }
 
 .empty-state {

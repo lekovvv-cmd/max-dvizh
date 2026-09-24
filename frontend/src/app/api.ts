@@ -7,6 +7,7 @@ export type Group = {
   invite_token?: string | null
   invite_url?: string | null
 }
+export type GroupMember = { id: string; display_name: string; is_me: boolean }
 export type GroupCityUpdateResult = {
   group: Group
   cancelled_signals: number
@@ -48,6 +49,7 @@ export type Intent = {
 }
 export type Offer = {
   id: string
+  compatibility_kind?: string
   status: string
   is_near: boolean
   group_id: string
@@ -122,17 +124,35 @@ export function setDemoUser(value: string) {
   localStorage.setItem('dvizh-demo-user', value)
 }
 
+export class ApiTimeoutError extends Error {
+  constructor() {
+    super('Связь пропала. Проверяем, сохранился ли сигнал.')
+  }
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
   headers.set('Content-Type', 'application/json')
   if (window.WebApp?.initData) headers.set('X-MAX-Init-Data', window.WebApp.initData)
   else headers.set('X-Demo-User', demoUser)
-  const response = await fetch(`/api/v1${path}`, { ...init, headers })
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), 25000)
+  let response: Response
+  try {
+    response = await fetch(`/api/v1${path}`, {
+      ...init,
+      headers,
+      signal: init.signal ?? controller.signal,
+    })
+  } catch (reason) {
+    if (controller.signal.aborted) throw new ApiTimeoutError()
+    throw new Error('Нет связи. Проверь интернет и попробуй ещё раз.', { cause: reason })
+  } finally {
+    window.clearTimeout(timeout)
+  }
   if (!response.ok) {
-    const body: unknown = await response.json().catch(() => null)
-    const detail = body && typeof body === 'object' && 'detail' in body ? body.detail : null
-    if (typeof detail === 'string' && detail.trim()) throw new Error(detail)
     if (response.status === 422) throw new Error('Проверь заполненные поля и попробуй ещё раз.')
+    if (response.status === 404) throw new Error('Этот вариант больше недоступен. Обнови страницу.')
     throw new Error('Сервис временно недоступен. Попробуй ещё раз.')
   }
   try {
@@ -148,6 +168,7 @@ export const api = {
       '/session',
     ),
   groups: () => request<Group[]>('/groups'),
+  groupMembers: (id: string) => request<GroupMember[]>(`/groups/${id}/members`),
   createGroup: (body: { name: string; city_slug: string; bind_current_chat?: boolean }) =>
     request<Group>('/groups', { method: 'POST', body: JSON.stringify(body) }),
   updateGroupCity: (id: string, city_slug: string) =>

@@ -4,6 +4,9 @@
 @import './forms.css';
 @import './company.css';
 @import './overlays.css';
+@import './redesign.css';
+@import './event-card.css';
+@import './activity-catalog.css';
 
 @keyframes spin {
   to {
@@ -22,8 +25,8 @@
 
 @media (max-width: 380px) {
   .app-shell {
-    padding-right: var(--space-3);
-    padding-left: var(--space-3);
+    padding-right: 16px;
+    padding-left: 16px;
   }
   .form-row {
     grid-template-columns: 1fr;
@@ -33,37 +36,6 @@
   }
   .section-header > button:not(.icon-button) {
     max-width: 48%;
-  }
-  .offer-card__actions > * {
-    flex-basis: 100%;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --dvizh-bg: #111318;
-    --dvizh-surface: #1b1e24;
-    --dvizh-surface-muted: #242830;
-    --dvizh-ink: #f3f5f8;
-    --dvizh-muted: #a7aeba;
-    --dvizh-line: #30353e;
-    --dvizh-line-strong: #454c58;
-    --dvizh-blue: #65a8ff;
-    --dvizh-blue-strong: #9ac6ff;
-    --dvizh-blue-soft: #172b45;
-    --dvizh-warm: #ffc17c;
-    --dvizh-warm-soft: #332416;
-    --dvizh-collecting: #c1ce68;
-    --dvizh-danger: #ff9b90;
-  }
-  .brand > span {
-    color: #352e00;
-  }
-  .company-option.is-selected .company-option__check {
-    color: #0f1d2c;
-  }
-  .row-menu {
-    box-shadow: 0 12px 36px rgb(0 0 0 / 38%);
   }
 }
 
