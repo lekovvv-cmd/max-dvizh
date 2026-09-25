@@ -114,7 +114,12 @@ export function CreateCompany({
             {chatAvailable ? 'Создать личную компанию' : 'Создать компанию'}
           </Button>
           {onCancel ? (
-            <Button type="button" variant="secondary" onClick={onCancel}>
+            <Button
+              className="create-company__back"
+              type="button"
+              variant="secondary"
+              onClick={onCancel}
+            >
               Назад
             </Button>
           ) : null}

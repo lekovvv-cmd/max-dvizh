@@ -5,6 +5,7 @@ import type { Group, GroupCityUpdateResult, GroupMember, Location } from '../../
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog'
 import { Icon } from '../../shared/ui/Icon'
 import { formatPeople } from '../../shared/lib/format'
+import { geolocationError, parseCoordinates } from '../../shared/lib/geolocation'
 import { SectionHeader } from '../../shared/ui/SectionHeader'
 import { CityPicker } from '../../shared/ui/CityPicker'
 
@@ -28,7 +29,7 @@ export function Company({
   onSelect: (group: Group) => void
   onNew: () => void
   onChangeCity: (groupId: string, city: string) => Promise<GroupCityUpdateResult>
-  onAddPlace: (label: string) => Promise<Location>
+  onAddPlace: (label: string, latitude?: number, longitude?: number) => Promise<Location>
   onRenamePlace: (id: string, label: string) => Promise<void>
   onDefaultPlace: (id: string) => Promise<void>
   onDeletePlace: (id: string) => Promise<void>
@@ -37,6 +38,8 @@ export function Company({
   const [inviteOpen, setInviteOpen] = useState(false)
   const [person, setPerson] = useState('anton')
   const [label, setLabel] = useState('')
+  const [placeLatitude, setPlaceLatitude] = useState('')
+  const [placeLongitude, setPlaceLongitude] = useState('')
   const [placeOpen, setPlaceOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -121,14 +124,23 @@ export function Company({
     setBusy(true)
     setPlaceError('')
     try {
-      await onAddPlace(label.trim())
+      const manual = parseCoordinates(placeLatitude, placeLongitude)
+      if ((placeLatitude.trim() || placeLongitude.trim()) && !manual) {
+        setPlaceError('Проверь широту и долготу.')
+        return
+      }
+      await onAddPlace(label.trim(), manual?.latitude, manual?.longitude)
       setLabel('')
+      setPlaceLatitude('')
+      setPlaceLongitude('')
       setPlaceOpen(false)
     } catch (reason) {
       setPlaceError(
-        reason instanceof Error
-          ? reason.message
-          : 'Геопозиция недоступна. Расстояние останется выключенным.',
+        placeLatitude.trim() || placeLongitude.trim()
+          ? reason instanceof Error
+            ? reason.message
+            : 'Не удалось сохранить место.'
+          : geolocationError(reason),
       )
     } finally {
       setBusy(false)
@@ -380,7 +392,30 @@ export function Company({
                   onChange={(event) => setLabel(event.target.value)}
                 />
               </label>
-              <p className="form-hint">Нужна геопозиция. Точка будет видна только тебе.</p>
+              <p className="form-hint">
+                Определи место автоматически или вставь координаты из карты. Точка видна только
+                тебе.
+              </p>
+              <div className="form-row form-row--coordinates">
+                <label>
+                  Широта
+                  <input
+                    inputMode="decimal"
+                    placeholder="56.8389"
+                    value={placeLatitude}
+                    onChange={(event) => setPlaceLatitude(event.target.value)}
+                  />
+                </label>
+                <label>
+                  Долгота
+                  <input
+                    inputMode="decimal"
+                    placeholder="60.6057"
+                    value={placeLongitude}
+                    onChange={(event) => setPlaceLongitude(event.target.value)}
+                  />
+                </label>
+              </div>
               {placeError ? (
                 <p className="form-error" role="alert">
                   {placeError}
@@ -392,7 +427,7 @@ export function Company({
                 disabled={busy || !label.trim()}
                 onClick={() => void addPlace()}
               >
-                Сохранить текущее место
+                {placeLatitude || placeLongitude ? 'Сохранить место' : 'Определить и сохранить'}
               </Button>
             </div>
           ) : null}

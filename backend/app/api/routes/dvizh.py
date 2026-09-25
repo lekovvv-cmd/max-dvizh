@@ -356,15 +356,14 @@ def edit_recurring(
         or rule.user_id != user.id
         or rule.type != "RECURRING"
         or rule.flow_version != 2
-        or rule.status == "CANCELLED"
+        or rule.status not in {"ACTIVE", "PAUSED"}
     ):
         raise fail(404, "Регулярный сигнал не найден")
-    cancel_recurring(rule_id, session, user)
+    delete_recurring(rule_id, session, user)
     return create_recurring(payload, session, user)
 
 
-@router.delete("/recurring-signals/{rule_id}")
-def cancel_recurring(rule_id: str, session: DbSession, user: CurrentUser) -> dict[str, str]:
+def _recurring_rule(rule_id: str, session: DbSession, user: CurrentUser) -> Intent:
     rule = session.get(Intent, rule_id)
     if (
         rule is None
@@ -373,7 +372,10 @@ def cancel_recurring(rule_id: str, session: DbSession, user: CurrentUser) -> dic
         or rule.flow_version != 2
     ):
         raise fail(404, "Регулярный сигнал не найден")
-    rule.status = "CANCELLED"
+    return rule
+
+
+def _cancel_pending_occurrences(rule: Intent, session: DbSession, user: CurrentUser) -> None:
     for child in session.scalars(
         select(Intent).where(
             Intent.user_id == user.id,
@@ -388,6 +390,37 @@ def cancel_recurring(rule_id: str, session: DbSession, user: CurrentUser) -> dic
         if dvizh and dvizh.status in {"CHOOSING_CANDIDATES", "NO_SOURCE", "PROVIDER_UNAVAILABLE"}:
             child.status = "CANCELLED"
             dvizh.status = "CANCELLED"
+
+
+@router.post("/recurring-signals/{rule_id}/pause")
+def pause_recurring(rule_id: str, session: DbSession, user: CurrentUser) -> dict[str, str]:
+    rule = _recurring_rule(rule_id, session, user)
+    if rule.status not in {"ACTIVE", "PAUSED"}:
+        raise fail(404, "Регулярный сигнал не найден")
+    rule.status = "PAUSED"
+    _cancel_pending_occurrences(rule, session, user)
+    session.commit()
+    return {"id": rule.id, "status": rule.status}
+
+
+@router.post("/recurring-signals/{rule_id}/resume")
+def resume_recurring(rule_id: str, session: DbSession, user: CurrentUser) -> dict[str, str]:
+    rule = _recurring_rule(rule_id, session, user)
+    if rule.status != "PAUSED":
+        raise fail(404, "Регулярный сигнал не найден")
+    rule.status = "ACTIVE"
+    session.commit()
+    materialize_recurring(session, rule, user)
+    return {"id": rule.id, "status": rule.status}
+
+
+@router.delete("/recurring-signals/{rule_id}")
+def delete_recurring(rule_id: str, session: DbSession, user: CurrentUser) -> dict[str, str]:
+    rule = _recurring_rule(rule_id, session, user)
+    if rule.status == "DELETED":
+        raise fail(404, "Регулярный сигнал не найден")
+    rule.status = "DELETED"
+    _cancel_pending_occurrences(rule, session, user)
     session.commit()
     return {"id": rule.id, "status": rule.status}
 

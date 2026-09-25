@@ -204,8 +204,12 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(body),
     }),
-  cancelRecurringSignal: (id: string) =>
+  deleteRecurringSignal: (id: string) =>
     request<{ id: string; status: string }>(`/recurring-signals/${id}`, { method: 'DELETE' }),
+  pauseRecurringSignal: (id: string) =>
+    request<{ id: string; status: string }>(`/recurring-signals/${id}/pause`, { method: 'POST' }),
+  resumeRecurringSignal: (id: string) =>
+    request<{ id: string; status: string }>(`/recurring-signals/${id}/resume`, { method: 'POST' }),
   cities: () => request<{ slug: string; name: string }[]>('/leisure/cities'),
   taxonomy: () => request<Taxonomy>('/leisure/taxonomy'),
   dvizhi: () => request<Dvizh[]>('/dvizhi'),

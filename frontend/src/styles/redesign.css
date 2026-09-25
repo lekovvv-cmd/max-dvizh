@@ -747,6 +747,13 @@ input[type='checkbox'] {
   background: #fff;
   color: var(--dvizh-ink);
 }
+.start-card .create-company__back {
+  background: var(--dvizh-blue-soft);
+  color: var(--dvizh-blue-strong);
+}
+.start-card .create-company__back:hover:not(:disabled) {
+  background: #e5dcff;
+}
 .start-card button,
 .system-card button,
 .confirm-dialog button {
@@ -855,6 +862,18 @@ input[type='checkbox'] {
 }
 .signal-composer .form-hint {
   font-size: 14px;
+}
+.signal-composer .form-row--time {
+  gap: 12px;
+}
+.signal-composer .form-row--time label {
+  max-width: none;
+  color: var(--dvizh-ink);
+}
+@media (max-width: 480px) {
+  .signal-composer .form-row--time {
+    grid-template-columns: 1fr;
+  }
 }
 .signal-composer .choices--when {
   gap: 9px;

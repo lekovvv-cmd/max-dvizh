@@ -13,7 +13,7 @@ if (rootElement === null) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <MaxUI>
+    <MaxUI colorScheme="light">
       <App />
     </MaxUI>
   </StrictMode>,

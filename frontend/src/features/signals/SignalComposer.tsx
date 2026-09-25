@@ -4,6 +4,11 @@ import type { Group, Intent, Location } from '../../app/api'
 import { getActivityTaxonomy, searchActivities } from '../../shared/lib/activityCatalog'
 import { activityLabel, formatPeople, formatSignalWindow, weekDays } from '../../shared/lib/format'
 import {
+  currentCoordinates,
+  geolocationError,
+  parseCoordinates,
+} from '../../shared/lib/geolocation'
+import {
   formatLocalDateTimeInput,
   groupSizeRange,
   initialGroupSize,
@@ -201,6 +206,8 @@ export function SignalComposer({
   const [placeOpen, setPlaceOpen] = useState(false)
   const [placeLabel, setPlaceLabel] = useState('Дом')
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null)
+  const [manualLatitude, setManualLatitude] = useState('')
+  const [manualLongitude, setManualLongitude] = useState('')
   const [placeBusy, setPlaceBusy] = useState(false)
   const [placeError, setPlaceError] = useState('')
   const [checking, setChecking] = useState(false)
@@ -281,6 +288,11 @@ export function SignalComposer({
   function toggleCategory(value: string) {
     setForm((current) => {
       const wildcardDirection = value.endsWith('/*') ? value.slice(0, -2) : null
+      const activityWildcards = new Set(
+        taxonomy.activities
+          .find((activity) => activity.id === value)
+          ?.directions.map((id) => `${id}/*`) || [],
+      )
       const next = current.categories.includes(value)
         ? current.categories.filter((item) => item !== value)
         : [
@@ -289,8 +301,7 @@ export function SignalComposer({
                 ? !taxonomy.activities
                     .find((activity) => activity.id === item)
                     ?.directions.includes(wildcardDirection)
-                : item !==
-                  `${taxonomy.activities.find((activity) => activity.id === value)?.directions[0]}/*`,
+                : !activityWildcards.has(item),
             ),
             value,
           ]
@@ -386,7 +397,7 @@ export function SignalComposer({
             try {
               await api.cancelSignalBatch(activeBatch[0].signal_batch_id)
             } catch (reason) {
-              await api.cancelRecurringSignal(created.id).catch(() => undefined)
+              await api.deleteRecurringSignal(created.id).catch(() => undefined)
               throw reason
             }
           }
@@ -404,7 +415,7 @@ export function SignalComposer({
           const created = await api.signalBatch(body, submissionId.current)
           if (activeRecurring) {
             try {
-              await api.cancelRecurringSignal(activeRecurring.id)
+              await api.deleteRecurringSignal(activeRecurring.id)
             } catch (reason) {
               await api.cancelSignalBatch(created.signal_batch_id).catch(() => undefined)
               throw reason
@@ -430,52 +441,46 @@ export function SignalComposer({
     }
   }
 
-  function locate() {
+  async function locate() {
     setPlaceError('')
-    if (!navigator.geolocation) {
-      setPlaceError('Не получилось определить геопозицию.')
-      return
-    }
     setPlaceBusy(true)
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setCoords({ latitude: position.coords.latitude, longitude: position.coords.longitude })
-        setPlaceBusy(false)
-      },
-      () => {
-        setPlaceError('Не получилось определить геопозицию.')
-        setPlaceBusy(false)
-      },
-      { enableHighAccuracy: true, timeout: 15000 },
-    )
+    try {
+      const point = await currentCoordinates()
+      setCoords(point)
+      setManualLatitude(String(point.latitude))
+      setManualLongitude(String(point.longitude))
+    } catch (reason) {
+      setPlaceError(geolocationError(reason))
+    } finally {
+      setPlaceBusy(false)
+    }
   }
 
-  function useCurrentLocation() {
-    if (!navigator.geolocation) {
-      setPlaceError('Не получилось определить геопозицию.')
-      return
-    }
+  async function selectCurrentLocation() {
     setLocatingCurrent(true)
     setPlaceError('')
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        void onCreateLocation(
+    try {
+      const point = await currentCoordinates()
+      let place: Location
+      try {
+        place = await onCreateLocation(
           'Текущее местоположение',
-          position.coords.latitude,
-          position.coords.longitude,
+          point.latitude,
+          point.longitude,
           city,
           'CURRENT',
         )
-          .then((place) => update({ locationId: place.id }))
-          .catch(() => setPlaceError('Не получилось сохранить геопозицию.'))
-          .finally(() => setLocatingCurrent(false))
-      },
-      () => {
-        setPlaceError('Не получилось определить геопозицию.')
-        setLocatingCurrent(false)
-      },
-      { enableHighAccuracy: true, timeout: 15000 },
-    )
+      } catch {
+        setPlaceError('Не удалось сохранить геопозицию. Попробуй ещё раз.')
+        return
+      }
+      update({ locationId: place.id })
+    } catch (reason) {
+      setPlaceError(geolocationError(reason))
+      setPlaceOpen(true)
+    } finally {
+      setLocatingCurrent(false)
+    }
   }
 
   async function savePlace() {
@@ -492,6 +497,8 @@ export function SignalComposer({
       update({ locationId: place.id })
       setPlaceOpen(false)
       setCoords(null)
+      setManualLatitude('')
+      setManualLongitude('')
     } catch {
       setPlaceError('Не удалось сохранить место. Попробуй ещё раз.')
     } finally {
@@ -545,7 +552,7 @@ export function SignalComposer({
                   </Choice>
                 ))}
               </div>
-              <div className="form-row">
+              <div className="form-row form-row--time">
                 <label>
                   С{' '}
                   <input
@@ -585,7 +592,7 @@ export function SignalComposer({
                 </Choice>
               </div>
               {form.when === 'custom' ? (
-                <div className="form-row">
+                <div className="form-row form-row--time">
                   <label>
                     С{' '}
                     <input
@@ -615,28 +622,38 @@ export function SignalComposer({
         <section className="form-section" aria-labelledby="category-title">
           <h2 id="category-title">Что хочется?</h2>
           <p className="form-hint">Сначала выбери направление, затем конкретное занятие.</p>
-          <div className="choices activity-quick" role="group" aria-label="Направление">
+          <button
+            type="button"
+            className={'activity-search-trigger' + (catalogOpen ? ' is-open' : '')}
+            aria-expanded={catalogOpen}
+            aria-controls="activity-catalog"
+            onClick={() => setCatalogOpen((value) => !value)}
+          >
+            <Icon name="search" size={20} />
+            <span>Найти занятие</span>
+            <span className="activity-search-trigger__count">{taxonomy.activities.length}</span>
+          </button>
+          <p className="activity-section-label">Направления · смотри варианты</p>
+          <div
+            className="choices activity-quick"
+            role="group"
+            aria-label="Направление для просмотра"
+          >
             {taxonomy.directions.map((item) => (
-              <Choice
+              <button
+                type="button"
                 key={item.id}
-                active={direction === item.id}
+                className={'direction-tab' + (direction === item.id ? ' is-current' : '')}
+                aria-pressed={direction === item.id}
                 onClick={() => setDirection(item.id)}
               >
                 {item.label}
-              </Choice>
+              </button>
             ))}
-            <button
-              type="button"
-              className={'activity-search-trigger' + (catalogOpen ? ' is-open' : '')}
-              aria-expanded={catalogOpen}
-              aria-controls="activity-catalog"
-              onClick={() => setCatalogOpen((value) => !value)}
-            >
-              <Icon name="search" size={20} />
-              <span>Все занятия</span>
-              <span className="activity-search-trigger__count">{taxonomy.activities.length}</span>
-            </button>
           </div>
+          <p className="activity-section-label">
+            Занятия · {taxonomy.directions.find((item) => item.id === direction)?.label}
+          </p>
           <div className="choices activity-quick" role="group" aria-label="Занятие">
             <Choice
               active={form.categories.includes(`${direction}/*`)}
@@ -818,7 +835,7 @@ export function SignalComposer({
                 <button
                   type="button"
                   className="choice"
-                  onClick={useCurrentLocation}
+                  onClick={() => void selectCurrentLocation()}
                   disabled={locatingCurrent}
                 >
                   {locatingCurrent ? 'Определяем…' : 'Текущее местоположение'}
@@ -949,9 +966,41 @@ export function SignalComposer({
               onChange={(event) => setPlaceLabel(event.target.value)}
             />
           </label>
-          <button type="button" className="secondary-button" onClick={locate} disabled={placeBusy}>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => void locate()}
+            disabled={placeBusy}
+          >
             Использовать мою геопозицию
           </button>
+          <p className="form-hint">Если MAX не даёт доступ, вставь координаты из карты.</p>
+          <div className="form-row form-row--coordinates">
+            <label>
+              Широта
+              <input
+                inputMode="decimal"
+                placeholder="56.8389"
+                value={manualLatitude}
+                onChange={(event) => {
+                  setManualLatitude(event.target.value)
+                  setCoords(parseCoordinates(event.target.value, manualLongitude))
+                }}
+              />
+            </label>
+            <label>
+              Долгота
+              <input
+                inputMode="decimal"
+                placeholder="60.6057"
+                value={manualLongitude}
+                onChange={(event) => {
+                  setManualLongitude(event.target.value)
+                  setCoords(parseCoordinates(manualLatitude, event.target.value))
+                }}
+              />
+            </label>
+          </div>
           {coords ? <p role="status">Точка получена. Можно сохранить место.</p> : null}
           {placeError ? (
             <p className="form-error" role="alert">

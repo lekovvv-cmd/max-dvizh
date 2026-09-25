@@ -749,6 +749,16 @@ def test_recurring_rule_materializes_once_into_new_private_round(
         assert len(children) == 1
         assert children[0].recurrence_json == {"parent_rule_id": rule["id"]}
         assert routes.list_dvizhi(session, users[1]) == []
-        routes.cancel_recurring(rule["id"], session, users[0])
-        assert stored.status == "CANCELLED"
+        paused = routes.pause_recurring(rule["id"], session, users[0])
+        assert paused["status"] == "PAUSED"
+        assert routes.materialize_recurring(session, stored, users[0]) is False
         assert children[0].status == "CANCELLED"
+        resumed = routes.resume_recurring(rule["id"], session, users[0])
+        assert resumed["status"] == "ACTIVE"
+        deleted = routes.delete_recurring(rule["id"], session, users[0])
+        assert deleted["status"] == "DELETED"
+        assert session.get(Intent, rule["id"]) is stored
+        assert routes.materialize_recurring(session, stored, users[0]) is False
+        with pytest.raises(HTTPException) as error:
+            routes.resume_recurring(rule["id"], session, users[0])
+        assert error.value.status_code == 404

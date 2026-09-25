@@ -7,8 +7,10 @@ import { HomeIntro } from '../features/signals/HomeIntro'
 import { SignalComposer } from '../features/signals/SignalComposer'
 import { setActivityTaxonomy } from '../shared/lib/activityCatalog'
 import { activityLabel, formatSignalWindow } from '../shared/lib/format'
+import { currentCoordinates } from '../shared/lib/geolocation'
 import { AppShell, type Screen } from '../shared/ui/AppShell'
 import { CoachMark, type CoachStep } from '../shared/ui/CoachMark'
+import { ConfirmDialog } from '../shared/ui/ConfirmDialog'
 import {
   api,
   type Dvizh,
@@ -58,15 +60,21 @@ function DvizhList({
   onSignal,
   recurring,
   onRepeat,
-  onCancelRepeat,
+  onPauseRepeat,
+  onResumeRepeat,
+  onDeleteRepeat,
 }: {
   items: Dvizh[]
   onOpen: (id: string) => void
   onSignal: () => void
   recurring?: Intent
   onRepeat: () => void
-  onCancelRepeat: () => void
+  onPauseRepeat: () => Promise<void>
+  onResumeRepeat: () => Promise<void>
+  onDeleteRepeat: () => Promise<void>
 }) {
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteBusy, setDeleteBusy] = useState(false)
   const collecting = items.filter(
     (item) => !['GATHERED', 'EXPIRED', 'CANCELLED', 'NO_MATCH'].includes(item.status),
   )
@@ -116,6 +124,7 @@ function DvizhList({
       {recurring ? (
         <section className="dvizh-result">
           <h2>Регулярный сигнал</h2>
+          {recurring.status === 'PAUSED' ? <p>На паузе</p> : null}
           <p>
             {recurring.group_name} ·{' '}
             {recurring.weekdays
@@ -127,11 +136,38 @@ function DvizhList({
             <button className="text-action" onClick={onRepeat}>
               Изменить
             </button>
-            <button className="text-action" onClick={onCancelRepeat}>
-              Отключить
+            <button
+              className="text-action"
+              onClick={() =>
+                void (recurring.status === 'PAUSED' ? onResumeRepeat() : onPauseRepeat())
+              }
+            >
+              {recurring.status === 'PAUSED' ? 'Возобновить' : 'Приостановить'}
+            </button>
+            <button className="text-action" onClick={() => setDeleteOpen(true)}>
+              Удалить
             </button>
           </div>
         </section>
+      ) : null}
+      {deleteOpen ? (
+        <ConfirmDialog
+          title="Удалить автосигнал?"
+          description="Новые движи по этому расписанию создаваться не будут. Данные сигнала сохранятся в истории."
+          confirmLabel="Удалить автосигнал"
+          cancelLabel="Оставить"
+          busy={deleteBusy}
+          onCancel={() => setDeleteOpen(false)}
+          onConfirm={() => {
+            setDeleteBusy(true)
+            void onDeleteRepeat()
+              .then(
+                () => setDeleteOpen(false),
+                () => undefined,
+              )
+              .finally(() => setDeleteBusy(false))
+          }}
+        />
       ) : null}
       {!collecting.length && !gathered.length ? (
         <div className="dvizh-result">
@@ -165,7 +201,10 @@ export function App() {
   })
   const [editingBatch, setEditingBatch] = useState<string | null>(null)
   const [repeat, setRepeat] = useState(false)
-  const [coachEpoch, setCoachEpoch] = useState(0)
+  const [introStep, setIntroStep] = useState(0)
+  const [introDone, setIntroDone] = useState(
+    () => localStorage.getItem('dvizh-onboarding-v2-complete') === 'done',
+  )
 
   const load = useCallback(async () => {
     setError('')
@@ -240,7 +279,10 @@ export function App() {
 
   const group = groups.find((item) => item.id === groupId) || groups[0] || null
   const recurring = intents.find(
-    (item) => item.type === 'RECURRING' && item.status === 'ACTIVE' && item.group_id === group?.id,
+    (item) =>
+      item.type === 'RECURRING' &&
+      ['ACTIVE', 'PAUSED'].includes(item.status) &&
+      item.group_id === group?.id,
   )
   const focused = dvizhi.find((item) => item.id === targetId)
   const homeDvizh = useMemo(() => {
@@ -254,31 +296,17 @@ export function App() {
       .sort((a, b) => priority(a) - priority(b))[0]
   }, [focused, dvizhi, group?.id])
   const selected = screen === 'dvizhi' ? focused : homeDvizh
-  const coachStep: CoachStep | null = (() => {
-    void coachEpoch
-    const done = (step: CoachStep) => localStorage.getItem(`dvizh-onboarding-v1-${step}`) === 'done'
-    if (screen === 'home' && !selected && !done('signal')) return 'signal'
-    if (
-      (screen === 'home' || screen === 'dvizhi') &&
-      selected &&
-      (selected.status === 'CHOOSING_CANDIDATES' ||
-        (selected.status === 'COLLECTING_REACTIONS' && !selected.is_initiator)) &&
-      selected.candidates.some((candidate) => !candidate.my_reaction) &&
-      !done('choice')
-    )
-      return 'choice'
-    if (
-      screen !== 'signal' &&
-      selected &&
-      ['COLLECTING_REACTIONS', 'AWAITING_CONFIRMATION', 'GATHERED'].includes(selected.status) &&
-      !done('dvizhi')
-    )
-      return 'dvizhi'
-    return null
-  })()
-  const finishCoach = (step: CoachStep) => {
-    localStorage.setItem(`dvizh-onboarding-v1-${step}`, 'done')
-    setCoachEpoch((value) => value + 1)
+  const coachStep: CoachStep | null =
+    screen === 'home' && !introDone
+      ? (['signal', 'choice', 'dvizhi'] as CoachStep[])[introStep]
+      : null
+  const finishCoach = () => {
+    if (introStep < 2) setIntroStep((value) => value + 1)
+    else skipCoach()
+  }
+  const skipCoach = () => {
+    localStorage.setItem('dvizh-onboarding-v2-complete', 'done')
+    setIntroDone(true)
   }
   const updateDvizh = (value: Dvizh) =>
     setDvizhi((items) => items.map((item) => (item.id === value.id ? value : item)))
@@ -346,20 +374,12 @@ export function App() {
     setLocations((items) => [location, ...items])
     return location
   }
-  const addLocation = async (label: string) => {
-    if (!navigator.geolocation) throw new Error('Геопозиция недоступна')
-    const position = await new Promise<GeolocationPosition>((resolve, reject) =>
-      navigator.geolocation.getCurrentPosition(resolve, reject, {
-        enableHighAccuracy: true,
-        timeout: 15000,
-      }),
-    )
-    return createLocationAt(
-      label,
-      position.coords.latitude,
-      position.coords.longitude,
-      group.city_slug,
-    )
+  const addLocation = async (label: string, latitude?: number, longitude?: number) => {
+    const coordinates =
+      latitude === undefined || longitude === undefined
+        ? await currentCoordinates()
+        : { latitude, longitude }
+    return createLocationAt(label, coordinates.latitude, coordinates.longitude, group.city_slug)
   }
   const batch = intents.filter(
     (item) => item.signal_batch_id === editingBatch && item.status === 'ACTIVE',
@@ -419,14 +439,35 @@ export function App() {
         onSignal={() => openSignal()}
         recurring={recurring}
         onRepeat={() => openSignal(null, true)}
-        onCancelRepeat={() => {
-          if (recurring)
-            void api
-              .cancelRecurringSignal(recurring.id)
-              .then(() => load())
-              .catch((reason) =>
-                setError(reason instanceof Error ? reason.message : 'Не удалось отключить сигнал'),
-              )
+        onPauseRepeat={async () => {
+          if (!recurring) return
+          try {
+            await api.pauseRecurringSignal(recurring.id)
+            await load()
+          } catch (reason) {
+            setError(reason instanceof Error ? reason.message : 'Не удалось приостановить сигнал')
+            throw reason
+          }
+        }}
+        onResumeRepeat={async () => {
+          if (!recurring) return
+          try {
+            await api.resumeRecurringSignal(recurring.id)
+            await load()
+          } catch (reason) {
+            setError(reason instanceof Error ? reason.message : 'Не удалось возобновить сигнал')
+            throw reason
+          }
+        }}
+        onDeleteRepeat={async () => {
+          if (!recurring) return
+          try {
+            await api.deleteRecurringSignal(recurring.id)
+            await load()
+          } catch (reason) {
+            setError(reason instanceof Error ? reason.message : 'Не удалось удалить сигнал')
+            throw reason
+          }
         }}
       />
     ) : selected ? (
@@ -454,7 +495,7 @@ export function App() {
         <HomeIntro
           onSignal={() => openSignal()}
           onRepeat={() => openSignal(null, true)}
-          hasRepeat={Boolean(recurring)}
+          hasRepeat={Boolean(recurring && recurring.status === 'ACTIVE')}
         />
         {joinState ? <p className="inline-notice">{joinState}</p> : null}
       </div>
@@ -476,18 +517,7 @@ export function App() {
         ) : null}
         {content}
       </AppShell>
-      {coachStep ? (
-        <CoachMark
-          step={coachStep}
-          onDone={() => finishCoach(coachStep)}
-          onSkip={() => {
-            ;(['signal', 'choice', 'dvizhi'] as CoachStep[]).forEach((step) =>
-              localStorage.setItem(`dvizh-onboarding-v1-${step}`, 'done'),
-            )
-            setCoachEpoch((value) => value + 1)
-          }}
-        />
-      ) : null}
+      {coachStep ? <CoachMark step={coachStep} onDone={finishCoach} onSkip={skipCoach} /> : null}
     </>
   )
 }

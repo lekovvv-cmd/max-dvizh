@@ -8,13 +8,13 @@ const copy: Record<CoachStep, { title: string; body: string; number: number }> =
     number: 1,
   },
   choice: {
-    title: 'Выбери, куда пошёл бы',
-    body: 'Свайпни вправо или нажми кнопку. Твои ответы приватны.',
+    title: 'Выбери варианты',
+    body: 'После сигнала покажем места по одному. Отметь, куда пошёл бы. Твой выбор приватный.',
     number: 2,
   },
   dvizhi: {
-    title: 'Дальше ДВИЖ сам',
-    body: 'Мы спросим друзей и напишем в MAX, когда понадобится твой ответ.',
+    title: 'Запусти движ',
+    body: 'После выбора запусти движ. Мы спросим друзей и напишем в MAX, когда понадобится подтверждение.',
     number: 3,
   },
 }
@@ -43,7 +43,7 @@ export function CoachMark({
     }
     target.style.position = 'relative'
     target.style.zIndex = '1001'
-    target.style.boxShadow = '0 0 0 9999px rgb(13 0 26 / 65%)'
+    target.style.boxShadow = '0 0 0 4px #fff'
     target.style.borderRadius = '16px'
     return () => {
       Object.assign(target.style, previous)
@@ -51,47 +51,50 @@ export function CoachMark({
     }
   }, [step])
   return (
-    <div
-      className="coach"
-      role="dialog"
-      aria-modal="true"
-      aria-label={copy[step].title}
-      tabIndex={-1}
-      ref={dialog}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') onSkip()
-        if (event.key === 'Tab') {
-          const buttons = dialog.current?.querySelectorAll('button')
-          if (!buttons?.length) return
-          const first = buttons[0]
-          const last = buttons[buttons.length - 1]
-          if (
-            event.shiftKey &&
-            (document.activeElement === first || document.activeElement === dialog.current)
-          ) {
-            event.preventDefault()
-            last.focus()
-          } else if (
-            !event.shiftKey &&
-            (document.activeElement === last || document.activeElement === dialog.current)
-          ) {
-            event.preventDefault()
-            first.focus()
+    <>
+      <div className="coach-backdrop" aria-hidden="true" />
+      <div
+        className="coach"
+        role="dialog"
+        aria-modal="true"
+        aria-label={copy[step].title}
+        tabIndex={-1}
+        ref={dialog}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') onSkip()
+          if (event.key === 'Tab') {
+            const buttons = dialog.current?.querySelectorAll('button')
+            if (!buttons?.length) return
+            const first = buttons[0]
+            const last = buttons[buttons.length - 1]
+            if (
+              event.shiftKey &&
+              (document.activeElement === first || document.activeElement === dialog.current)
+            ) {
+              event.preventDefault()
+              last.focus()
+            } else if (
+              !event.shiftKey &&
+              (document.activeElement === last || document.activeElement === dialog.current)
+            ) {
+              event.preventDefault()
+              first.focus()
+            }
           }
-        }
-      }}
-    >
-      <span>{copy[step].number} / 3</span>
-      <h2>{copy[step].title}</h2>
-      <p>{copy[step].body}</p>
-      <div className="coach__actions">
-        <button type="button" onClick={onSkip}>
-          Пропустить
-        </button>
-        <button type="button" onClick={onDone}>
-          {step === 'dvizhi' ? 'Понятно' : 'Далее'}
-        </button>
+        }}
+      >
+        <span>{copy[step].number} / 3</span>
+        <h2>{copy[step].title}</h2>
+        <p>{copy[step].body}</p>
+        <div className="coach__actions">
+          <button type="button" onClick={onSkip}>
+            Пропустить
+          </button>
+          <button type="button" onClick={onDone}>
+            {step === 'dvizhi' ? 'Понятно' : 'Далее'}
+          </button>
+        </div>
       </div>
-    </div>
+    </>
   )
 }

@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { App } from './App'
-import { api, type Dvizh, type Group, type Taxonomy } from './api'
+import { api, type Dvizh, type Group, type Intent, type Taxonomy } from './api'
 
 const group: Group = {
   id: 'group-1',
@@ -152,12 +152,60 @@ describe('new Dvizh product route', () => {
     expect(screen.getByRole('heading', { name: 'Собрались' })).toBeInTheDocument()
   })
 
-  it('shows candidate onboarding only when a candidate exists', async () => {
-    localStorage.setItem('dvizh-onboarding-v1-signal', 'done')
-    mockData([dvizh()])
+  it('shows all three onboarding steps together on first entry', async () => {
+    mockData()
     render(<App />)
-    expect(await screen.findByRole('dialog', { name: 'Выбери, куда пошёл бы' })).toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: 'Подай сигнал' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
-    expect(localStorage.getItem('dvizh-onboarding-v1-choice')).toBe('done')
+    expect(screen.getByRole('dialog', { name: 'Выбери варианты' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
+    expect(screen.getByRole('dialog', { name: 'Запусти движ' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Понятно' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(localStorage.getItem('dvizh-onboarding-v2-complete')).toBe('done')
+  })
+
+  it('lets the owner pause and soft-delete a recurring signal', async () => {
+    mockData()
+    const rule: Intent = {
+      id: 'rule-1',
+      type: 'RECURRING',
+      status: 'ACTIVE',
+      provider_state: 'SCHEDULED',
+      name: 'Пятничный движ',
+      city_slug: 'msk',
+      group_id: group.id,
+      group_name: group.name,
+      signal_batch_id: null,
+      activity_category: 'quest',
+      activity_categories: ['quest'],
+      available_from: null,
+      available_to: null,
+      budget_max: null,
+      radius_km: null,
+      origin_location_id: null,
+      min_people: 2,
+      max_people: 12,
+      expires_at: null,
+      weekdays: [5],
+      local_start: '18:00',
+      local_end: '23:00',
+    }
+    vi.mocked(api.intents).mockResolvedValue([rule])
+    const pause = vi
+      .spyOn(api, 'pauseRecurringSignal')
+      .mockResolvedValue({ id: rule.id, status: 'PAUSED' })
+    const remove = vi
+      .spyOn(api, 'deleteRecurringSignal')
+      .mockResolvedValue({ id: rule.id, status: 'DELETED' })
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Пропустить' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Движи' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Приостановить' }))
+    await waitFor(() => expect(pause).toHaveBeenCalledWith(rule.id))
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить' }))
+    expect(screen.getByRole('dialog', { name: 'Удалить автосигнал?' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить автосигнал' }))
+    await waitFor(() => expect(remove).toHaveBeenCalledWith(rule.id))
   })
 })
