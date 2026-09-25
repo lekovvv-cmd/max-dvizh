@@ -100,7 +100,7 @@ export function DvizhFlow({
           aria-expanded={placeOpen}
           onClick={() => setPlaceOpen((value) => !value)}
         >
-          Знаешь место? Найти по названию
+          Знаешь место? Найти по названию или ссылке
         </button>
         {placeOpen ? (
           <form
@@ -111,19 +111,19 @@ export function DvizhFlow({
             }}
           >
             <label>
-              Название места
+              Название или ссылка KudaGo
               <input
                 value={placeQuery}
                 onChange={(event) => setPlaceQuery(event.target.value)}
                 minLength={2}
-                maxLength={80}
-                placeholder="Например, клуб или квест"
+                maxLength={300}
+                placeholder="Название или ссылка на место в KudaGo"
               />
             </label>
             <button type="submit" disabled={busy || placeQuery.trim().length < 2}>
               Найти
             </button>
-            <p>Покажем место, только если источник подтверждает занятие и время.</p>
+            <p>Покажем место, только если KudaGo подтверждает занятие и время.</p>
           </form>
         ) : null}
       </div>
@@ -260,16 +260,23 @@ export function DvizhFlow({
           <h1>
             {dvizh.status === 'NO_SOURCE' ? 'Пока не нашли места' : 'Источник временно недоступен'}
           </h1>
-          <p>В каталоге ДВИЖа пока нет проверенных вариантов для этого сигнала.</p>
+          <p>
+            {dvizh.status === 'NO_SOURCE'
+              ? 'KudaGo не дал проверенных мест для выбранного занятия и времени. Можно изменить условия или найти конкретное место по названию либо ссылке на KudaGo.'
+              : 'Не смогли получить места из KudaGo. Попробуй повторить поиск чуть позже.'}
+          </p>
           <button
             className="primary-button"
+            onClick={onEdit}
+          >
+            Изменить занятие или время
+          </button>
+          <button
+            className="text-action"
             disabled={busy}
             onClick={() => void act(() => api.moreDvizh(dvizh.id))}
           >
             Повторить поиск
-          </button>
-          <button className="text-action" onClick={onEdit}>
-            Изменить сигнал
           </button>
           {placeSearch}
         </div>

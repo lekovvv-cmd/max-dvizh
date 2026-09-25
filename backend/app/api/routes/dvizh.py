@@ -58,7 +58,7 @@ class ConfirmationIn(BaseModel):
 
 
 class PlaceSearchIn(BaseModel):
-    query: str = Field(min_length=2, max_length=80)
+    query: str = Field(min_length=2, max_length=300)
 
 
 def _query(payload: SignalBatchIn, city: str) -> ProviderQuery:
@@ -595,10 +595,14 @@ def search_place(
         items = KudaGoProvider().search_place_items(query, payload.query.strip())
     except (httpx.HTTPError, ValueError) as error:
         raise fail(503, "Источник временно недоступен") from error
+    if not items:
+        raise fail(422, "Не нашли это место в KudaGo для выбранного занятия и города")
     dvizh = get_dvizh(session, dvizh_id, user.id, lock=True)
     if dvizh.status not in {"CHOOSING_CANDIDATES", "NO_SOURCE", "PROVIDER_UNAVAILABLE"}:
         raise fail(409, "Поиск доступен до запуска движа")
-    add_candidates(session, dvizh, signal, items)
+    added = add_candidates(session, dvizh, signal, items)
+    if added == 0:
+        raise fail(422, "Место не подходит по времени, бюджету или расстоянию")
     session.flush()
     dvizh.status = "CHOOSING_CANDIDATES" if candidates(session, dvizh.id) else "NO_SOURCE"
     session.commit()

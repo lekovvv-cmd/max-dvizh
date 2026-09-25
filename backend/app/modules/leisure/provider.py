@@ -14,6 +14,7 @@ from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from hashlib import sha256
 from typing import Any, cast
+from urllib.parse import urlparse
 
 import httpx
 import redis
@@ -530,37 +531,63 @@ class KudaGoProvider:
 
     def search_place_items(self, query: ProviderQuery, phrase: str) -> list[NormalizedLeisureItem]:
         """Manual name search; results still pass the same deterministic classifier."""
-        search = httpx.get(
-            f"{settings.kudago_base_url}/search/",
-            params={"q": phrase, "location": query.city_slug, "ctype": "place"},
-            timeout=settings.kudago_timeout_seconds,
-        )
-        search.raise_for_status()
-        identifiers = sorted(
-            {
-                str(hit.get("id"))
-                for hit in search.json().get("results", [])[:20]
-                if str(hit.get("id") or "").isdecimal()
-            }
-        )
-        if not identifiers:
-            return []
         fields = "id,title,description,address,location,site_url,is_closed,coords,categories,tags,timetable,images"
-        response = httpx.get(
-            f"{settings.kudago_base_url}/places/",
-            params={
-                "ids": ",".join(identifiers),
-                "fields": fields,
-                "page_size": 20,
-                "text_format": "plain",
-            },
-            timeout=settings.kudago_timeout_seconds,
-        )
-        response.raise_for_status()
+        parsed = urlparse(phrase)
+        if parsed.scheme or parsed.netloc:
+            if (
+                parsed.scheme != "https"
+                or not parsed.hostname
+                or not (parsed.hostname == "kudago.com" or parsed.hostname.endswith(".kudago.com"))
+            ):
+                return []
+            match = re.fullmatch(r"/place/[^/]*-(\d+)/?", parsed.path) or re.fullmatch(
+                r"/public-api/v[\d.]+/places/(\d+)/?", parsed.path
+            )
+            if match is None:
+                return []
+            response = httpx.get(
+                f"{settings.kudago_base_url}/places/{match.group(1)}/",
+                params={"fields": fields, "text_format": "plain"},
+                timeout=settings.kudago_timeout_seconds,
+            )
+            if response.status_code == 404:
+                return []
+            response.raise_for_status()
+            places = [response.json()]
+        else:
+            search = httpx.get(
+                f"{settings.kudago_base_url}/search/",
+                params={"q": phrase, "location": query.city_slug, "ctype": "place"},
+                timeout=settings.kudago_timeout_seconds,
+            )
+            search.raise_for_status()
+            identifiers = sorted(
+                {
+                    str(hit.get("id"))
+                    for hit in search.json().get("results", [])[:20]
+                    if str(hit.get("id") or "").isdecimal()
+                }
+            )
+            if not identifiers:
+                return []
+            response = httpx.get(
+                f"{settings.kudago_base_url}/places/",
+                params={
+                    "ids": ",".join(identifiers),
+                    "fields": fields,
+                    "page_size": 20,
+                    "text_format": "plain",
+                },
+                timeout=settings.kudago_timeout_seconds,
+            )
+            response.raise_for_status()
+            places = response.json().get("results", [])
         selected = expand(query.categories)
         fetched_at = utcnow()
         result: list[NormalizedLeisureItem] = []
-        for raw in response.json().get("results", []):
+        for raw in places:
+            if raw.get("location") != query.city_slug:
+                continue
             confidence = classify(raw, "PLACE")
             activities = tuple(
                 sorted(

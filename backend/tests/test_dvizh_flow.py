@@ -646,6 +646,7 @@ def test_manual_name_search_keeps_only_confident_activity(monkeypatch: pytest.Mo
                     {
                         "id": 1,
                         "title": "Квест Лабиринт",
+                        "location": "msk",
                         "site_url": "https://kudago.com/1",
                         "timetable": "ежедневно 1:00–23:30",
                         "categories": ["questroom"],
@@ -653,6 +654,7 @@ def test_manual_name_search_keeps_only_confident_activity(monkeypatch: pytest.Mo
                     {
                         "id": 2,
                         "title": "Просто кафе",
+                        "location": "msk",
                         "description": "иногда проводим квест",
                         "site_url": "https://kudago.com/2",
                         "timetable": "ежедневно 1:00–23:30",
@@ -669,6 +671,47 @@ def test_manual_name_search_keeps_only_confident_activity(monkeypatch: pytest.Mo
     )
     found = leisure_provider.KudaGoProvider().search_place_items(query, "Лабиринт")
     assert [item.provider_id for item in found] == ["1"]
+
+
+def test_manual_kudago_link_recovers_place_missing_from_search(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Response:
+        status_code = 200
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {
+                "id": 34326,
+                "title": "Тайм-кафе Ежеминутка",
+                "location": "kzn",
+                "site_url": "https://kzn.kudago.com/place/antikafe-ezheminutka-34326/",
+                "is_closed": False,
+                "categories": ["anticafe"],
+                "timetable": "ежедневно 10:00–22:00",
+            }
+
+    requested: list[str] = []
+
+    def get(url, **kwargs):
+        requested.append(url)
+        return Response()
+
+    monkeypatch.setattr(leisure_provider.httpx, "get", get)
+    current = datetime.now(UTC)
+    query = ProviderQuery(
+        "kzn", current + timedelta(days=1), current + timedelta(days=1, hours=2), ("anticafe",), True
+    )
+    provider = leisure_provider.KudaGoProvider()
+    found = provider.search_place_items(
+        query, "https://kzn.kudago.com/place/antikafe-ezheminutka-34326/"
+    )
+    assert [item.provider_id for item in found] == ["34326"]
+    assert requested == [f"{leisure_provider.settings.kudago_base_url}/places/34326/"]
+    assert provider.search_place_items(query, "https://fake-kudago.com/place/x-34326/") == []
+    assert len(requested) == 1
 
 
 def test_decline_moves_existing_reactions_to_backup(monkeypatch: pytest.MonkeyPatch) -> None:
