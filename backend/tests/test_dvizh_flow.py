@@ -702,7 +702,11 @@ def test_manual_kudago_link_recovers_place_missing_from_search(
     monkeypatch.setattr(leisure_provider.httpx, "get", get)
     current = datetime.now(UTC)
     query = ProviderQuery(
-        "kzn", current + timedelta(days=1), current + timedelta(days=1, hours=2), ("anticafe",), True
+        "kzn",
+        current + timedelta(days=1),
+        current + timedelta(days=1, hours=2),
+        ("anticafe",),
+        True,
     )
     provider = leisure_provider.KudaGoProvider()
     found = provider.search_place_items(

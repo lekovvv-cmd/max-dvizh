@@ -171,7 +171,9 @@ describe('new Dvizh product route', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('Приглашение истекло')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Понятно' }))
-    expect(screen.queryByRole('dialog', { name: 'Не удалось открыть приглашение' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('dialog', { name: 'Не удалось открыть приглашение' }),
+    ).not.toBeInTheDocument()
   })
 
   it('separates collecting and gathered sessions in Движи', async () => {

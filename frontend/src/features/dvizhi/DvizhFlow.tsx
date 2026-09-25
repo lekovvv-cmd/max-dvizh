@@ -265,10 +265,7 @@ export function DvizhFlow({
               ? 'KudaGo не дал проверенных мест для выбранного занятия и времени. Можно изменить условия или найти конкретное место по названию либо ссылке на KudaGo.'
               : 'Не смогли получить места из KudaGo. Попробуй повторить поиск чуть позже.'}
           </p>
-          <button
-            className="primary-button"
-            onClick={onEdit}
-          >
+          <button className="primary-button" onClick={onEdit}>
             Изменить занятие или время
           </button>
           <button
