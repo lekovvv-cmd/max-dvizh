@@ -13,6 +13,7 @@ import { CoachMark, type CoachStep } from '../shared/ui/CoachMark'
 import { ConfirmDialog } from '../shared/ui/ConfirmDialog'
 import {
   api,
+  MaxAuthError,
   type Dvizh,
   type Group,
   type GroupCityUpdateResult,
@@ -186,6 +187,7 @@ export function App() {
   const [screen, setScreen] = useState<Screen>('home')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [authRequired, setAuthRequired] = useState(false)
   const [groups, setGroups] = useState<Group[]>([])
   const [groupId, setGroupId] = useState<string | null>(null)
   const [locations, setLocations] = useState<Location[]>([])
@@ -208,6 +210,7 @@ export function App() {
 
   const load = useCallback(async () => {
     setError('')
+    setAuthRequired(false)
     try {
       const [session, nextGroups, nextLocations, nextIntents, nextDvizhi, taxonomy] =
         await Promise.all([
@@ -226,6 +229,7 @@ export function App() {
       setIntents(nextIntents)
       setDvizhi(nextDvizhi)
     } catch (reason) {
+      setAuthRequired(reason instanceof MaxAuthError)
       setError(reason instanceof Error ? reason.message : 'Не получилось загрузить данные')
     } finally {
       setLoading(false)
@@ -328,11 +332,17 @@ export function App() {
     return (
       <main className="system-state">
         <section className="system-card" role="alert">
-          <h1>Не получилось загрузить</h1>
+          <h1>{authRequired ? 'Открой ДВИЖ в MAX' : 'Не получилось загрузить'}</h1>
           <p>{error}</p>
-          <button className="primary-button" onClick={() => void load()}>
-            Повторить
-          </button>
+          {authRequired ? (
+            <a className="primary-button" href="https://max.ru/t57_hakaton_max_bot?startapp">
+              Открыть через MAX
+            </a>
+          ) : (
+            <button className="primary-button" onClick={() => void load()}>
+              Повторить
+            </button>
+          )}
         </section>
       </main>
     )

@@ -114,6 +114,16 @@ export class ApiTimeoutError extends Error {
   }
 }
 
+export class MaxAuthError extends Error {
+  constructor(readonly inMax: boolean) {
+    super(
+      inMax
+        ? 'Сессия MAX закончилась. Закрой приложение и открой его снова через бота.'
+        : 'Вход в ДВИЖ выполняется через бот MAX.',
+    )
+  }
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
   headers.set('Content-Type', 'application/json')
@@ -135,6 +145,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     window.clearTimeout(timeout)
   }
   if (!response.ok) {
+    if (response.status === 401) throw new MaxAuthError(Boolean(window.WebApp?.initData))
     let detail = ''
     try {
       const body = await response.json()

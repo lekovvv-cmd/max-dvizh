@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { App } from './App'
-import { api, type Dvizh, type Group, type Intent, type Taxonomy } from './api'
+import { api, MaxAuthError, type Dvizh, type Group, type Intent, type Taxonomy } from './api'
 
 const group: Group = {
   id: 'group-1',
@@ -94,6 +94,17 @@ afterEach(() => {
 })
 
 describe('new Dvizh product route', () => {
+  it('directs a visitor without MAX authorization to the bot', async () => {
+    mockData()
+    vi.mocked(api.session).mockRejectedValue(new MaxAuthError(false))
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Открой ДВИЖ в MAX' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Открыть через MAX' })).toHaveAttribute(
+      'href',
+      'https://max.ru/t57_hakaton_max_bot?startapp',
+    )
+  })
+
   it('shows one primary signal action and three product tabs', async () => {
     mockData()
     render(<App />)
