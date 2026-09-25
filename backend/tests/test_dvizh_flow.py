@@ -588,6 +588,44 @@ def test_recurring_can_be_created_before_minimum_members_join(
         assert created["status"] == "ACTIVE"
 
 
+def test_invalid_recurring_edit_keeps_existing_rule(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        users, groups, _, _ = fixture(session)
+        monkeypatch.setattr(routes, "materialize_recurring", lambda *_args: False)
+        payload = AutoSignalIn(
+            group_id=groups[0].id,
+            name="Пятничный движ",
+            city_slug="msk",
+            activity_category="quest",
+            activity_categories=["quest"],
+            weekdays=[4],
+            local_start="12:00",
+            local_end="18:00",
+            timezone="UTC",
+            min_people=2,
+        )
+        created = routes.create_recurring(payload, session, users[0])
+        original = session.get(Intent, created["id"])
+        assert original is not None
+
+        invalid = payload.model_copy(update={"activity_categories": ["unknown"]})
+        with pytest.raises(HTTPException) as error:
+            routes.edit_recurring(original.id, invalid, session, users[0])
+        assert error.value.status_code == 422
+        session.refresh(original)
+        assert original.status == "ACTIVE"
+
+        replacement = routes.edit_recurring(original.id, payload, session, users[0])
+        assert replacement["id"] != original.id
+        assert replacement["status"] == "ACTIVE"
+        session.refresh(original)
+        assert original.status == "DELETED"
+
+
 def test_manual_name_search_keeps_only_confident_activity(monkeypatch: pytest.MonkeyPatch) -> None:
     class Response:
         def __init__(self, value):

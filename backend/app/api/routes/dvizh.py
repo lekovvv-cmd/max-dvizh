@@ -300,10 +300,9 @@ def materialize_recurring(
     return True
 
 
-@router.post("/recurring-signals", status_code=201)
-def create_recurring(
+def _validate_recurring_payload(
     payload: AutoSignalIn, session: DbSession, user: CurrentUser
-) -> dict[str, str]:
+) -> Group:
     if not valid_selection(payload.activity_categories or []):
         raise fail(422, "Выбери доступное занятие")
     group = session.get(Group, payload.group_id)
@@ -317,7 +316,11 @@ def create_recurring(
             or location.city_slug != group.default_city_slug
         ):
             raise fail(422, "Выбери своё место в городе компании")
-    rule = Intent(
+    return group
+
+
+def _new_recurring_rule(payload: AutoSignalIn, group: Group, user: User) -> Intent:
+    return Intent(
         user_id=user.id,
         group_id=group.id,
         type="RECURRING",
@@ -340,6 +343,14 @@ def create_recurring(
         min_people=payload.min_people,
         max_people=payload.max_people,
     )
+
+
+@router.post("/recurring-signals", status_code=201)
+def create_recurring(
+    payload: AutoSignalIn, session: DbSession, user: CurrentUser
+) -> dict[str, str]:
+    group = _validate_recurring_payload(payload, session, user)
+    rule = _new_recurring_rule(payload, group, user)
     session.add(rule)
     session.commit()
     materialize_recurring(session, rule, user)
@@ -359,8 +370,14 @@ def edit_recurring(
         or rule.status not in {"ACTIVE", "PAUSED"}
     ):
         raise fail(404, "Регулярный сигнал не найден")
-    delete_recurring(rule_id, session, user)
-    return create_recurring(payload, session, user)
+    group = _validate_recurring_payload(payload, session, user)
+    replacement = _new_recurring_rule(payload, group, user)
+    rule.status = "DELETED"
+    _cancel_pending_occurrences(rule, session, user)
+    session.add(replacement)
+    session.commit()
+    materialize_recurring(session, replacement, user)
+    return {"id": replacement.id, "status": replacement.status}
 
 
 def _recurring_rule(rule_id: str, session: DbSession, user: CurrentUser) -> Intent:
