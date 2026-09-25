@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 import httpx
 from fastapi import APIRouter, Header
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbSession
 from app.api.schemas import AutoSignalIn, SignalBatchIn
@@ -92,11 +92,6 @@ def _validate_groups(
         group = session.get(Group, group_id)
         if group is None or not member(session, group_id, user.id):
             raise fail(404, "Компания не найдена")
-        group_size = len(
-            list(session.scalars(select(GroupMember.id).where(GroupMember.group_id == group_id)))
-        )
-        if payload.min_people > group_size:
-            raise fail(422, "Для такого состава нужно больше участников в компании")
         groups.append(group)
     cities = {group.default_city_slug for group in groups}
     if len(cities) != 1:
@@ -183,9 +178,6 @@ def _create(
                 dvizh.status = "CANCELLED"
     output: list[dict[str, object]] = []
     for group in groups:
-        size = len(
-            list(session.scalars(select(GroupMember.id).where(GroupMember.group_id == group.id)))
-        )
         signal = Intent(
             user_id=user.id,
             group_id=group.id,
@@ -203,7 +195,7 @@ def _create(
             origin_location_id=payload.origin_location_id,
             radius_km=payload.radius_km,
             min_people=payload.min_people,
-            max_people=payload.max_people or max(size, payload.min_people),
+            max_people=payload.max_people or 12,
             expires_at=payload.available_to + timedelta(minutes=30),
         )
         session.add(signal)
@@ -215,7 +207,7 @@ def _create(
             status="PROVIDER_UNAVAILABLE" if result.unavailable else "CHOOSING_CANDIDATES",
             activity_ids=payload.activity_categories,
             min_people=signal.min_people,
-            max_people=signal.max_people or max(size, payload.min_people),
+            max_people=signal.max_people or 12,
             expires_at=signal.expires_at,
         )
         session.add(dvizh)
@@ -317,11 +309,6 @@ def create_recurring(
     group = session.get(Group, payload.group_id)
     if group is None or not member(session, group.id, user.id):
         raise fail(404, "Компания не найдена")
-    group_size = len(
-        list(session.scalars(select(GroupMember.id).where(GroupMember.group_id == group.id)))
-    )
-    if payload.min_people > group_size:
-        raise fail(422, "Для такого состава нужно больше участников в компании")
     if payload.origin_location_id:
         location = session.get(Location, payload.origin_location_id)
         if (
@@ -650,11 +637,6 @@ def launch(dvizh_id: str, session: DbSession, user: CurrentUser) -> dict[str, ob
         return public_dvizh(session, dvizh, user.id)
     if dvizh.status != "CHOOSING_CANDIDATES":
         raise fail(409, "Нет подходящих вариантов")
-    group_size = session.scalar(
-        select(func.count()).select_from(GroupMember).where(GroupMember.group_id == dvizh.group_id)
-    )
-    if (group_size or 0) < dvizh.min_people:
-        raise fail(409, "В компании стало меньше людей, чем нужно для движа")
     seed = []
     for candidate in candidates(session, dvizh.id):
         if aware(candidate.expires_at) <= now():

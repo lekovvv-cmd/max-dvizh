@@ -109,6 +109,41 @@ def test_taxonomy_and_strict_classifier() -> None:
     assert not valid_selection(["games"])
 
 
+def test_one_member_can_start_dvizh_and_friend_join_later(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        users, groups, item, payload = fixture(session)
+        for membership in session.scalars(
+            select(GroupMember).where(
+                GroupMember.group_id == groups[0].id,
+                GroupMember.user_id.in_([users[1].id, users[2].id]),
+            )
+        ):
+            session.delete(membership)
+        session.commit()
+        payload = payload.model_copy(update={"min_people": 2})
+        created = create(monkeypatch, session, item, payload, users[0])
+        dvizh = created["dvizhi"][0]
+        assert dvizh["max_people"] == 12
+        candidate = dvizh["candidates"][0]
+        routes.react(
+            dvizh["id"], candidate["id"], routes.ReactionIn(value="WOULD_GO"), session, users[0]
+        )
+        monkeypatch.setattr(routes, "_source_available", lambda _candidate: True)
+        launched = routes.launch(dvizh["id"], session, users[0])
+        assert launched["status"] == "COLLECTING_REACTIONS"
+        session.add(GroupMember(group_id=groups[0].id, user_id=users[1].id))
+        session.commit()
+        assert routes.get_dvizh_detail(dvizh["id"], session, users[1])["status"] == "COLLECTING_REACTIONS"
+        matched = routes.react(
+            dvizh["id"], candidate["id"], routes.ReactionIn(value="WOULD_GO"), session, users[1]
+        )
+        assert matched["status"] == "AWAITING_CONFIRMATION"
+
+
 def test_provider_gmt_offset_is_used_for_place_hours() -> None:
     start = datetime(2026, 9, 25, 13, tzinfo=UTC)
     assert _daily_hours_fit("ежедневно 10:00–20:00", start, start + timedelta(hours=2), "GMT+03:00")
@@ -261,7 +296,7 @@ def test_full_flow_no_early_notifications_and_private_reactions(
         )
 
 
-def test_launch_rechecks_company_size_after_member_leaves(
+def test_launch_continues_collecting_after_member_leaves(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     engine = create_engine("sqlite://")
@@ -282,15 +317,18 @@ def test_launch_rechecks_company_size_after_member_leaves(
         session.delete(departed)
         session.commit()
 
-        with pytest.raises(HTTPException) as blocked:
-            routes.launch(dvizh["id"], session, users[0])
-        assert blocked.value.status_code == 409
-        assert session.get(DvizhSession, dvizh["id"]).status == "CHOOSING_CANDIDATES"
-        assert list(session.scalars(select(OutboxNotification))) == []
+        monkeypatch.setattr(routes, "_source_available", lambda _candidate: True)
+        assert routes.launch(dvizh["id"], session, users[0])["status"] == "COLLECTING_REACTIONS"
+        review = list(
+            session.scalars(
+                select(OutboxNotification).where(OutboxNotification.kind == "DVIZH_REVIEW_REQUIRED")
+            )
+        )
+        assert {notification.user_id for notification in review} == {users[1].id}
 
         session.add(GroupMember(group_id=groups[0].id, user_id=users[2].id))
         session.commit()
-        assert routes.launch(dvizh["id"], session, users[0])["status"] == "COLLECTING_REACTIONS"
+        assert routes.get_dvizh_detail(dvizh["id"], session, users[2])["status"] == "COLLECTING_REACTIONS"
 
 
 def test_cancelled_provider_item_is_not_launched_or_confirmed(
@@ -510,13 +548,13 @@ def test_no_source_round_and_signal_expire_together(monkeypatch: pytest.MonkeyPa
         assert signal.status == "EXPIRED"
 
 
-def test_signal_rejects_minimum_larger_than_company_before_provider_call(
+def test_recurring_can_be_created_before_minimum_members_join(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)
     with Session(engine) as session:
-        users, groups, _, payload = fixture(session)
+        users, groups, _, _ = fixture(session)
         session.delete(
             session.scalar(
                 select(GroupMember).where(
@@ -526,15 +564,7 @@ def test_signal_rejects_minimum_larger_than_company_before_provider_call(
             )
         )
         session.commit()
-        monkeypatch.setattr(
-            routes,
-            "fetch_items",
-            lambda _query: pytest.fail("Invalid group size must be rejected before KudaGo"),
-        )
-        with pytest.raises(HTTPException) as denied:
-            routes.create_signal(payload, session, users[0], "undersized-company")
-        assert denied.value.status_code == 422
-
+        monkeypatch.setattr(routes, "materialize_recurring", lambda *_args: False)
         tomorrow = datetime.now(UTC) + timedelta(days=1)
         recurring = AutoSignalIn(
             group_id=groups[0].id,
@@ -548,9 +578,8 @@ def test_signal_rejects_minimum_larger_than_company_before_provider_call(
             timezone="UTC",
             min_people=3,
         )
-        with pytest.raises(HTTPException) as denied:
-            routes.create_recurring(recurring, session, users[0])
-        assert denied.value.status_code == 422
+        created = routes.create_recurring(recurring, session, users[0])
+        assert created["status"] == "ACTIVE"
 
 
 def test_manual_name_search_keeps_only_confident_activity(monkeypatch: pytest.MonkeyPatch) -> None:
