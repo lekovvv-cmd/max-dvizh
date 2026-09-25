@@ -8,12 +8,10 @@ export function CreateCompany({
   onCreated,
   onCancel,
   chatAvailable,
-  joinState,
 }: {
   onCreated: (group: Group) => void
   onCancel?: () => void
   chatAvailable: boolean
-  joinState: string
 }) {
   const [name, setName] = useState('')
   const [city, setCity] = useState('')
@@ -51,7 +49,6 @@ export function CreateCompany({
   return (
     <main className="start-screen">
       <section className="start-card">
-        {joinState ? <p role="status">{joinState}</p> : null}
         <PulseMark />
         <h1>Создать компанию</h1>
         <p>Позови друзей, и ДВИЖ подберёт план, который подходит всем.</p>

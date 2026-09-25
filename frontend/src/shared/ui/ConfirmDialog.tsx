@@ -15,7 +15,7 @@ export function ConfirmDialog({
   title: string
   description: string
   confirmLabel: string
-  cancelLabel: string
+  cancelLabel?: string
   busy?: boolean
   confirmDisabled?: boolean
   children?: React.ReactNode
@@ -105,9 +105,11 @@ export function ConfirmDialog({
           >
             {confirmLabel}
           </Button>
-          <Button variant="secondary" disabled={busy} onClick={onCancel}>
-            {cancelLabel}
-          </Button>
+          {cancelLabel ? (
+            <Button variant="secondary" disabled={busy} onClick={onCancel}>
+              {cancelLabel}
+            </Button>
+          ) : null}
         </div>
       </section>
     </div>

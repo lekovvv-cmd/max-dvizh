@@ -149,6 +149,31 @@ describe('new Dvizh product route', () => {
     expect(screen.getByText('Квест 1')).toBeInTheDocument()
   })
 
+  it('opens an existing company invite without a persistent message on the home screen', async () => {
+    mockData()
+    localStorage.setItem('dvizh-onboarding-v2-complete', 'done')
+    window.location.hash = '#startapp=invite-token'
+    const join = vi.spyOn(api, 'join').mockResolvedValue({ group, already_member: true })
+    render(<App />)
+    await waitFor(() => expect(join).toHaveBeenCalledWith('invite-token'))
+    expect(await screen.findByRole('heading', { name: 'Есть идея на вечер?' })).toBeInTheDocument()
+    expect(screen.queryByText('Ты уже участник')).not.toBeInTheDocument()
+  })
+
+  it('shows an invalid invitation in a dismissible dialog', async () => {
+    mockData()
+    localStorage.setItem('dvizh-onboarding-v2-complete', 'done')
+    window.location.hash = '#startapp=invalid-token'
+    vi.spyOn(api, 'join').mockRejectedValue(new Error('Приглашение истекло'))
+    render(<App />)
+    expect(
+      await screen.findByRole('dialog', { name: 'Не удалось открыть приглашение' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Приглашение истекло')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Понятно' }))
+    expect(screen.queryByRole('dialog', { name: 'Не удалось открыть приглашение' })).not.toBeInTheDocument()
+  })
+
   it('separates collecting and gathered sessions in Движи', async () => {
     const active = dvizh('COLLECTING_REACTIONS')
     const gathered = {

@@ -196,7 +196,7 @@ export function App() {
   const [mode, setMode] = useState('MAX')
   const [chatAvailable, setChatAvailable] = useState(false)
   const [creatingGroup, setCreatingGroup] = useState(false)
-  const [joinState, setJoinState] = useState('')
+  const [joinError, setJoinError] = useState('')
   const [targetId, setTargetId] = useState<string | null>(() => {
     const token = initialDeepLink()
     return token.startsWith('dvizh_') ? token.slice(6) : null
@@ -257,12 +257,11 @@ export function App() {
     void api
       .join(token)
       .then((result) => {
-        setJoinState(result.already_member ? 'Ты уже участник' : 'Ты в компании')
         setGroupId(result.group.id)
         void load()
       })
       .catch((reason) =>
-        setJoinState(reason instanceof Error ? reason.message : 'Приглашение недействительно'),
+        setJoinError(reason instanceof Error ? reason.message : 'Приглашение недействительно'),
       )
   }, [load])
   useEffect(() => {
@@ -350,7 +349,6 @@ export function App() {
     return (
       <CreateCompany
         chatAvailable={chatAvailable}
-        joinState={joinState}
         onCreated={(created) => {
           setGroupId(created.id)
           setCreatingGroup(false)
@@ -507,7 +505,6 @@ export function App() {
           onRepeat={() => openSignal(null, true)}
           hasRepeat={Boolean(recurring && recurring.status === 'ACTIVE')}
         />
-        {joinState ? <p className="inline-notice">{joinState}</p> : null}
       </div>
     )
 
@@ -528,6 +525,15 @@ export function App() {
         {content}
       </AppShell>
       {coachStep ? <CoachMark step={coachStep} onDone={finishCoach} onSkip={skipCoach} /> : null}
+      {joinError ? (
+        <ConfirmDialog
+          title="Не удалось открыть приглашение"
+          description={joinError}
+          confirmLabel="Понятно"
+          onConfirm={() => setJoinError('')}
+          onCancel={() => setJoinError('')}
+        />
+      ) : null}
     </>
   )
 }
