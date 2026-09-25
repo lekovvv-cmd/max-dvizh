@@ -130,6 +130,14 @@ describe('new Dvizh product route', () => {
     expect(screen.getByText('1 из 2')).toBeInTheDocument()
   })
 
+  it('reads the documented MAX WebAppStartParam deep link', async () => {
+    mockData([dvizh()])
+    window.location.hash = '#WebAppStartParam=dvizh_session-1'
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Куда пошёл бы?' })).toBeInTheDocument()
+    expect(screen.getByText('Квест 1')).toBeInTheDocument()
+  })
+
   it('separates collecting and gathered sessions in Движи', async () => {
     const active = dvizh('COLLECTING_REACTIONS')
     const gathered = {

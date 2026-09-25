@@ -81,14 +81,21 @@ export function Company({
       current = false
     }
   }, [active.id])
-  const invite = active.invite_url || `${window.location.origin}#startapp=${active.invite_token}`
+  const invite =
+    active.invite_url ||
+    (mode === 'development' && active.invite_token
+      ? `${window.location.origin}/#startapp=${active.invite_token}`
+      : null)
   async function shareInvite() {
     setError('')
+    if (!invite) {
+      setError('Приглашение в MAX пока не настроено. Нужен адрес бота.')
+      return
+    }
     try {
       if (window.WebApp?.shareMaxContent)
-        window.WebApp.shareMaxContent({
-          text: `Присоединяйся к «${active.name}» в ДВИЖе`,
-          link: invite,
+        await window.WebApp.shareMaxContent({
+          text: `Присоединяйся к «${active.name}» в ДВИЖе\n${invite}`,
         })
       else {
         await navigator.clipboard.writeText(invite)
@@ -99,6 +106,10 @@ export function Company({
     }
   }
   async function copyInvite() {
+    if (!invite) {
+      setError('Приглашение в MAX пока не настроено. Нужен адрес бота.')
+      return
+    }
     try {
       await navigator.clipboard.writeText(invite)
       setCopied(true)
@@ -452,10 +463,16 @@ export function Company({
           title="Позвать друзей"
           description={'Приглашение в «' + active.name + '»'}
           confirmLabel={window.WebApp?.shareMaxContent ? 'Поделиться в MAX' : 'Скопировать ссылку'}
+          confirmDisabled={!invite}
           cancelLabel="Закрыть"
           onConfirm={() => void shareInvite()}
           onCancel={() => setInviteOpen(false)}
         >
+          {!invite ? (
+            <p className="form-error" role="alert">
+              Приглашение станет доступно после настройки адреса MAX-бота.
+            </p>
+          ) : null}
           {window.WebApp?.shareMaxContent ? (
             <button type="button" className="secondary-button" onClick={() => void copyInvite()}>
               {copied ? 'Скопировано' : 'Скопировать ссылку'}

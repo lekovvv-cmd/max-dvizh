@@ -19,9 +19,13 @@ import {
 } from './api'
 
 function initialDeepLink() {
+  const hash = new URLSearchParams(window.location.hash.slice(1))
   const token =
-    new URLSearchParams(window.location.hash.slice(1)).get('startapp') ||
-    new URLSearchParams(window.WebApp?.initData || '').get('start_param')
+    window.WebApp?.initDataUnsafe?.start_param ||
+    new URLSearchParams(window.WebApp?.initData || '').get('start_param') ||
+    hash.get('WebAppStartParam') ||
+    hash.get('startapp') ||
+    new URLSearchParams(window.location.search).get('startapp')
   return token || ''
 }
 

@@ -95,7 +95,8 @@ declare global {
   interface Window {
     WebApp?: {
       initData?: string
-      shareMaxContent?: (params: { text?: string; link?: string }) => void
+      initDataUnsafe?: { start_param?: string }
+      shareMaxContent?: (params: { text?: string; link?: string }) => void | Promise<void>
       openMaxLink?: (url: string) => void
     }
   }

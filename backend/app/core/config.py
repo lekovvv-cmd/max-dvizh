@@ -24,7 +24,7 @@ class Settings:
     )
     max_bot_token: str = getenv("MAX_BOT_TOKEN", "")
     max_bot_api_base: str = getenv("MAX_BOT_API_BASE", "https://platform-api2.max.ru")
-    max_bot_username: str = getenv("MAX_BOT_USERNAME", "")
+    max_bot_username: str = getenv("MAX_BOT_USERNAME") or "t57_hakaton_max_bot"
     max_mini_app_url: str = getenv("MAX_MINI_APP_URL", "")
     max_webhook_url: str = getenv("MAX_WEBHOOK_URL", "")
     max_webhook_secret: str = getenv("MAX_WEBHOOK_SECRET", "")

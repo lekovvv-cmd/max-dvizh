@@ -19,7 +19,7 @@ from app.api.schemas import (
     OfferAction,
     SignalBatchIn,
 )
-from app.core.config import settings
+from app.core.config import Settings, settings
 from app.core.timezones import display_timezone
 from app.db.models import (
     Base,
@@ -109,6 +109,18 @@ def test_group_members_returns_names_only_to_members() -> None:
         with pytest.raises(HTTPException) as denied:
             product.list_group_members(group.id, session, SimpleNamespace(id="stranger"))
         assert denied.value.status_code == 404
+
+
+def test_company_invite_uses_complete_max_mini_app_deep_link(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        _, group, _ = seed(session, 2, [2, 2])
+        monkeypatch.setattr(product, "settings", Settings(max_bot_username="t57_hakaton_max_bot"))
+        invite = product.group_out(session, group, expose_token=True)
+        assert invite.invite_url == "https://max.ru/t57_hakaton_max_bot?startapp=invite"
 
 
 def test_all_eight_get_offers_and_plan_stays_open_after_three_responses() -> None:
