@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiTimeoutError, api } from '../../app/api'
-import type { Group, Intent, Location } from '../../app/api'
+import type { Dvizh, Group, Intent, Location } from '../../app/api'
 import { getActivityTaxonomy, searchActivities } from '../../shared/lib/activityCatalog'
 import { activityLabel, formatPeople, formatSignalWindow, weekDays } from '../../shared/lib/format'
 import {
@@ -181,7 +181,7 @@ export function SignalComposer({
     city: string,
     kind?: 'SAVED' | 'CURRENT',
   ) => Promise<Location>
-  onDone: () => void | Promise<void>
+  onDone: (created?: Dvizh[]) => void | Promise<void>
   onBack: () => void
 }) {
   const existing = activeRecurring ?? activeBatch?.[0]
@@ -338,7 +338,11 @@ export function SignalComposer({
           )
       if (saved) {
         localStorage.removeItem(key)
-        await onDone()
+        await onDone(
+          form.repeat
+            ? undefined
+            : dvizhi.filter((item) => item.signal_batch_id === submissionId.current),
+        )
       } else {
         setError('Не удалось подтвердить сохранение. Проверь связь и попробуй ещё раз.')
       }
@@ -379,6 +383,7 @@ export function SignalComposer({
       max_people: people[1],
     }
     try {
+      let createdDvizhi: Dvizh[] | undefined
       if (form.repeat) {
         const body = {
           ...common,
@@ -409,10 +414,16 @@ export function SignalComposer({
           available_from: from.toISOString(),
           available_to: to.toISOString(),
         }
-        if (activeBatch?.[0]?.signal_batch_id)
-          await api.editSignalBatch(activeBatch[0].signal_batch_id, body, submissionId.current)
-        else {
+        if (activeBatch?.[0]?.signal_batch_id) {
+          const result = await api.editSignalBatch(
+            activeBatch[0].signal_batch_id,
+            body,
+            submissionId.current,
+          )
+          createdDvizhi = result.dvizhi
+        } else {
           const created = await api.signalBatch(body, submissionId.current)
+          createdDvizhi = created.dvizhi
           if (activeRecurring) {
             try {
               await api.deleteRecurringSignal(activeRecurring.id)
@@ -424,7 +435,7 @@ export function SignalComposer({
         }
       }
       localStorage.removeItem(key)
-      await onDone()
+      await onDone(createdDvizhi)
     } catch (reason) {
       if (reason instanceof ApiTimeoutError) {
         setError(reason.message)

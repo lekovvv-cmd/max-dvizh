@@ -116,11 +116,11 @@ describe('new Dvizh product route', () => {
     expect(screen.getByRole('dialog', { name: 'Подай сигнал' })).toBeInTheDocument()
   })
 
-  it('loads direction and concrete activities from backend taxonomy', async () => {
+  it('opens the found candidate stack directly after submitting a signal', async () => {
     mockData()
     const submit = vi
       .spyOn(api, 'signalBatch')
-      .mockResolvedValue({ signal_batch_id: 'batch-1', dvizhi: [] })
+      .mockResolvedValue({ signal_batch_id: 'batch-1', dvizhi: [dvizh()] })
     render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: 'Пропустить' }))
     fireEvent.click(screen.getByRole('button', { name: 'Подать сигнал' }))
@@ -132,6 +132,10 @@ describe('new Dvizh product route', () => {
       activity_categories: ['quest'],
       group_ids: ['group-1'],
     })
+    expect(await screen.findByRole('heading', { name: 'Куда пошёл бы?' })).toBeInTheDocument()
+    expect(screen.getByText('Квест 1')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Вернуться на главную' }))
+    expect(await screen.findByRole('heading', { name: 'Есть идея на вечер?' })).toBeInTheDocument()
   })
 
   it('opens the exact Dvizh from a MAX startapp deep link', async () => {
@@ -199,7 +203,7 @@ describe('new Dvizh product route', () => {
     expect(screen.getByRole('button', { name: 'Подать сигнал' })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /Квест/ })).toHaveLength(2)
     fireEvent.click(screen.getAllByRole('button', { name: /Квест/ })[0])
-    expect(await screen.findByRole('button', { name: 'Все движи' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Вернуться на главную' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Главная' }))
     expect(screen.getByRole('button', { name: 'Подать сигнал' })).toBeInTheDocument()
   })

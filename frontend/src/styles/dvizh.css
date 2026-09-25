@@ -201,15 +201,24 @@
   line-height: 1.1;
 }
 .dvizh-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
   width: fit-content;
-  min-height: 42px;
-  border: 1px solid var(--dvizh-line-strong);
-  border-radius: 12px;
-  padding: 8px 14px;
-  background: var(--dvizh-surface);
-  color: var(--dvizh-ink);
-  font-size: 14px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 14px;
+  padding: 9px 16px;
+  background: var(--dvizh-blue-soft);
+  color: var(--dvizh-blue);
+  font-size: 15px;
   font-weight: 600;
+}
+.dvizh-back:hover,
+.dvizh-back:focus-visible {
+  background: var(--dvizh-blue);
+  color: #fff;
 }
 .home-dvizhi {
   display: grid;

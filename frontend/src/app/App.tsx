@@ -11,6 +11,7 @@ import { currentCoordinates } from '../shared/lib/geolocation'
 import { AppShell, type Screen } from '../shared/ui/AppShell'
 import { CoachMark, type CoachStep } from '../shared/ui/CoachMark'
 import { ConfirmDialog } from '../shared/ui/ConfirmDialog'
+import { Icon } from '../shared/ui/Icon'
 import {
   api,
   MaxAuthError,
@@ -203,6 +204,7 @@ export function App() {
     const token = initialDeepLink()
     return token.startsWith('dvizh_') ? token.slice(6) : null
   })
+  const [detailReturn, setDetailReturn] = useState<'home' | 'dvizhi'>('dvizhi')
   const [editingBatch, setEditingBatch] = useState<string | null>(null)
   const [repeat, setRepeat] = useState(false)
   const [introStep, setIntroStep] = useState(0)
@@ -408,10 +410,19 @@ export function App() {
         adjustment={repeat ? 'repeat' : null}
         onCreateLocation={createLocationAt}
         onBack={() => setScreen('home')}
-        onDone={async () => {
+        onDone={async (created) => {
           await load()
-          setTargetId(null)
-          setScreen('home')
+          const next = created?.find((item) => item.group_id === group.id) ?? created?.[0]
+          if (next) {
+            setDvizhi((items) => [next, ...items.filter((item) => item.id !== next.id)])
+            setGroupId(next.group_id)
+            setDetailReturn('home')
+            setTargetId(next.id)
+            setScreen('dvizhi')
+          } else {
+            setTargetId(null)
+            setScreen('home')
+          }
         }}
       />
     ) : screen === 'group' ? (
@@ -447,7 +458,10 @@ export function App() {
     ) : screen === 'dvizhi' && !focused ? (
       <DvizhList
         items={dvizhi}
-        onOpen={setTargetId}
+        onOpen={(id) => {
+          setDetailReturn('dvizhi')
+          setTargetId(id)
+        }}
         onSignal={() => openSignal()}
         recurring={recurring}
         onRepeat={() => openSignal(null, true)}
@@ -484,8 +498,19 @@ export function App() {
       />
     ) : screen === 'dvizhi' && focused ? (
       <div className="page-stack home-page">
-        <button type="button" className="dvizh-back" onClick={() => setTargetId(null)}>
-          Все движи
+        <button
+          type="button"
+          className="dvizh-back"
+          aria-label={
+            detailReturn === 'home' ? 'Вернуться на главную' : 'Вернуться к списку движей'
+          }
+          onClick={() => {
+            setTargetId(null)
+            setScreen(detailReturn)
+          }}
+        >
+          <Icon name={detailReturn === 'home' ? 'home' : 'list'} size={18} />
+          Назад
         </button>
         <DvizhFlow
           key={focused.id}
@@ -512,6 +537,7 @@ export function App() {
                   className="home-dvizhi__item"
                   key={item.id}
                   onClick={() => {
+                    setDetailReturn('home')
                     setTargetId(item.id)
                     setScreen('dvizhi')
                   }}
