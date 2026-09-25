@@ -137,7 +137,10 @@ def test_one_member_can_start_dvizh_and_friend_join_later(
         assert launched["status"] == "COLLECTING_REACTIONS"
         session.add(GroupMember(group_id=groups[0].id, user_id=users[1].id))
         session.commit()
-        assert routes.get_dvizh_detail(dvizh["id"], session, users[1])["status"] == "COLLECTING_REACTIONS"
+        assert (
+            routes.get_dvizh_detail(dvizh["id"], session, users[1])["status"]
+            == "COLLECTING_REACTIONS"
+        )
         matched = routes.react(
             dvizh["id"], candidate["id"], routes.ReactionIn(value="WOULD_GO"), session, users[1]
         )
@@ -328,7 +331,10 @@ def test_launch_continues_collecting_after_member_leaves(
 
         session.add(GroupMember(group_id=groups[0].id, user_id=users[2].id))
         session.commit()
-        assert routes.get_dvizh_detail(dvizh["id"], session, users[2])["status"] == "COLLECTING_REACTIONS"
+        assert (
+            routes.get_dvizh_detail(dvizh["id"], session, users[2])["status"]
+            == "COLLECTING_REACTIONS"
+        )
 
 
 def test_cancelled_provider_item_is_not_launched_or_confirmed(

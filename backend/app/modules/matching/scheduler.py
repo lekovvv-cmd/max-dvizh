@@ -179,9 +179,7 @@ def run_once() -> int:
             return 0
         try:
             with Session(bind=connection) as session:
-                refreshed = (
-                    evaluate_active_autosignals(session) if settings.local_demo_mode else 0
-                )
+                refreshed = evaluate_active_autosignals(session) if settings.local_demo_mode else 0
                 from app.api.routes.dvizh import materialize_recurring
 
                 for rule in list(
