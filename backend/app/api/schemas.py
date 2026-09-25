@@ -11,6 +11,7 @@ class SessionOut(BaseModel):
     display_name: str
     max_mode: str
     max_chat_id: str | None = None
+    onboarding_seen: bool = False
 
 
 class GroupCreate(BaseModel):

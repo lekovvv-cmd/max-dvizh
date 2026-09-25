@@ -167,9 +167,15 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const api = {
   session: () =>
-    request<{ id: string; display_name: string; max_mode: string; max_chat_id: string | null }>(
-      '/session',
-    ),
+    request<{
+      id: string
+      display_name: string
+      max_mode: string
+      max_chat_id: string | null
+      onboarding_seen: boolean
+    }>('/session'),
+  markOnboardingSeen: () =>
+    request<{ onboarding_seen: boolean }>('/session/onboarding-seen', { method: 'POST' }),
   groups: () => request<Group[]>('/groups'),
   groupMembers: (id: string) => request<GroupMember[]>(`/groups/${id}/members`),
   createGroup: (body: { name: string; city_slug: string; bind_current_chat?: boolean }) =>

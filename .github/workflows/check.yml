@@ -58,7 +58,7 @@ jobs:
         run: |
           python scripts/verify_migration_paths.py create-clean-database
           alembic upgrade head
-          test "$(alembic current | tail -n 1 | awk '{print $1}')" = "20260924_0011"
+          test "$(alembic current | tail -n 1 | awk '{print $1}')" = "20260925_0012"
         env:
           DATABASE_URL: postgresql+psycopg://max_dvizh:test_only_password@localhost:5432/max_dvizh_clean
       - run: ruff check .

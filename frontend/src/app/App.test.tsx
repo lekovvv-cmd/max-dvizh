@@ -70,13 +70,15 @@ function dvizh(status = 'CHOOSING_CANDIDATES'): Dvizh {
   }
 }
 
-function mockData(items: Dvizh[] = []) {
+function mockData(items: Dvizh[] = [], onboardingSeen = false) {
   vi.spyOn(api, 'session').mockResolvedValue({
     id: 'me',
     display_name: 'Антон',
     max_mode: 'DEMO',
     max_chat_id: null,
+    onboarding_seen: onboardingSeen,
   })
+  vi.spyOn(api, 'markOnboardingSeen').mockResolvedValue({ onboarding_seen: true })
   vi.spyOn(api, 'groups').mockResolvedValue([group])
   vi.spyOn(api, 'locations').mockResolvedValue([])
   vi.spyOn(api, 'intents').mockResolvedValue([])
@@ -150,8 +152,7 @@ describe('new Dvizh product route', () => {
   })
 
   it('opens an existing company invite without a persistent message on the home screen', async () => {
-    mockData()
-    localStorage.setItem('dvizh-onboarding-v2-complete', 'done')
+    mockData([], true)
     window.location.hash = '#startapp=invite-token'
     const join = vi.spyOn(api, 'join').mockResolvedValue({ group, already_member: true })
     render(<App />)
@@ -161,8 +162,7 @@ describe('new Dvizh product route', () => {
   })
 
   it('shows an invalid invitation in a dismissible dialog', async () => {
-    mockData()
-    localStorage.setItem('dvizh-onboarding-v2-complete', 'done')
+    mockData([], true)
     window.location.hash = '#startapp=invalid-token'
     vi.spyOn(api, 'join').mockRejectedValue(new Error('Приглашение истекло'))
     render(<App />)
@@ -200,7 +200,15 @@ describe('new Dvizh product route', () => {
     expect(screen.getByRole('dialog', { name: 'Запусти движ' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Понятно' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(localStorage.getItem('dvizh-onboarding-v2-complete')).toBe('done')
+    expect(api.markOnboardingSeen).toHaveBeenCalled()
+  })
+
+  it('skips onboarding for a user who has already opened the app', async () => {
+    mockData([], true)
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Есть идея на вечер?' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Подай сигнал' })).not.toBeInTheDocument()
+    expect(api.markOnboardingSeen).not.toHaveBeenCalled()
   })
 
   it('lets the owner pause and soft-delete a recurring signal', async () => {

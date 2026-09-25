@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { DvizhFlow } from '../features/dvizhi/DvizhFlow'
 import { Company } from '../features/groups/Company'
@@ -204,9 +204,8 @@ export function App() {
   const [editingBatch, setEditingBatch] = useState<string | null>(null)
   const [repeat, setRepeat] = useState(false)
   const [introStep, setIntroStep] = useState(0)
-  const [introDone, setIntroDone] = useState(
-    () => localStorage.getItem('dvizh-onboarding-v2-complete') === 'done',
-  )
+  const [introDone, setIntroDone] = useState(true)
+  const introInitialized = useRef(false)
 
   const load = useCallback(async () => {
     setError('')
@@ -224,6 +223,11 @@ export function App() {
       setActivityTaxonomy(taxonomy)
       setMode(session.max_mode)
       setChatAvailable(Boolean(session.max_chat_id))
+      if (!introInitialized.current) {
+        introInitialized.current = true
+        setIntroDone(session.onboarding_seen)
+        if (!session.onboarding_seen) void api.markOnboardingSeen().catch(() => undefined)
+      }
       setGroups(nextGroups)
       setLocations(nextLocations)
       setIntents(nextIntents)
@@ -308,7 +312,7 @@ export function App() {
     else skipCoach()
   }
   const skipCoach = () => {
-    localStorage.setItem('dvizh-onboarding-v2-complete', 'done')
+    void api.markOnboardingSeen().catch(() => undefined)
     setIntroDone(true)
   }
   const updateDvizh = (value: Dvizh) =>

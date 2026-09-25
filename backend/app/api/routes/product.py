@@ -191,7 +191,18 @@ def get_session(
         display_name=user.display_name,
         max_mode="development" if settings.local_demo_mode else "MAX",
         max_chat_id=optional_max_chat_id(x_max_init_data),
+        onboarding_seen=user.onboarding_seen_at is not None,
     )
+
+
+@router.post("/session/onboarding-seen", response_model=SessionOut)
+def mark_onboarding_seen(
+    session: DbSession, user: CurrentUser, x_max_init_data: str | None = Header(default=None)
+) -> SessionOut:
+    if user.onboarding_seen_at is None:
+        user.onboarding_seen_at = now()
+        session.commit()
+    return get_session(user, x_max_init_data)
 
 
 @router.get("/groups", response_model=list[GroupOut])

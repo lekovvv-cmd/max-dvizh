@@ -41,6 +41,21 @@ from app.modules.matching.service import regenerate_group
 from app.modules.max_integration.client import _text
 
 
+def test_onboarding_is_recorded_once_per_user() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        user = User(id="onboarding-user", max_user_id="onboarding-user", display_name="User")
+        session.add(user)
+        session.commit()
+        assert product.get_session(user, None).onboarding_seen is False
+        assert product.mark_onboarding_seen(session, user, None).onboarding_seen is True
+        first_seen = user.onboarding_seen_at
+        assert first_seen is not None
+        assert product.mark_onboarding_seen(session, user, None).onboarding_seen is True
+        assert user.onboarding_seen_at == first_seen
+
+
 def seed(
     session: Session, count: int, minimums: list[int], maximum: int | None = None
 ) -> tuple[list[User], Group, NormalizedLeisureItem]:
