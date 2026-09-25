@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime, timedelta
 
 import httpx
@@ -11,6 +12,8 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.timezones import display_timezone
 from app.db.models import DvizhCandidate, DvizhSession, GroupMember, OutboxNotification, User
+
+logger = logging.getLogger(__name__)
 
 
 def utcnow() -> datetime:
@@ -278,12 +281,14 @@ def dispatch_pending(session: Session, batch_size: int = 50) -> int:
             event.status = "CANCELLED"
             event.locked_at = None
             session.commit()
+            logger.info("outbox_cancelled id=%s kind=%s reason=stale", event.id, event.kind)
             continue
         user = session.get(User, event.user_id)
         if user is None:
             event.status = "FAILED"
             event.locked_at = None
             session.commit()
+            logger.error("outbox_failed id=%s kind=%s reason=user_missing", event.id, event.kind)
             continue
         try:
             if event.kind in {
@@ -314,10 +319,19 @@ def dispatch_pending(session: Session, batch_size: int = 50) -> int:
                 delay = min(2 ** min(event.attempts, 8), settings.outbox_retry_max_seconds)
                 event.next_attempt_at = utcnow() + timedelta(seconds=delay)
             session.commit()
+            logger.warning(
+                "outbox_delivery_failed id=%s kind=%s status=%s http_status=%s attempts=%s",
+                event.id,
+                event.kind,
+                event.status,
+                response_code,
+                event.attempts,
+            )
         else:
             event.status = "SENT"
             event.locked_at = None
             event.next_attempt_at = None
             session.commit()
             delivered += 1
+            logger.info("outbox_sent id=%s kind=%s", event.id, event.kind)
     return delivered

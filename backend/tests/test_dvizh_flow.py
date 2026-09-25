@@ -96,6 +96,8 @@ def create(
 
 def test_taxonomy_and_strict_classifier() -> None:
     assert classify({"categories": ["questroom"]}, "PLACE")["quest"] == "HIGH"
+    assert classify({"categories": ["bar"]}, "PLACE")["bar"] == "HIGH"
+    assert classify({"categories": ["restaurants"]}, "PLACE")["restaurant"] == "HIGH"
     assert classify({"tags": ["настольные игры"]}, "PLACE")["board_games"] == "HIGH"
     assert classify({"title": "Батутный центр"}, "PLACE")["trampoline"] == "HIGH"
     assert classify({"tags": ["бани"]}, "PLACE")["sauna"] == "HIGH"

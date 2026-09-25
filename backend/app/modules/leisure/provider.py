@@ -432,6 +432,7 @@ class KudaGoProvider:
         selected = expand(query.categories)
         fetched_at = utcnow()
         raw_items: list[tuple[str, dict[str, Any]]] = []
+        last_error: httpx.HTTPError | ValueError | None = None
         fields_place = "id,title,description,address,location,site_url,is_closed,coords,categories,tags,timetable,images"
         fields_event = (
             "id,title,description,dates,place,categories,tags,price,is_free,site_url,images"
@@ -456,42 +457,54 @@ class KudaGoProvider:
                 )
             for page in range(1, max(1, settings.kudago_max_pages) + 1):
                 params["page"] = page
-                response = httpx.get(
-                    f"{settings.kudago_base_url}/{kind}/",
-                    params=params,
-                    timeout=settings.kudago_timeout_seconds,
-                )
-                response.raise_for_status()
-                data = response.json()
+                try:
+                    response = httpx.get(
+                        f"{settings.kudago_base_url}/{kind}/",
+                        params=params,
+                        timeout=settings.kudago_timeout_seconds,
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+                except (httpx.HTTPError, ValueError) as error:
+                    last_error = error
+                    break
                 raw_items.extend((kind, raw) for raw in data.get("results", []))
                 if not data.get("next"):
                     break
         seen_search_ids: set[str] = set()
         for search in sorted(searches):
-            response = httpx.get(
-                f"{settings.kudago_base_url}/search/",
-                params={"q": search, "location": query.city_slug, "ctype": "place"},
-                timeout=settings.kudago_timeout_seconds,
-            )
-            response.raise_for_status()
-            for hit in response.json().get("results", [])[:8]:
+            try:
+                response = httpx.get(
+                    f"{settings.kudago_base_url}/search/",
+                    params={"q": search, "location": query.city_slug, "ctype": "place"},
+                    timeout=settings.kudago_timeout_seconds,
+                )
+                response.raise_for_status()
+                hits = response.json().get("results", [])
+            except (httpx.HTTPError, ValueError) as error:
+                last_error = error
+                continue
+            for hit in hits[:8]:
                 identifier = str(hit.get("id") or "")
                 if not identifier.isdecimal():
                     continue
                 seen_search_ids.add(identifier)
         if seen_search_ids:
-            response = httpx.get(
-                f"{settings.kudago_base_url}/places/",
-                params={
-                    "ids": ",".join(sorted(seen_search_ids)[:40]),
-                    "fields": fields_place,
-                    "page_size": 40,
-                    "text_format": "plain",
-                },
-                timeout=settings.kudago_timeout_seconds,
-            )
-            response.raise_for_status()
-            raw_items.extend(("places", raw) for raw in response.json().get("results", []))
+            try:
+                response = httpx.get(
+                    f"{settings.kudago_base_url}/places/",
+                    params={
+                        "ids": ",".join(sorted(seen_search_ids)[:40]),
+                        "fields": fields_place,
+                        "page_size": 40,
+                        "text_format": "plain",
+                    },
+                    timeout=settings.kudago_timeout_seconds,
+                )
+                response.raise_for_status()
+                raw_items.extend(("places", raw) for raw in response.json().get("results", []))
+            except (httpx.HTTPError, ValueError) as error:
+                last_error = error
         result: list[NormalizedLeisureItem] = []
         seen: set[tuple[str, str, datetime]] = set()
         for kind, raw in raw_items:
@@ -527,6 +540,8 @@ class KudaGoProvider:
                         ),
                     )
                 )
+        if not result and last_error is not None:
+            raise last_error
         return result
 
     def search_place_items(self, query: ProviderQuery, phrase: str) -> list[NormalizedLeisureItem]:

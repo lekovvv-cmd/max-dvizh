@@ -185,10 +185,10 @@ export function DvizhFlow({
           </div>
           <div className="swipe-actions">
             <button type="button" disabled={busy} onClick={() => react(current, 'PASS')}>
-              ← Не моё
+              Не моё
             </button>
             <button type="button" disabled={busy} onClick={() => react(current, 'WOULD_GO')}>
-              Пошёл бы →
+              Пошёл бы
             </button>
           </div>
           <p className="dvizh-flow__hint">Свайп влево или вправо тоже работает</p>
@@ -327,13 +327,31 @@ export function DvizhFlow({
           {waitlistAction}
         </>
       ) : dvizh.status === 'COLLECTING_REACTIONS' || dvizh.status === 'AWAITING_CONFIRMATION' ? (
-        <div className="dvizh-result">
+        <section className="collecting-card" aria-label="Движ собирается">
+          <div className="collecting-card__signal" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
           <h1>Движ собирается</h1>
-          <p>
-            {summary}. Остальных спросит ДВИЖ. Можно закрыть приложение — мы напишем в MAX, когда
-            понадобится твой ответ.
+          <p>{summary}. Ждём ответы компании.</p>
+          <div className="collecting-card__facts">
+            <div>
+              <strong>{dvizh.chosen_count}</strong>
+              <span>мест на выбор</span>
+            </div>
+            <div>
+              <strong>{dvizh.min_people}</strong>
+              <span>участников нужно минимум</span>
+            </div>
+          </div>
+          <p className="collecting-card__hint">
+            Можно закрыть приложение. Напишем в MAX, когда понадобится твой ответ.
           </p>
-        </div>
+          <button type="button" className="secondary-button" onClick={onNew}>
+            Подать ещё сигнал
+          </button>
+        </section>
       ) : (
         <div className="dvizh-result">
           <h1>Этот движ завершился</h1>

@@ -226,3 +226,61 @@ def test_museum_query_reads_only_matching_places(monkeypatch: object) -> None:
     assert len(captured) == 1
     assert captured[0][0].endswith("/places/")
     assert captured[0][1]["categories"] == "museums"
+
+
+def test_product_search_keeps_verified_places_when_one_provider_call_times_out(
+    monkeypatch: object,
+) -> None:
+    class Response:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, object]:
+            return {
+                "results": [
+                    {
+                        "id": 42,
+                        "title": "Кафе у парка",
+                        "categories": ["restaurants"],
+                        "site_url": "https://kudago.com/place/42/",
+                        "is_closed": False,
+                        "timetable": "ежедневно 10:00–23:00",
+                    }
+                ],
+                "next": None,
+            }
+
+    def fake_get(url: str, *, params: dict[str, object], timeout: float) -> Response:
+        if url.endswith("/search/"):
+            raise httpx.ConnectTimeout("search timed out")
+        return Response()
+
+    monkeypatch.setattr("app.modules.leisure.provider.httpx.get", fake_get)  # type: ignore[attr-defined]
+    requested = query()
+    found = KudaGoProvider().product_items(
+        ProviderQuery(
+            requested.city_slug,
+            requested.starts_at,
+            requested.ends_at,
+            ("bar", "restaurant"),
+            product=True,
+        )
+    )
+    assert len(found) == 1
+    assert found[0].categories == ("restaurant",)
+
+
+def test_product_search_reports_unavailable_when_every_provider_call_fails(
+    monkeypatch: object,
+) -> None:
+    def fail(*args: object, **kwargs: object) -> None:
+        raise httpx.ConnectTimeout("provider timed out")
+
+    monkeypatch.setattr("app.modules.leisure.provider.httpx.get", fail)  # type: ignore[attr-defined]
+    requested = query()
+    with pytest.raises(httpx.ConnectTimeout):
+        KudaGoProvider().product_items(
+            ProviderQuery(
+                requested.city_slug, requested.starts_at, requested.ends_at, ("bar",), product=True
+            )
+        )

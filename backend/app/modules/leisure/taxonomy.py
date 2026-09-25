@@ -112,6 +112,21 @@ ACTIVITIES = (
         "party", "Вечеринка", ("evening",), event_categories=("party",), keywords=("вечеринка",)
     ),
     Activity(
+        "bar",
+        "Бар или паб",
+        ("evening",),
+        place_categories=("bar",),
+        search=("бар", "паб"),
+        keywords=("бар", "паб", "pub"),
+    ),
+    Activity(
+        "restaurant",
+        "Кафе или ресторан",
+        ("evening",),
+        place_categories=("restaurants",),
+        keywords=("кафе", "ресторан"),
+    ),
+    Activity(
         "sauna",
         "Баня или сауна",
         ("relax",),

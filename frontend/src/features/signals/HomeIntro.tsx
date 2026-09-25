@@ -17,9 +17,7 @@ export function HomeIntro({
       <button type="button" className="primary-button" data-coach="signal" onClick={onSignal}>
         Подать сигнал
       </button>
-      <p className="home-intro__steps">
-        Подай сигнал <span>→</span> выбери место <span>→</span> остальное сделает ДВИЖ
-      </p>
+      <p className="home-intro__steps">Подай сигнал. Выбери место. Остальное сделает ДВИЖ.</p>
       <div className="home-intro__repeat">
         <div>
           <strong>{hasRepeat ? 'Регулярный сигнал настроен' : 'Собираетесь регулярно?'}</strong>

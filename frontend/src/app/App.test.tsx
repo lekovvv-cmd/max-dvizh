@@ -190,6 +190,20 @@ describe('new Dvizh product route', () => {
     expect(screen.getByRole('heading', { name: 'Собрались' })).toBeInTheDocument()
   })
 
+  it('keeps the signal action on home with several active Dvizh sessions', async () => {
+    const first = dvizh('COLLECTING_REACTIONS')
+    const second = { ...dvizh('CHOOSING_CANDIDATES'), id: 'session-2' }
+    mockData([first, second], true)
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Есть идея на вечер?' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Подать сигнал' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /Квест/ })).toHaveLength(2)
+    fireEvent.click(screen.getAllByRole('button', { name: /Квест/ })[0])
+    expect(await screen.findByRole('button', { name: 'Все движи' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Главная' }))
+    expect(screen.getByRole('button', { name: 'Подать сигнал' })).toBeInTheDocument()
+  })
+
   it('shows all three onboarding steps together on first entry', async () => {
     mockData()
     render(<App />)

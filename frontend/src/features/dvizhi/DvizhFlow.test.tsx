@@ -80,7 +80,7 @@ describe('finite candidate round', () => {
     expect(signal).toHaveTextContent('Квест')
     expect(signal).toHaveTextContent('Друзья')
     expect(screen.getByText('1 из 1')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Пошёл бы →' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Пошёл бы' }))
     await waitFor(() => expect(save).toHaveBeenCalledWith('d1', 'c1', 'WOULD_GO', false))
     expect(update).toHaveBeenCalled()
   })

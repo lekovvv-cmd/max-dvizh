@@ -82,7 +82,7 @@ function DvizhList({
   const gathered = items.filter((item) => item.status === 'GATHERED')
   return (
     <section className="page-stack dvizh-list">
-      <h1>Движи</h1>
+      <h1 className="dvizh-list__title">ДВИЖИ</h1>
       {collecting.length ? (
         <section>
           <h2>Собираются</h2>
@@ -184,7 +184,9 @@ function DvizhList({
 }
 
 export function App() {
-  const [screen, setScreen] = useState<Screen>('home')
+  const [screen, setScreen] = useState<Screen>(() =>
+    initialDeepLink().startsWith('dvizh_') ? 'dvizhi' : 'home',
+  )
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [authRequired, setAuthRequired] = useState(false)
@@ -292,17 +294,15 @@ export function App() {
       item.group_id === group?.id,
   )
   const focused = dvizhi.find((item) => item.id === targetId)
-  const homeDvizh = useMemo(() => {
-    if (focused) return focused
-    return [...dvizhi]
+  const homeDvizhi = useMemo(() => {
+    return dvizhi
       .filter(
         (item) =>
           item.group_id === group?.id &&
           !['CANCELLED', 'EXPIRED', 'NO_MATCH'].includes(item.status),
       )
-      .sort((a, b) => priority(a) - priority(b))[0]
-  }, [focused, dvizhi, group?.id])
-  const selected = screen === 'dvizhi' ? focused : homeDvizh
+      .sort((a, b) => priority(a) - priority(b))
+  }, [dvizhi, group?.id])
   const coachStep: CoachStep | null =
     screen === 'home' && !introDone
       ? (['signal', 'choice', 'dvizhi'] as CoachStep[])[introStep]
@@ -444,7 +444,7 @@ export function App() {
           setTargetId(null)
         }}
       />
-    ) : screen === 'dvizhi' && !selected ? (
+    ) : screen === 'dvizhi' && !focused ? (
       <DvizhList
         items={dvizhi}
         onOpen={setTargetId}
@@ -482,25 +482,18 @@ export function App() {
           }
         }}
       />
-    ) : selected ? (
+    ) : screen === 'dvizhi' && focused ? (
       <div className="page-stack home-page">
-        {screen === 'dvizhi' ? (
-          <button type="button" className="text-action" onClick={() => setTargetId(null)}>
-            ← Все движи
-          </button>
-        ) : null}
+        <button type="button" className="dvizh-back" onClick={() => setTargetId(null)}>
+          Все движи
+        </button>
         <DvizhFlow
-          key={selected.id}
-          dvizh={selected}
+          key={focused.id}
+          dvizh={focused}
           onUpdate={updateDvizh}
-          onEdit={() => editDvizh(selected)}
+          onEdit={() => editDvizh(focused)}
           onNew={() => openSignal()}
         />
-        {screen === 'home' ? (
-          <button className="text-action" onClick={() => setScreen('dvizhi')}>
-            Все движи
-          </button>
-        ) : null}
       </div>
     ) : (
       <div className="page-stack home-page">
@@ -509,6 +502,38 @@ export function App() {
           onRepeat={() => openSignal(null, true)}
           hasRepeat={Boolean(recurring && recurring.status === 'ACTIVE')}
         />
+        {homeDvizhi.length ? (
+          <section className="home-dvizhi" aria-labelledby="home-dvizhi-title">
+            <h2 id="home-dvizhi-title">Твои движи</h2>
+            <div className="home-dvizhi__list">
+              {homeDvizhi.map((item) => (
+                <button
+                  type="button"
+                  className="home-dvizhi__item"
+                  key={item.id}
+                  onClick={() => {
+                    setTargetId(item.id)
+                    setScreen('dvizhi')
+                  }}
+                >
+                  <strong>{item.activity_ids.map(activityLabel).join(' или ')}</strong>
+                  <span>{formatSignalWindow(item.available_from, item.available_to)}</span>
+                  <small>
+                    {item.status === 'CHOOSING_CANDIDATES'
+                      ? 'Выбери место'
+                      : item.status === 'AWAITING_CONFIRMATION'
+                        ? 'Нужно подтвердить'
+                        : item.status === 'NO_SOURCE' || item.status === 'PROVIDER_UNAVAILABLE'
+                          ? 'Нужен новый поиск'
+                          : item.status === 'GATHERED'
+                            ? 'Собрались'
+                            : 'Собирается'}
+                  </small>
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
       </div>
     )
 

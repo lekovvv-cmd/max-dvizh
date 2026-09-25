@@ -136,6 +136,12 @@ AUTOSIGNAL_LOOKAHEAD_DAYS=7
 2. Подставьте публичный HTTPS origin API в `BACKEND_URL` проекта `dvizh-frontend` и
    разверните frontend.
 3. Разверните worker и scheduler с общими URL ресурсов.
+   В логах worker должна появиться строка `outbox_worker_started`, затем раз в минуту
+   `outbox_heartbeat`. Если `MAX_BOT_TOKEN` не задан, worker завершится с явной ошибкой.
+   После запуска тестового движа проверьте `outbox_sent kind=DVIZH_REVIEW_REQUIRED`
+   для других участников компании. `outbox_delivery_failed` содержит HTTP-статус
+   ответа MAX и число попыток, без токена и текста сообщения. Если heartbeat есть,
+   а `pending` растёт, проверьте токен, доступ к MAX API и общую базу с API.
 4. После готовности публичного HTTPS API выполните в среде API (или в локальном shell с теми же секретами): `python -m app.modules.max_integration.subscribe_webhook`. Команда делает POST `/subscriptions` и проверяет GET `/subscriptions`. Повторите её при смене домена или секрета. В production используйте только Webhook, не запускайте Long Polling.
 5. Проверьте:
 

@@ -66,7 +66,7 @@ def verify_upgrade(engine: Engine) -> None:
         assert row["timezone_name"] is None and row["invite_expires_at"] is None
         assert row["address_text"] is None
         assert row["is_default"] is False
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20260924_0011"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20260925_0012"
         assert (
             connection.scalar(text("SELECT to_regclass('public.dvizh_sessions')"))
             == "dvizh_sessions"
