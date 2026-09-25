@@ -2379,8 +2379,8 @@
         "tags": [
           "dvizh"
         ],
-        "summary": "Cancel Recurring",
-        "operationId": "cancel_recurring_api_v1_recurring_signals__rule_id__delete",
+        "summary": "Delete Recurring",
+        "operationId": "delete_recurring_api_v1_recurring_signals__rule_id__delete",
         "parameters": [
           {
             "name": "rule_id",
@@ -2434,7 +2434,163 @@
                   "additionalProperties": {
                     "type": "string"
                   },
-                  "title": "Response Cancel Recurring Api V1 Recurring Signals  Rule Id  Delete"
+                  "title": "Response Delete Recurring Api V1 Recurring Signals  Rule Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recurring-signals/{rule_id}/pause": {
+      "post": {
+        "tags": [
+          "dvizh"
+        ],
+        "summary": "Pause Recurring",
+        "operationId": "pause_recurring_api_v1_recurring_signals__rule_id__pause_post",
+        "parameters": [
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Id"
+            }
+          },
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Pause Recurring Api V1 Recurring Signals  Rule Id  Pause Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recurring-signals/{rule_id}/resume": {
+      "post": {
+        "tags": [
+          "dvizh"
+        ],
+        "summary": "Resume Recurring",
+        "operationId": "resume_recurring_api_v1_recurring_signals__rule_id__resume_post",
+        "parameters": [
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Id"
+            }
+          },
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Resume Recurring Api V1 Recurring Signals  Rule Id  Resume Post"
                 }
               }
             }
@@ -3651,9 +3807,17 @@
             "type": "boolean",
             "title": "Confirm Near Exception",
             "default": false
+          },
+          "candidate_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Candidate Id"
           }
         },
         "type": "object",
+        "required": [
+          "candidate_id"
+        ],
         "title": "ConfirmationIn"
       },
       "GroupCityUpdateIn": {

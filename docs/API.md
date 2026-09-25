@@ -1,6 +1,6 @@
 # Product API и MAX
 
-База API: `/api/v1`. Пользовательские endpoints требуют `X-MAX-Init-Data` с валидной подписью MAX. В `APP_ENV=development` разрешён `X-Demo-User`. MAX webhook использует отдельный секретный заголовок и не принимает Mini App auth вместо него.
+База API: `/api/v1`. Пользовательские endpoints требуют `X-MAX-Init-Data` с валидной подписью MAX. `X-Demo-User` разрешён только при одновременных `APP_ENV=development` и `ALLOW_DEMO_AUTH=true`. MAX webhook использует отдельный секретный заголовок и не принимает Mini App auth вместо него.
 
 | Метод | Путь | Назначение |
 | --- | --- | --- |
@@ -15,7 +15,10 @@
 | POST | `/dvizhi/{id}/launch` | Явно открыть обзор компании |
 | POST | `/dvizhi/{id}/confirm` | Окончательное подтверждение активного варианта |
 | POST | `/dvizhi/{id}/decline` | Отказ до окончательного подтверждения |
-| POST / PUT / DELETE | `/recurring-signals[/{id}]` | Создать, изменить, отключить еженедельное правило |
+| POST / PUT | `/recurring-signals[/{id}]` | Создать или изменить еженедельное правило |
+| POST | `/recurring-signals/{id}/pause` | Приостановить правило; незапущенные раунды отменяются |
+| POST | `/recurring-signals/{id}/resume` | Возобновить правило |
+| DELETE | `/recurring-signals/{id}` | Мягкое удаление: статус `DELETED`, запись остаётся в БД |
 | POST | `/integrations/max/webhook` | Подписанный входящий MAX Update |
 
 `POST /signals` принимает `group_ids`, `activity_categories`, `available_from`, `available_to`, `min_people`, необязательные `max_people`, `budget_max`, `origin_location_id`, `radius_km`. Ответ содержит `signal_batch_id` и отдельный `dvizhi[]` для каждой компании. Режимы `NO_SOURCE` и `PROVIDER_UNAVAILABLE` явны. В `GET /dvizhi` поля `my_reaction`, `my_confirmation` личные; до `GATHERED` `participants=[]`.
