@@ -189,7 +189,7 @@ def get_session(
     return SessionOut(
         id=user.id,
         display_name=user.display_name,
-        max_mode="MAX" if settings.app_env != "development" else "development",
+        max_mode="development" if settings.local_demo_mode else "MAX",
         max_chat_id=optional_max_chat_id(x_max_init_data),
     )
 
@@ -614,7 +614,7 @@ def _provider_query(payload: IntentIn, intent_type: str, city_slug: str) -> Prov
 
 @router.post("/intents", response_model=IntentOut, status_code=status.HTTP_201_CREATED)
 def create_signal(payload: IntentIn, session: DbSession, user: CurrentUser) -> IntentOut:
-    if settings.app_env == "production":
+    if not settings.local_demo_mode:
         raise error(status.HTTP_410_GONE, "Используй новый экран сигналов")
     return _create_intent(payload, session, user, "ONE_TIME")
 
@@ -742,7 +742,7 @@ def _save_batch(
 
 @router.post("/signal-batches/{batch_id}/refresh", response_model=SignalBatchOut)
 def refresh_signal_batch(batch_id: str, session: DbSession, user: CurrentUser) -> SignalBatchOut:
-    if settings.app_env == "production":
+    if not settings.local_demo_mode:
         raise error(status.HTTP_410_GONE, "Используй новый экран сигналов")
     intents = list(
         session.scalars(
@@ -801,7 +801,7 @@ def refresh_signal_batch(batch_id: str, session: DbSession, user: CurrentUser) -
 def create_signal_batch(
     payload: SignalBatchIn, session: DbSession, user: CurrentUser
 ) -> SignalBatchOut:
-    if settings.app_env == "production":
+    if not settings.local_demo_mode:
         raise error(status.HTTP_410_GONE, "Используй новый экран сигналов")
     return _save_batch(payload, session, user)
 
@@ -810,7 +810,7 @@ def create_signal_batch(
 def edit_signal_batch(
     batch_id: str, payload: SignalBatchIn, session: DbSession, user: CurrentUser
 ) -> SignalBatchOut:
-    if settings.app_env == "production":
+    if not settings.local_demo_mode:
         raise error(status.HTTP_410_GONE, "Используй новый экран сигналов")
     current = session.scalar(
         select(Intent).where(
@@ -875,7 +875,7 @@ def list_intents(
 def create_auto_signal(
     payload: AutoSignalIn, background_tasks: BackgroundTasks, session: DbSession, user: CurrentUser
 ) -> IntentOut:
-    if settings.app_env == "production":
+    if not settings.local_demo_mode:
         raise error(status.HTTP_410_GONE, "Используй новый экран сигналов")
     recurrence: dict[str, object] = {
         "weekdays": payload.weekdays,
@@ -1500,7 +1500,7 @@ def sync(city_slug: str, session: DbSession, user: CurrentUser) -> dict[str, obj
 
 @router.post("/development/seed-demo/{group_id}", status_code=status.HTTP_201_CREATED)
 def seed_demo(group_id: str, session: DbSession, user: CurrentUser) -> dict[str, str]:
-    if settings.app_env != "development":
+    if not settings.local_demo_mode:
         raise error(status.HTTP_404_NOT_FOUND, "Не найдено")
     group = member(session, group_id, user.id)
     start = now() + timedelta(hours=2)

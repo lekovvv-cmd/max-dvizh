@@ -68,6 +68,7 @@ same-origin `/api/*` frontend-проекта.
 ```dotenv
 APP_ENV=production
 APP_PROCESS=api
+ALLOW_DEMO_AUTH=false
 DATABASE_URL=<from RelaxDev>
 REDIS_URL=<from RelaxDev>
 MAX_BOT_TOKEN=<secret>
@@ -144,6 +145,10 @@ https://<api-project-domain>/api/v1/health/ready
 https://<frontend-project-domain>/
 https://<frontend-project-domain>/api/v1/health
 ```
+
+Проверьте также, что `GET /api/v1/session` с заголовком
+`X-Demo-User: test` возвращает `401`. Ответ `200` означает, что включён
+локальный демо-вход: установите `ALLOW_DEMO_AUTH=false` и передеплойте API.
 
 Последний запрос должен вернуть ответ API через nginx frontend-проекта. После проверки
 передайте владельцу MAX-бота публичный HTTPS URL frontend:

@@ -29,6 +29,7 @@ services:
       context: ./backend
     environment:
       APP_ENV: ${APP_ENV:-development}
+      ALLOW_DEMO_AUTH: ${ALLOW_DEMO_AUTH:-true}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-max_dvizh}:${POSTGRES_PASSWORD:-local_development_only}@postgres:5432/${POSTGRES_DB:-max_dvizh}
       REDIS_URL: redis://redis:6379/0
       MAX_BOT_TOKEN: ${MAX_BOT_TOKEN:-}

@@ -72,7 +72,7 @@ def current_user(
     chat_id: str | None = None
     if x_max_init_data:
         max_user_id, name, chat_id = validate_init_data(x_max_init_data)
-    elif settings.app_env == "development" and x_demo_user:
+    elif settings.local_demo_mode and x_demo_user:
         max_user_id, name = x_demo_user.strip(), f"Демо {x_demo_user.strip()}"
     else:
         raise _fail("Open through MAX or use X-Demo-User in local development")

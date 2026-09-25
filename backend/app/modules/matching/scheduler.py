@@ -180,7 +180,7 @@ def run_once() -> int:
         try:
             with Session(bind=connection) as session:
                 refreshed = (
-                    0 if settings.app_env == "production" else evaluate_active_autosignals(session)
+                    evaluate_active_autosignals(session) if settings.local_demo_mode else 0
                 )
                 from app.api.routes.dvizh import materialize_recurring
 

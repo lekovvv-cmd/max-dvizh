@@ -41,7 +41,23 @@ def test_signed_max_init_data_and_tampering(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_demo_identity_is_rejected_in_production(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(auth, "settings", Settings(app_env="production", max_bot_token="token"))
+    monkeypatch.setattr(
+        auth,
+        "settings",
+        Settings(app_env="production", allow_demo_auth=True, max_bot_token="token"),
+    )
+    with Session(create_engine("sqlite://")) as session:
+        with pytest.raises(HTTPException) as error:
+            auth.current_user(session, x_max_init_data=None, x_demo_user="someone")
+    assert error.value.status_code == 401
+
+
+def test_demo_identity_requires_explicit_opt_in(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        auth,
+        "settings",
+        Settings(app_env="development", allow_demo_auth=False, max_bot_token="token"),
+    )
     with Session(create_engine("sqlite://")) as session:
         with pytest.raises(HTTPException) as error:
             auth.current_user(session, x_max_init_data=None, x_demo_user="someone")

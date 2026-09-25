@@ -8,7 +8,7 @@
 docker compose up --build
 ```
 
-Mini App: http://localhost:8080 · API: http://localhost:8000/docs. Для локальной демонстрации `APP_ENV=development` разрешает `X-Demo-User`; реальные данные MAX этим не подтверждаются. Compose автоматически применяет миграции PostgreSQL и запускает API, MAX worker и планировщик отдельными процессами.
+Mini App: http://localhost:8080 · API: http://localhost:8000/docs. Для локальной демонстрации Compose явно задаёт `APP_ENV=development` и `ALLOW_DEMO_AUTH=true`, что разрешает `X-Demo-User`; реальные данные MAX этим не подтверждаются. По умолчанию демо-вход выключен. Compose автоматически применяет миграции PostgreSQL и запускает API, MAX worker и планировщик отдельными процессами.
 
 Если порт `8080` занят другим локальным сервером, задайте `FRONTEND_PORT=18080` при запуске Compose и откройте http://localhost:18080. Проверяйте, что страницу отдаёт контейнер `nginx`, а не приложение, уже занявшее стандартный порт.
 

@@ -14,7 +14,8 @@ def normalize_database_url(value: str) -> str:
 class Settings:
     app_name: str = "MAX ДВИЖ API"
     app_version: str = "1.0.0"
-    app_env: str = getenv("APP_ENV", "development")
+    app_env: str = getenv("APP_ENV", "production")
+    allow_demo_auth: bool = getenv("ALLOW_DEMO_AUTH", "false").lower() == "true"
     database_url: str = normalize_database_url(
         getenv(
             "DATABASE_URL",
@@ -39,6 +40,10 @@ class Settings:
     outbox_poll_seconds: float = float(getenv("OUTBOX_POLL_SECONDS", "5"))
     outbox_retry_max_seconds: int = int(getenv("OUTBOX_RETRY_MAX_SECONDS", "300"))
     max_init_data_age_seconds: int = int(getenv("MAX_INIT_DATA_MAX_AGE_SECONDS", "3600"))
+
+    @property
+    def local_demo_mode(self) -> bool:
+        return self.app_env == "development" and self.allow_demo_auth
 
 
 settings = Settings()
