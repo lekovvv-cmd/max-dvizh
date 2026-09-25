@@ -309,7 +309,7 @@
 }
 .collecting-card__facts strong {
   color: var(--dvizh-blue);
-  font-size: 28px;
+  font-size: clamp(18px, 5vw, 28px);
   line-height: 1;
 }
 .collecting-card__facts span {

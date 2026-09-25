@@ -228,7 +228,6 @@ input[type='checkbox'] {
   padding: 22px 20px;
   background: linear-gradient(135deg, #f8f5ff, #eee9ff);
   isolation: isolate;
-  animation: home-glow 8s ease-in-out infinite alternate;
 }
 .home-intro::before {
   content: '';
@@ -283,14 +282,6 @@ input[type='checkbox'] {
   color: var(--dvizh-muted);
   font-size: 14px;
   line-height: 1.5;
-}
-@keyframes home-glow {
-  from {
-    background-color: #f8f5ff;
-  }
-  to {
-    background-color: #ebe5ff;
-  }
 }
 @keyframes home-orbit {
   from {

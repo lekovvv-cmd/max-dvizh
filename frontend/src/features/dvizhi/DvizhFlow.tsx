@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 
 import { api, type Dvizh, type DvizhCandidate } from '../../app/api'
-import { activityLabel } from '../../shared/lib/format'
+import { activityLabel, formatPeople } from '../../shared/lib/format'
 import { ActivityCard } from '../../shared/ui/ActivityCard'
 import { SignalCard } from '../../shared/ui/SignalCard'
 
@@ -72,6 +72,8 @@ export function DvizhFlow({
   }
 
   const summary = dvizh.activity_ids.map(activityLabel).join(' или ')
+  const placeRule = new Intl.PluralRules('ru-RU').select(dvizh.chosen_count)
+  const placeNoun = placeRule === 'one' ? 'место' : placeRule === 'few' ? 'места' : 'мест'
   const doneChoosing = choosing && !current && limit >= dvizh.candidates.length
   const needsConfirm = dvizh.status === 'AWAITING_CONFIRMATION' && match?.my_reaction === 'WOULD_GO'
   const waitlisted = dvizh.my_confirmation === 'WAITLISTED'
@@ -334,15 +336,15 @@ export function DvizhFlow({
             <span />
           </div>
           <h1>Движ собирается</h1>
-          <p>{summary}. Ждём ответы компании.</p>
+          <p>{`${summary}. Ждём ответы компании.`}</p>
           <div className="collecting-card__facts">
             <div>
               <strong>{dvizh.chosen_count}</strong>
-              <span>мест на выбор</span>
+              <span>{placeNoun} на выбор</span>
             </div>
             <div>
-              <strong>{dvizh.min_people}</strong>
-              <span>участников нужно минимум</span>
+              <strong>{formatPeople(dvizh.min_people)}</strong>
+              <span>минимум для старта</span>
             </div>
           </div>
           <p className="collecting-card__hint">
