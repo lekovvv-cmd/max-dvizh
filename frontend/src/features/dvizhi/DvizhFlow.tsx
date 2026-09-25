@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 
 import { api, type Dvizh, type DvizhCandidate } from '../../app/api'
 import { activityLabel, formatPeople } from '../../shared/lib/format'
+import { dvizhStatusLabel } from '../../shared/lib/dvizhStatus'
 import { ActivityCard } from '../../shared/ui/ActivityCard'
 import { SignalCard } from '../../shared/ui/SignalCard'
 
@@ -282,7 +283,7 @@ export function DvizhFlow({
       ) : needsConfirm && match ? (
         <>
           <h1>Похоже, совпало</h1>
-          <ActivityCard candidate={match} status="Нужно подтвердить" />
+          <ActivityCard candidate={match} status={dvizhStatusLabel(dvizh)} />
           <div className="dvizh-result">
             <p>
               {dvizh.confirmed_count} из {dvizh.min_people} подтвердили участие
@@ -316,7 +317,11 @@ export function DvizhFlow({
             ) : waitlisted ? (
               waitlistAction
             ) : (
-              <p>Ответ сохранён. Ждём остальных.</p>
+              <p>
+                {dvizh.my_confirmation === 'CONFIRMED'
+                  ? 'Ты в деле. Ждём остальных.'
+                  : 'Ты отказался от этого варианта.'}
+              </p>
             )}
           </div>
         </>

@@ -8,6 +8,7 @@ import { SignalComposer } from '../features/signals/SignalComposer'
 import { setActivityTaxonomy } from '../shared/lib/activityCatalog'
 import { activityLabel, formatSignalWindow } from '../shared/lib/format'
 import { currentCoordinates } from '../shared/lib/geolocation'
+import { dvizhStatusLabel, needsDvizhConfirmation } from '../shared/lib/dvizhStatus'
 import { AppShell, type Screen } from '../shared/ui/AppShell'
 import { CoachMark, type CoachStep } from '../shared/ui/CoachMark'
 import { ConfirmDialog } from '../shared/ui/ConfirmDialog'
@@ -34,15 +35,7 @@ function initialDeepLink() {
 }
 
 function priority(dvizh: Dvizh) {
-  if (
-    dvizh.status === 'AWAITING_CONFIRMATION' &&
-    dvizh.candidates.some(
-      (candidate) =>
-        candidate.id === dvizh.active_candidate_id && candidate.my_reaction === 'WOULD_GO',
-    ) &&
-    !dvizh.my_confirmation
-  )
-    return 0
+  if (needsDvizhConfirmation(dvizh)) return 0
   if (dvizh.status === 'CHOOSING_CANDIDATES') return 1
   if (
     dvizh.status === 'COLLECTING_REACTIONS' &&
@@ -93,15 +86,7 @@ function DvizhList({
               <span>
                 {item.group_name} · {formatSignalWindow(item.available_from, item.available_to)}
               </span>
-              <small>
-                {item.status === 'CHOOSING_CANDIDATES'
-                  ? 'Выбери место'
-                  : item.status === 'AWAITING_CONFIRMATION'
-                    ? 'Нужно подтвердить'
-                    : item.status === 'NO_SOURCE' || item.status === 'PROVIDER_UNAVAILABLE'
-                      ? 'Нужен новый поиск'
-                      : 'Собирается'}
-              </small>
+              <small>{dvizhStatusLabel(item)}</small>
             </button>
           ))}
         </section>
@@ -118,7 +103,9 @@ function DvizhList({
               <span>
                 {item.group_name} · {formatSignalWindow(item.available_from, item.available_to)}
               </span>
-              <small>Собрался · {item.participants.length} участников</small>
+              <small>
+                {dvizhStatusLabel(item)} · {item.participants.length} участников
+              </small>
             </button>
           ))}
         </section>
@@ -544,17 +531,7 @@ export function App() {
                 >
                   <strong>{item.activity_ids.map(activityLabel).join(' или ')}</strong>
                   <span>{formatSignalWindow(item.available_from, item.available_to)}</span>
-                  <small>
-                    {item.status === 'CHOOSING_CANDIDATES'
-                      ? 'Выбери место'
-                      : item.status === 'AWAITING_CONFIRMATION'
-                        ? 'Нужно подтвердить'
-                        : item.status === 'NO_SOURCE' || item.status === 'PROVIDER_UNAVAILABLE'
-                          ? 'Нужен новый поиск'
-                          : item.status === 'GATHERED'
-                            ? 'Собрались'
-                            : 'Собирается'}
-                  </small>
+                  <small>{dvizhStatusLabel(item)}</small>
                 </button>
               ))}
             </div>

@@ -208,6 +208,20 @@ describe('new Dvizh product route', () => {
     expect(screen.getByRole('button', { name: 'Подать сигнал' })).toBeInTheDocument()
   })
 
+  it('does not ask for confirmation again after the user is already in', async () => {
+    const confirmed = dvizh('AWAITING_CONFIRMATION')
+    confirmed.active_candidate_id = '1'
+    confirmed.candidates[0].my_reaction = 'WOULD_GO'
+    confirmed.my_confirmation = 'CONFIRMED'
+    mockData([confirmed], true)
+    render(<App />)
+    expect(await screen.findByText('Ты в деле')).toBeInTheDocument()
+    expect(screen.queryByText('Нужно подтвердить')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Движи' }))
+    expect(screen.getByText('Ты в деле')).toBeInTheDocument()
+    expect(screen.queryByText('Нужно подтвердить')).not.toBeInTheDocument()
+  })
+
   it('shows all three onboarding steps together on first entry', async () => {
     mockData()
     render(<App />)

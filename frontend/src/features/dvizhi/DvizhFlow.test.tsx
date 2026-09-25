@@ -140,4 +140,16 @@ describe('finite candidate round', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Проверить место' }))
     await waitFor(() => expect(save).toHaveBeenCalledWith('d1', 'c1', false))
   })
+
+  it('shows a saved confirmation on the detail card', () => {
+    const item = sample()
+    item.status = 'AWAITING_CONFIRMATION'
+    item.active_candidate_id = 'c1'
+    item.candidates[0].my_reaction = 'WOULD_GO'
+    item.my_confirmation = 'CONFIRMED'
+    render(<DvizhFlow dvizh={item} onUpdate={vi.fn()} onEdit={vi.fn()} onNew={vi.fn()} />)
+    expect(screen.getByText('Ты в деле')).toBeInTheDocument()
+    expect(screen.getByText('Ты в деле. Ждём остальных.')).toBeInTheDocument()
+    expect(screen.queryByText('Нужно подтвердить')).not.toBeInTheDocument()
+  })
 })
