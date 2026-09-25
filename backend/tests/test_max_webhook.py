@@ -132,8 +132,61 @@ def test_max_outbox_buttons_use_callback_only_for_exact_match(monkeypatch) -> No
     assert buttons[1]["type"] == "link" and "startapp=dvizh_d1" in buttons[1]["url"]
     assert buttons[2]["text"] == "Открыть ДВИЖ"
     assert buttons[2]["url"] == "https://max.ru/DvizhBot?startapp"
+    assert sent[0][1]["json"]["notify"] is True
     assert sent[3][1]["json"] == {"notification": "Сохранено"}
     assert all(call[1]["headers"]["Authorization"] == "test-token" for call in sent)
+
+
+def test_bot_start_retries_failed_dvizh_notifications(monkeypatch) -> None:
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    Base.metadata.create_all(engine)
+    app = FastAPI()
+    app.include_router(max_webhook.router)
+
+    def db_session():
+        with Session(engine) as session:
+            yield session
+
+    app.dependency_overrides[get_session] = db_session
+    monkeypatch.setattr(max_webhook, "settings", Settings(max_webhook_secret="test-secret"))
+    with Session(engine) as session:
+        user = User(max_user_id="123", display_name="Антон")
+        session.add(user)
+        session.flush()
+        session.add(
+            OutboxNotification(
+                kind="DVIZH_REVIEW_REQUIRED",
+                user_id=user.id,
+                payload={"dvizh_id": "still-checked-by-worker"},
+                status="FAILED",
+                attempts=1,
+                dedupe_key="failed-invite",
+            )
+        )
+        session.commit()
+
+    update = {
+        "update_type": "bot_started",
+        "timestamp": 1750000000000,
+        "chat_id": 5,
+        "user": {"user_id": 123, "name": "Антон"},
+    }
+    with TestClient(app) as client:
+        response = client.post(
+            "/integrations/max/webhook",
+            json=update,
+            headers={"X-Max-Bot-Api-Secret": "test-secret"},
+        )
+    assert response.status_code == 200
+    with Session(engine) as session:
+        invite = session.scalar(
+            select(OutboxNotification).where(OutboxNotification.dedupe_key == "failed-invite")
+        )
+        assert invite is not None
+        assert invite.status == "PENDING"
+        assert invite.attempts == 0
 
 
 def test_subscription_setup_posts_and_verifies_official_contract(monkeypatch) -> None:

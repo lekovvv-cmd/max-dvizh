@@ -15,6 +15,16 @@ from app.db.models import DvizhCandidate, DvizhSession, GroupMember, OutboxNotif
 
 logger = logging.getLogger(__name__)
 
+DVIZH_MESSAGE_KINDS = frozenset(
+    {
+        "DVIZH_INITIATOR_REVIEW",
+        "DVIZH_REVIEW_REQUIRED",
+        "DVIZH_MATCH_FOUND",
+        "DVIZH_GATHERED",
+        "DVIZH_SOURCE_CANCELLED",
+    }
+)
+
 
 def utcnow() -> datetime:
     return datetime.now(UTC)
@@ -174,7 +184,9 @@ def _dvizh_message(event: OutboxNotification) -> tuple[str, str, str | None]:
 
 def send_dvizh_message(max_user_id: str, event: OutboxNotification) -> bool:
     text, label, link = _dvizh_message(event)
-    body: dict[str, object] = {"text": text}
+    # ``notify`` defaults to true in MAX, but setting it explicitly prevents a
+    # deployment-side default from turning an invitation into a silent message.
+    body: dict[str, object] = {"text": text, "notify": True}
     if link:
         button: dict[str, str] = {"type": "link", "text": label, "url": link}
         if event.kind == "DVIZH_MATCH_FOUND" and event.payload.get("compatibility") == "EXACT":
@@ -291,13 +303,7 @@ def dispatch_pending(session: Session, batch_size: int = 50) -> int:
             logger.error("outbox_failed id=%s kind=%s reason=user_missing", event.id, event.kind)
             continue
         try:
-            if event.kind in {
-                "DVIZH_INITIATOR_REVIEW",
-                "DVIZH_REVIEW_REQUIRED",
-                "DVIZH_MATCH_FOUND",
-                "DVIZH_GATHERED",
-                "DVIZH_SOURCE_CANCELLED",
-            }:
+            if event.kind in DVIZH_MESSAGE_KINDS:
                 send_dvizh_message(user.max_user_id, event)
             elif event.kind == "MAX_CALLBACK_ANSWER":
                 send_callback_answer(str(event.payload["callback_id"]), str(event.payload["text"]))

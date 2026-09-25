@@ -15,8 +15,31 @@ from app.api.deps import DbSession
 from app.api.routes.dvizh import ConfirmationIn, confirm
 from app.core.config import settings
 from app.db.models import Group, MaxWebhookEvent, OutboxNotification, User
+from app.modules.max_integration.client import DVIZH_MESSAGE_KINDS
 
 router = APIRouter(tags=["max integration"])
+
+
+def retry_notifications_after_bot_start(session: DbSession, user_id: str) -> None:
+    """Restore invitations that MAX could not deliver before the bot was started.
+
+    A ``startapp`` deep link opens a Mini App without necessarily starting the
+    bot dialog. MAX can reject a direct message in that state.  The outbox keeps
+    the terminal 4xx result for observability, then this confirmed ``bot_started``
+    event makes the still-relevant invitation eligible for one fresh delivery.
+    The dispatcher performs the final staleness check before sending it.
+    """
+    for notification in session.scalars(
+        select(OutboxNotification).where(
+            OutboxNotification.user_id == user_id,
+            OutboxNotification.kind.in_(DVIZH_MESSAGE_KINDS),
+            OutboxNotification.status == "FAILED",
+        )
+    ):
+        notification.status = "PENDING"
+        notification.attempts = 0
+        notification.next_attempt_at = None
+        notification.locked_at = None
 
 
 class MaxUpdate(BaseModel):
@@ -73,6 +96,7 @@ async def max_webhook(
             session.add(user)
             session.flush()
         if update.update_type == "bot_started":
+            retry_notifications_after_bot_start(session, user.id)
             if (
                 session.scalar(
                     select(OutboxNotification.id).where(
