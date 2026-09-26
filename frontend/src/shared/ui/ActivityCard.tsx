@@ -50,14 +50,11 @@ export function ActivityCard({
           ) : null}
         </dl>
         {candidate.compatibility === 'NEAR' ? (
-          <p className="activity-card__warning">
-            Условия отличаются: бюджет выше на {candidate.budget_delta} ₽. Понадобится твоё
-            согласие.
-          </p>
+          <p className="activity-card__warning">Бюджет выше на {candidate.budget_delta} ₽.</p>
         ) : null}
         {candidate.source_url ? (
           <a href={candidate.source_url} target="_blank" rel="noreferrer">
-            Открыть место
+            Подробнее
           </a>
         ) : null}
         {children}

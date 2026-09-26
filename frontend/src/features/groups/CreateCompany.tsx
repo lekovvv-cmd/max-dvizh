@@ -40,8 +40,8 @@ export function CreateCompany({
           bind_current_chat: bindCurrentChat,
         }),
       )
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Не удалось создать компанию')
+    } catch {
+      setError('Не удалось создать компанию. Попробуй ещё раз.')
     } finally {
       setBusy(false)
     }

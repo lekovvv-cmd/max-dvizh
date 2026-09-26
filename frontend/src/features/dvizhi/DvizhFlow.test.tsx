@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { api, type Dvizh } from '../../app/api'
@@ -116,7 +116,7 @@ describe('finite candidate round', () => {
     const item = sample()
     item.candidates[0].my_reaction = 'PASS'
     render(<DvizhFlow dvizh={item} onUpdate={vi.fn()} onEdit={vi.fn()} onNew={vi.fn()} />)
-    expect(screen.getByRole('heading', { name: 'Ничего не зацепило' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Ничего не выбрал' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Запустить движ' })).not.toBeInTheDocument()
   })
 
@@ -127,6 +127,72 @@ describe('finite candidate round', () => {
     render(<DvizhFlow dvizh={item} onUpdate={vi.fn()} onEdit={vi.fn()} onNew={vi.fn()} />)
     expect(screen.getByRole('heading', { name: 'Выбрано: 1' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Запустить движ' })).toBeInTheDocument()
+  })
+
+  it('shows a summary before launching when the initiator finishes early', () => {
+    const item = sample()
+    item.chosen_count = 1
+    const launch = vi.spyOn(api, 'launch')
+    render(<DvizhFlow dvizh={item} onUpdate={vi.fn()} onEdit={vi.fn()} onNew={vi.fn()} />)
+    expect(screen.getByText('1 из 1')).toBeInTheDocument()
+    expect(screen.queryByText('Свайп влево или вправо тоже работает')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Закончить выбор' }))
+    expect(screen.getByRole('heading', { name: 'Выбрано: 1' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Запустить движ' })).toBeInTheDocument()
+    expect(launch).not.toHaveBeenCalled()
+  })
+
+  it('requires in-app consent before accepting a near-budget candidate', async () => {
+    const item = sample()
+    item.candidates[0].compatibility = 'NEAR'
+    item.candidates[0].budget_delta = 200
+    const save = vi.spyOn(api, 'react').mockResolvedValue(item)
+    render(<DvizhFlow dvizh={item} onUpdate={vi.fn()} onEdit={vi.fn()} onNew={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Пошёл бы' }))
+    expect(screen.getByRole('dialog', { name: 'Чуть дороже' })).toBeInTheDocument()
+    expect(save).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Отмена' }))
+    expect(save).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Пошёл бы' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Всё равно пойду' }))
+    await waitFor(() => expect(save).toHaveBeenCalledWith('d1', 'c1', 'WOULD_GO', true))
+  })
+
+  it('requires separate consent for a near-budget final confirmation', async () => {
+    const item = sample()
+    item.status = 'AWAITING_CONFIRMATION'
+    item.active_candidate_id = 'c1'
+    item.candidates[0].my_reaction = 'WOULD_GO'
+    item.candidates[0].compatibility = 'NEAR'
+    item.candidates[0].budget_delta = 200
+    const confirm = vi.spyOn(api, 'confirmDvizh').mockResolvedValue(item)
+    render(<DvizhFlow dvizh={item} onUpdate={vi.fn()} onEdit={vi.fn()} onNew={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Я в деле' }))
+    expect(screen.getByRole('dialog', { name: 'Чуть дороже' })).toBeInTheDocument()
+    expect(confirm).not.toHaveBeenCalled()
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Чуть дороже' })).getByRole('button', {
+        name: 'Я в деле',
+      }),
+    )
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith('d1', 'c1', true))
+  })
+
+  it('uses short recovery copy without exposing the provider', () => {
+    const item = sample()
+    item.status = 'NO_SOURCE'
+    render(<DvizhFlow dvizh={item} onUpdate={vi.fn()} onEdit={vi.fn()} onNew={vi.fn()} />)
+    expect(screen.getByRole('heading', { name: 'Пока ничего не нашли' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Изменить' })).toBeInTheDocument()
+    expect(screen.queryByText(/KudaGo/i)).not.toBeInTheDocument()
+  })
+
+  it('does not offer reactions for an unverified candidate', () => {
+    const item = sample()
+    item.candidates[0].compatibility = 'UNVERIFIED'
+    render(<DvizhFlow dvizh={item} onUpdate={vi.fn()} onEdit={vi.fn()} onNew={vi.fn()} />)
+    expect(screen.queryByRole('button', { name: 'Пошёл бы' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Не моё' })).not.toBeInTheDocument()
   })
 
   it('lets a waitlisted member check for an open place after gathering', async () => {
@@ -149,7 +215,8 @@ describe('finite candidate round', () => {
     item.my_confirmation = 'CONFIRMED'
     render(<DvizhFlow dvizh={item} onUpdate={vi.fn()} onEdit={vi.fn()} onNew={vi.fn()} />)
     expect(screen.getByText('Ты в деле')).toBeInTheDocument()
-    expect(screen.getByText('Ты в деле. Ждём остальных.')).toBeInTheDocument()
+    expect(screen.getByText('Ждём остальных.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Я в деле' })).not.toBeInTheDocument()
     expect(screen.queryByText('Нужно подтвердить')).not.toBeInTheDocument()
   })
 })

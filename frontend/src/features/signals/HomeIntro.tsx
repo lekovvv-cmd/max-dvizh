@@ -13,19 +13,13 @@ export function HomeIntro({
     <section className="home-intro" aria-labelledby="home-title">
       <PulseMark />
       <h1 id="home-title">Есть идея на вечер?</h1>
-      <p>Скажи, когда и что хочется. Остальных спросит ДВИЖ.</p>
-      <button type="button" className="primary-button" data-coach="signal" onClick={onSignal}>
+      <p>Выбери когда и куда.</p>
+      <button type="button" className="primary-button" onClick={onSignal}>
         Подать сигнал
       </button>
-      <p className="home-intro__steps">Подай сигнал. Выбери место. Остальное сделает ДВИЖ.</p>
       <div className="home-intro__repeat">
         <div>
-          <strong>{hasRepeat ? 'Регулярный сигнал настроен' : 'Собираетесь регулярно?'}</strong>
-          <p>
-            {hasRepeat
-              ? 'Можно изменить дни, время и условия.'
-              : 'Настрой повторение, например каждую пятницу.'}
-          </p>
+          <strong>{hasRepeat ? 'Регулярный сигнал настроен' : 'Ходите куда-то регулярно?'}</strong>
         </div>
         <button type="button" className="text-action" onClick={onRepeat}>
           {hasRepeat ? 'Изменить' : 'Настроить'}

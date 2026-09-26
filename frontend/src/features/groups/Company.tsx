@@ -137,9 +137,7 @@ export function Company({
     } catch (reason) {
       setPlaceError(
         placeLatitude.trim() || placeLongitude.trim()
-          ? reason instanceof Error
-            ? reason.message
-            : 'Не удалось сохранить место.'
+          ? 'Не удалось сохранить место. Попробуй ещё раз.'
           : geolocationError(reason),
       )
     } finally {
@@ -151,8 +149,8 @@ export function Company({
     setError('')
     try {
       await action()
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Не удалось изменить место')
+    } catch {
+      setError('Не удалось изменить место. Попробуй ещё раз.')
     } finally {
       setBusy(false)
     }
@@ -161,13 +159,11 @@ export function Company({
     setBusy(true)
     setError('')
     try {
-      const result = await onChangeCity(active.id, nextCity)
+      await onChangeCity(active.id, nextCity)
       setChangeCityOpen(false)
-      setCityResult(
-        `Город изменён. Отменено сигналов: ${result.cancelled_signals}. Автосигналов на паузе: ${result.paused_autosignals}. Закрыто вариантов: ${result.cancelled_plans}.`,
-      )
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Не удалось изменить город')
+      setCityResult('Город изменён. Старые активные движи остановлены.')
+    } catch {
+      setError('Не удалось изменить город. Попробуй ещё раз.')
     } finally {
       setBusy(false)
     }
@@ -353,9 +349,7 @@ export function Company({
             ))}
           </div>
         ) : (
-          <p className="empty-copy">
-            Сохранённых мест пока нет. Без них расстояние в сигнале недоступно.
-          </p>
+          <p className="empty-copy">Мест пока нет.</p>
         )}
         <div className={'add-place' + (placeOpen ? ' is-open' : '')}>
           <button
@@ -392,10 +386,6 @@ export function Company({
                   onChange={(event) => setLabel(event.target.value)}
                 />
               </label>
-              <p className="form-hint">
-                Определи место автоматически или вставь координаты из карты. Точка видна только
-                тебе.
-              </p>
               <div className="form-row form-row--coordinates">
                 <label>
                   Широта

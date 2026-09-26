@@ -438,14 +438,9 @@ export function SignalComposer({
       await onDone(createdDvizhi)
     } catch (reason) {
       if (reason instanceof ApiTimeoutError) {
-        setError(reason.message)
+        setError('Не удалось сохранить. Проверяем сигнал.')
         await checkTimedOutSubmission(Number.isFinite(from.getTime()) ? from.toISOString() : '')
-      } else
-        setError(
-          reason instanceof Error
-            ? reason.message
-            : 'Не удалось начать поиск. Попробовать ещё раз?',
-        )
+      } else setError('Не удалось сохранить. Попробуй ещё раз.')
     } finally {
       setBusy(false)
       busyRef.current = false
@@ -522,7 +517,6 @@ export function SignalComposer({
       <section className="search-saving" aria-live="polite">
         <PulseMark />
         <h1>{checking ? 'Проверяем сохранение' : 'Ищем варианты'}</h1>
-        <p>Проверяем события и места. Если найдём подходящие, ты выберешь, куда пошёл бы.</p>
         <p className="search-saving__summary">{summary}</p>
       </section>
     )
@@ -546,7 +540,6 @@ export function SignalComposer({
           <h2 id="when-title">Когда</h2>
           {form.repeat ? (
             <>
-              <p className="form-hint">Выбери дни и время для повторения.</p>
               <div className="choices choices--weekdays" role="group" aria-label="Дни недели">
                 {weekdays.map((label, day) => (
                   <Choice
@@ -632,7 +625,6 @@ export function SignalComposer({
         </section>
         <section className="form-section" aria-labelledby="category-title">
           <h2 id="category-title">Что хочется?</h2>
-          <p className="form-hint">Сначала выбери направление, затем конкретное занятие.</p>
           <button
             type="button"
             className={'activity-search-trigger' + (catalogOpen ? ' is-open' : '')}
@@ -642,9 +634,7 @@ export function SignalComposer({
           >
             <Icon name="search" size={20} />
             <span>Найти занятие</span>
-            <span className="activity-search-trigger__count">{taxonomy.activities.length}</span>
           </button>
-          <p className="activity-section-label">Направления · смотри варианты</p>
           <div
             className="choices activity-quick"
             role="group"
@@ -662,15 +652,12 @@ export function SignalComposer({
               </button>
             ))}
           </div>
-          <p className="activity-section-label">
-            Занятия · {taxonomy.directions.find((item) => item.id === direction)?.label}
-          </p>
           <div className="choices activity-quick" role="group" aria-label="Занятие">
             <Choice
               active={form.categories.includes(`${direction}/*`)}
               onClick={() => toggleCategory(`${direction}/*`)}
             >
-              Неважно внутри направления
+              Любое
             </Choice>
             {taxonomy.activities
               .filter((item) => item.directions.includes(direction))
@@ -732,11 +719,6 @@ export function SignalComposer({
               </div>
             </div>
           ) : null}
-          {form.categories.length ? (
-            <p className="activity-selection">
-              Выбрано: {form.categories.map(activityLabel).join(' или ')}
-            </p>
-          ) : null}
         </section>
         <section className="form-section" aria-labelledby="company-title">
           <h2 id="company-title">С кем</h2>
@@ -784,7 +766,7 @@ export function SignalComposer({
           onToggle={(event) => setConditionsOpen(event.currentTarget.open)}
         >
           <summary>
-            <strong>Бюджет, расстояние и компания</strong>
+            <strong>Дополнительные условия</strong>
             <span>Необязательно</span>
           </summary>
           <div className="conditions__content">
@@ -832,7 +814,6 @@ export function SignalComposer({
             </section>
             <section className="subsection">
               <h3>Расстояние</h3>
-              <p className="form-hint">Сначала выбери точку.</p>
               <div className="choices" role="group" aria-label="Точка отсчёта">
                 {places.map((place) => (
                   <Choice
@@ -910,9 +891,6 @@ export function SignalComposer({
                   />
                 </label>
               ) : null}
-              <p className="form-hint">
-                Сигнал сработает, когда наберётся указанное количество участников.
-              </p>
               {!people ? <p className="form-error">Укажи от 2 до 12 человек.</p> : null}
             </section>
           </div>

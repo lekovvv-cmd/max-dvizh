@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react'
 
 import { api, type Dvizh, type DvizhCandidate } from '../../app/api'
-import { activityLabel, formatPeople } from '../../shared/lib/format'
+import { formatPeople } from '../../shared/lib/format'
 import { dvizhStatusLabel } from '../../shared/lib/dvizhStatus'
 import { ActivityCard } from '../../shared/ui/ActivityCard'
+import { ConfirmDialog } from '../../shared/ui/ConfirmDialog'
 import { SignalCard } from '../../shared/ui/SignalCard'
 
 const ROUND_SIZE = 8
@@ -25,6 +26,11 @@ export function DvizhFlow({
   const [error, setError] = useState('')
   const [placeOpen, setPlaceOpen] = useState(false)
   const [placeQuery, setPlaceQuery] = useState('')
+  const [selectionFinished, setSelectionFinished] = useState(false)
+  const [nearConsent, setNearConsent] = useState<{
+    candidate: DvizhCandidate
+    action: 'react' | 'confirm'
+  } | null>(null)
   const startX = useRef<number | null>(null)
   const dragX = useRef(0)
   const busyRef = useRef(false)
@@ -36,13 +42,23 @@ export function DvizhFlow({
       ? dvizh.candidates.slice(0, choosing ? limit : undefined)
       : []
   const pending = stack.filter(
-    (candidate) => !candidate.my_reaction && new Date(candidate.expires_at) > new Date(),
+    (candidate) =>
+      candidate.compatibility !== 'UNVERIFIED' &&
+      !candidate.my_reaction &&
+      new Date(candidate.expires_at) > new Date(),
   )
-  const current = dvizh.status === 'AWAITING_CONFIRMATION' ? undefined : pending[0]
-  const answered = stack.length - pending.length
+  const current =
+    dvizh.status === 'AWAITING_CONFIRMATION' || selectionFinished ? undefined : pending[0]
+  const actionableCount = stack.filter(
+    (candidate) => candidate.compatibility !== 'UNVERIFIED',
+  ).length
+  const answered = actionableCount - pending.length
   const match = dvizh.candidates.find((candidate) => candidate.id === dvizh.active_candidate_id)
 
-  async function act(action: () => Promise<Dvizh>) {
+  async function act(
+    action: () => Promise<Dvizh>,
+    failure = 'Не удалось сохранить. Попробуй ещё раз.',
+  ) {
     if (busyRef.current) return
     busyRef.current = true
     setBusy(true)
@@ -50,7 +66,12 @@ export function DvizhFlow({
     try {
       onUpdate(await action())
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Не удалось сохранить. Попробуй ещё раз.')
+      setError(
+        reason instanceof Error &&
+          ['Не нашли это место.', 'Это место не подошло по условиям.'].includes(reason.message)
+          ? reason.message
+          : failure,
+      )
     } finally {
       busyRef.current = false
       setBusy(false)
@@ -61,32 +82,34 @@ export function DvizhFlow({
 
   function react(candidate: DvizhCandidate, value: 'WOULD_GO' | 'PASS') {
     const near = value === 'WOULD_GO' && candidate.compatibility === 'NEAR'
-    if (
-      near &&
-      !window.confirm(`Бюджет выше на ${candidate.budget_delta} ₽. Всё равно пошёл бы?`)
-    ) {
+    if (near) {
+      setNearConsent({ candidate, action: 'react' })
       setDrag(0)
       dragX.current = 0
       return
     }
-    void act(() => api.react(dvizh.id, candidate.id, value, near))
+    void act(() => api.react(dvizh.id, candidate.id, value, false), 'Этот вариант уже недоступен.')
   }
 
-  const summary = dvizh.activity_ids.map(activityLabel).join(' или ')
   const placeRule = new Intl.PluralRules('ru-RU').select(dvizh.chosen_count)
   const placeNoun = placeRule === 'one' ? 'место' : placeRule === 'few' ? 'места' : 'мест'
-  const doneChoosing = choosing && !current && limit >= dvizh.candidates.length
+  const doneChoosing = choosing && !current
   const needsConfirm = dvizh.status === 'AWAITING_CONFIRMATION' && match?.my_reaction === 'WOULD_GO'
   const waitlisted = dvizh.my_confirmation === 'WAITLISTED'
   const waitlistAction =
     waitlisted && match ? (
       <div className="dvizh-result">
-        <p>Ты в листе ожидания. Проверь позже, освободилось ли место.</p>
+        <p>Ты в листе ожидания.</p>
         <button
           className="secondary-button"
           disabled={busy}
           onClick={() =>
-            void act(() => api.confirmDvizh(dvizh.id, match.id, match.compatibility === 'NEAR'))
+            match.compatibility === 'NEAR'
+              ? setNearConsent({ candidate: match, action: 'confirm' })
+              : void act(
+                  () => api.confirmDvizh(dvizh.id, match.id, false),
+                  'Этот вариант уже недоступен.',
+                )
           }
         >
           Проверить место
@@ -103,30 +126,42 @@ export function DvizhFlow({
           aria-expanded={placeOpen}
           onClick={() => setPlaceOpen((value) => !value)}
         >
-          Знаешь место? Найти по названию или ссылке
+          Знаешь конкретное место?
         </button>
         {placeOpen ? (
           <form
             onSubmit={(event) => {
               event.preventDefault()
               if (placeQuery.trim().length >= 2)
-                void act(() => api.searchPlace(dvizh.id, placeQuery.trim()))
+                void act(async () => {
+                  try {
+                    return await api.searchPlace(dvizh.id, placeQuery.trim())
+                  } catch (reason) {
+                    const message = reason instanceof Error ? reason.message : ''
+                    throw new Error(
+                      /не подходит/i.test(message)
+                        ? 'Это место не подошло по условиям.'
+                        : /не нашли/i.test(message)
+                          ? 'Не нашли это место.'
+                          : 'Не удалось загрузить варианты.',
+                    )
+                  }
+                }, 'Не удалось загрузить варианты.')
             }}
           >
             <label>
-              Название или ссылка KudaGo
+              Название или ссылка
               <input
                 value={placeQuery}
                 onChange={(event) => setPlaceQuery(event.target.value)}
                 minLength={2}
                 maxLength={300}
-                placeholder="Название или ссылка на место в KudaGo"
+                placeholder="Например, название места"
               />
             </label>
             <button type="submit" disabled={busy || placeQuery.trim().length < 2}>
               Найти
             </button>
-            <p>Покажем место, только если KudaGo подтверждает занятие и время.</p>
           </form>
         ) : null}
       </div>
@@ -143,17 +178,11 @@ export function DvizhFlow({
       {current ? (
         <>
           <h1>Куда пошёл бы?</h1>
-          <p className="dvizh-flow__lead">
-            {choosing
-              ? 'Отметь места, куда ты реально готов пойти.'
-              : 'Твои ответы приватны. Выбирай только то, что тебе подходит.'}
-          </p>
           <p className="dvizh-flow__progress">
-            {answered + 1} из {stack.length}
+            {answered + 1} из {actionableCount}
           </p>
           <div
             className="swipe-surface"
-            data-coach="choice"
             style={{ transform: `translateX(${drag}px) rotate(${drag / 24}deg)` }}
             onPointerDown={(event) => {
               startX.current = event.clientX
@@ -194,26 +223,20 @@ export function DvizhFlow({
               Пошёл бы
             </button>
           </div>
-          <p className="dvizh-flow__hint">Свайп влево или вправо тоже работает</p>
           {choosing && dvizh.chosen_count > 0 ? (
             <button
               className="text-action"
               disabled={busy}
-              onClick={() => void act(() => api.launch(dvizh.id))}
+              onClick={() => setSelectionFinished(true)}
             >
-              Завершить выбор и запустить движ
+              Закончить выбор
             </button>
           ) : null}
           {placeSearch}
         </>
       ) : doneChoosing ? (
         <div className="dvizh-result">
-          <h1>{dvizh.chosen_count ? `Выбрано: ${dvizh.chosen_count}` : 'Ничего не зацепило'}</h1>
-          <p>
-            {dvizh.chosen_count
-              ? `${summary}. Ты отметил места, куда готов пойти.`
-              : 'В каталоге ДВИЖа пока не нашли подходящего тебе места.'}
-          </p>
+          <h1>{dvizh.chosen_count ? `Выбрано: ${dvizh.chosen_count}` : 'Ничего не выбрал'}</h1>
           {dvizh.chosen_count ? (
             <button
               className="primary-button"
@@ -224,11 +247,14 @@ export function DvizhFlow({
             </button>
           ) : null}
           <div className="inline-actions">
-            {limit < dvizh.candidates.length ? (
+            {(selectionFinished && pending.length > 0) || limit < dvizh.candidates.length ? (
               <button
                 className="text-action"
                 disabled={busy}
-                onClick={() => setLimit((value) => value + ROUND_SIZE)}
+                onClick={() => {
+                  setSelectionFinished(false)
+                  if (pending.length === 0) setLimit((value) => value + ROUND_SIZE)
+                }}
               >
                 Показать ещё
               </button>
@@ -239,45 +265,45 @@ export function DvizhFlow({
           </div>
           {placeSearch}
         </div>
-      ) : choosing && limit < dvizh.candidates.length ? (
-        <div className="dvizh-result">
-          <h1>Выбор сохранён</h1>
-          <button
-            className="primary-button"
-            onClick={() => setLimit((value) => value + ROUND_SIZE)}
-          >
-            Показать ещё
-          </button>
-          {dvizh.chosen_count ? (
-            <button
-              className="text-action"
-              disabled={busy}
-              onClick={() => void act(() => api.launch(dvizh.id))}
-            >
-              Запустить движ
-            </button>
-          ) : null}
-        </div>
       ) : dvizh.status === 'NO_SOURCE' || dvizh.status === 'PROVIDER_UNAVAILABLE' ? (
         <div className="dvizh-result">
           <h1>
-            {dvizh.status === 'NO_SOURCE' ? 'Пока не нашли места' : 'Источник временно недоступен'}
-          </h1>
-          <p>
             {dvizh.status === 'NO_SOURCE'
-              ? 'KudaGo не дал проверенных мест для выбранного занятия и времени. Можно изменить условия или найти конкретное место по названию либо ссылке на KudaGo.'
-              : 'Не смогли получить места из KudaGo. Попробуй повторить поиск чуть позже.'}
-          </p>
-          <button className="primary-button" onClick={onEdit}>
-            Изменить занятие или время
-          </button>
-          <button
-            className="text-action"
-            disabled={busy}
-            onClick={() => void act(() => api.moreDvizh(dvizh.id))}
-          >
-            Повторить поиск
-          </button>
+              ? 'Пока ничего не нашли'
+              : 'Не удалось загрузить варианты'}
+          </h1>
+          <p>{dvizh.status === 'NO_SOURCE' ? 'Измени время или занятие.' : 'Попробуй ещё раз.'}</p>
+          {dvizh.status === 'NO_SOURCE' ? (
+            <>
+              <button className="primary-button" onClick={onEdit}>
+                Изменить
+              </button>
+              <button
+                className="text-action"
+                disabled={busy}
+                onClick={() =>
+                  void act(() => api.moreDvizh(dvizh.id), 'Не удалось загрузить варианты.')
+                }
+              >
+                Повторить поиск
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                className="primary-button"
+                disabled={busy}
+                onClick={() =>
+                  void act(() => api.moreDvizh(dvizh.id), 'Не удалось загрузить варианты.')
+                }
+              >
+                Повторить
+              </button>
+              <button className="text-action" onClick={onEdit}>
+                Изменить условия
+              </button>
+            </>
+          )}
           {placeSearch}
         </div>
       ) : needsConfirm && match ? (
@@ -286,23 +312,21 @@ export function DvizhFlow({
           <ActivityCard candidate={match} status={dvizhStatusLabel(dvizh)} />
           <div className="dvizh-result">
             <p>
-              {dvizh.confirmed_count} из {dvizh.min_people} подтвердили участие
+              {dvizh.confirmed_count} из {dvizh.min_people} подтвердили
             </p>
             {!dvizh.my_confirmation ? (
               <>
                 <button
                   className="primary-button"
                   disabled={busy}
-                  onClick={() => {
-                    const near = match.compatibility === 'NEAR'
-                    if (
-                      !near ||
-                      window.confirm(
-                        `Бюджет выше на ${match.budget_delta} ₽. Подтверждаешь участие?`,
-                      )
-                    )
-                      void act(() => api.confirmDvizh(dvizh.id, match.id, near))
-                  }}
+                  onClick={() =>
+                    match.compatibility === 'NEAR'
+                      ? setNearConsent({ candidate: match, action: 'confirm' })
+                      : void act(
+                          () => api.confirmDvizh(dvizh.id, match.id, false),
+                          'Этот вариант уже недоступен.',
+                        )
+                  }
                 >
                   Я в деле
                 </button>
@@ -317,11 +341,7 @@ export function DvizhFlow({
             ) : waitlisted ? (
               waitlistAction
             ) : (
-              <p>
-                {dvizh.my_confirmation === 'CONFIRMED'
-                  ? 'Ты в деле. Ждём остальных.'
-                  : 'Ты отказался от этого варианта.'}
-              </p>
+              <p>{dvizh.my_confirmation === 'CONFIRMED' ? 'Ждём остальных.' : 'Ты отказался.'}</p>
             )}
           </div>
         </>
@@ -341,19 +361,9 @@ export function DvizhFlow({
             <span />
           </div>
           <h1>Движ собирается</h1>
-          <p>{`${summary}. Ждём ответы компании.`}</p>
-          <div className="collecting-card__facts">
-            <div>
-              <strong>{dvizh.chosen_count}</strong>
-              <span>{placeNoun} на выбор</span>
-            </div>
-            <div>
-              <strong>{formatPeople(dvizh.min_people)}</strong>
-              <span>минимум для старта</span>
-            </div>
-          </div>
-          <p className="collecting-card__hint">
-            Можно закрыть приложение. Напишем в MAX, когда понадобится твой ответ.
+          <p>Ждём ответы друзей.</p>
+          <p>
+            {dvizh.chosen_count} {placeNoun} · минимум {formatPeople(dvizh.min_people)}
           </p>
           <button type="button" className="secondary-button" onClick={onNew}>
             Подать ещё сигнал
@@ -362,12 +372,32 @@ export function DvizhFlow({
       ) : (
         <div className="dvizh-result">
           <h1>Этот движ завершился</h1>
-          <p>Подай новый сигнал, если хочешь собрать компанию.</p>
           <button className="primary-button" onClick={onNew}>
             Подать сигнал
           </button>
         </div>
       )}
+      {nearConsent ? (
+        <ConfirmDialog
+          title="Чуть дороже"
+          description={`На ${nearConsent.candidate.budget_delta} ₽ выше твоего бюджета.`}
+          confirmLabel={nearConsent.action === 'react' ? 'Всё равно пойду' : 'Я в деле'}
+          cancelLabel="Отмена"
+          busy={busy}
+          onCancel={() => setNearConsent(null)}
+          onConfirm={() => {
+            const { candidate, action } = nearConsent
+            setNearConsent(null)
+            void act(
+              () =>
+                action === 'react'
+                  ? api.react(dvizh.id, candidate.id, 'WOULD_GO', true)
+                  : api.confirmDvizh(dvizh.id, candidate.id, true),
+              'Этот вариант уже недоступен.',
+            )
+          }}
+        />
+      ) : null}
     </section>
   )
 }

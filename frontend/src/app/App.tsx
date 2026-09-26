@@ -10,7 +10,7 @@ import { activityLabel, formatSignalWindow } from '../shared/lib/format'
 import { currentCoordinates } from '../shared/lib/geolocation'
 import { dvizhStatusLabel, needsDvizhConfirmation } from '../shared/lib/dvizhStatus'
 import { AppShell, type Screen } from '../shared/ui/AppShell'
-import { CoachMark, type CoachStep } from '../shared/ui/CoachMark'
+import { CoachMark } from '../shared/ui/CoachMark'
 import { ConfirmDialog } from '../shared/ui/ConfirmDialog'
 import { Icon } from '../shared/ui/Icon'
 import {
@@ -194,8 +194,9 @@ export function App() {
   const [detailReturn, setDetailReturn] = useState<'home' | 'dvizhi'>('dvizhi')
   const [editingBatch, setEditingBatch] = useState<string | null>(null)
   const [repeat, setRepeat] = useState(false)
-  const [introStep, setIntroStep] = useState(0)
   const [introDone, setIntroDone] = useState(true)
+  const [introBusy, setIntroBusy] = useState(false)
+  const [introError, setIntroError] = useState('')
   const introInitialized = useRef(false)
 
   const load = useCallback(async () => {
@@ -217,7 +218,6 @@ export function App() {
       if (!introInitialized.current) {
         introInitialized.current = true
         setIntroDone(session.onboarding_seen)
-        if (!session.onboarding_seen) void api.markOnboardingSeen().catch(() => undefined)
       }
       setGroups(nextGroups)
       setLocations(nextLocations)
@@ -225,7 +225,11 @@ export function App() {
       setDvizhi(nextDvizhi)
     } catch (reason) {
       setAuthRequired(reason instanceof MaxAuthError)
-      setError(reason instanceof Error ? reason.message : 'Не получилось загрузить данные')
+      setError(
+        reason instanceof MaxAuthError
+          ? reason.message
+          : 'Не удалось загрузить данные. Попробуй ещё раз.',
+      )
     } finally {
       setLoading(false)
     }
@@ -255,9 +259,7 @@ export function App() {
         setGroupId(result.group.id)
         void load()
       })
-      .catch((reason) =>
-        setJoinError(reason instanceof Error ? reason.message : 'Приглашение недействительно'),
-      )
+      .catch(() => setJoinError('Приглашение недействительно или устарело.'))
   }, [load])
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -292,17 +294,17 @@ export function App() {
       )
       .sort((a, b) => priority(a) - priority(b))
   }, [dvizhi, group?.id])
-  const coachStep: CoachStep | null =
-    screen === 'home' && !introDone
-      ? (['signal', 'choice', 'dvizhi'] as CoachStep[])[introStep]
-      : null
-  const finishCoach = () => {
-    if (introStep < 2) setIntroStep((value) => value + 1)
-    else skipCoach()
-  }
-  const skipCoach = () => {
-    void api.markOnboardingSeen().catch(() => undefined)
-    setIntroDone(true)
+  const finishCoach = async () => {
+    setIntroError('')
+    setIntroBusy(true)
+    try {
+      await api.markOnboardingSeen()
+      setIntroDone(true)
+    } catch {
+      setIntroError('Не удалось сохранить. Попробуй ещё раз.')
+    } finally {
+      setIntroBusy(false)
+    }
   }
   const updateDvizh = (value: Dvizh) =>
     setDvizhi((items) => items.map((item) => (item.id === value.id ? value : item)))
@@ -458,7 +460,7 @@ export function App() {
             await api.pauseRecurringSignal(recurring.id)
             await load()
           } catch (reason) {
-            setError(reason instanceof Error ? reason.message : 'Не удалось приостановить сигнал')
+            setError('Не удалось приостановить сигнал. Попробуй ещё раз.')
             throw reason
           }
         }}
@@ -468,7 +470,7 @@ export function App() {
             await api.resumeRecurringSignal(recurring.id)
             await load()
           } catch (reason) {
-            setError(reason instanceof Error ? reason.message : 'Не удалось возобновить сигнал')
+            setError('Не удалось возобновить сигнал. Попробуй ещё раз.')
             throw reason
           }
         }}
@@ -478,7 +480,7 @@ export function App() {
             await api.deleteRecurringSignal(recurring.id)
             await load()
           } catch (reason) {
-            setError(reason instanceof Error ? reason.message : 'Не удалось удалить сигнал')
+            setError('Не удалось удалить сигнал. Попробуй ещё раз.')
             throw reason
           }
         }}
@@ -512,7 +514,7 @@ export function App() {
         <HomeIntro
           onSignal={() => openSignal()}
           onRepeat={() => openSignal(null, true)}
-          hasRepeat={Boolean(recurring && recurring.status === 'ACTIVE')}
+          hasRepeat={Boolean(recurring)}
         />
         {homeDvizhi.length ? (
           <section className="home-dvizhi" aria-labelledby="home-dvizhi-title">
@@ -556,7 +558,9 @@ export function App() {
         ) : null}
         {content}
       </AppShell>
-      {coachStep ? <CoachMark step={coachStep} onDone={finishCoach} onSkip={skipCoach} /> : null}
+      {!introDone ? (
+        <CoachMark onDone={() => void finishCoach()} busy={introBusy} error={introError} />
+      ) : null}
       {joinError ? (
         <ConfirmDialog
           title="Не удалось открыть приглашение"

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { App } from './App'
@@ -113,7 +113,9 @@ describe('new Dvizh product route', () => {
     expect(await screen.findByRole('heading', { name: 'Есть идея на вечер?' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Движи' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Планы' })).not.toBeInTheDocument()
-    expect(screen.getByRole('dialog', { name: 'Подай сигнал' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Как работает ДВИЖ' })).toBeInTheDocument()
+    expect(screen.getByText('Выбери когда и куда.')).toBeInTheDocument()
+    expect(screen.queryByText('Остальное сделает ДВИЖ.')).not.toBeInTheDocument()
   })
 
   it('opens the found candidate stack directly after submitting a signal', async () => {
@@ -122,7 +124,7 @@ describe('new Dvizh product route', () => {
       .spyOn(api, 'signalBatch')
       .mockResolvedValue({ signal_batch_id: 'batch-1', dvizhi: [dvizh()] })
     render(<App />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Пропустить' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Понятно' }))
     fireEvent.click(screen.getByRole('button', { name: 'Подать сигнал' }))
     expect(screen.getByRole('button', { name: 'Игры' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Квест' }))
@@ -173,7 +175,7 @@ describe('new Dvizh product route', () => {
     expect(
       await screen.findByRole('dialog', { name: 'Не удалось открыть приглашение' }),
     ).toBeInTheDocument()
-    expect(screen.getByText('Приглашение истекло')).toBeInTheDocument()
+    expect(screen.getByText('Приглашение недействительно или устарело.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Понятно' }))
     expect(
       screen.queryByRole('dialog', { name: 'Не удалось открыть приглашение' }),
@@ -225,22 +227,36 @@ describe('new Dvizh product route', () => {
   it('shows all three onboarding steps together on first entry', async () => {
     mockData()
     render(<App />)
-    expect(await screen.findByRole('dialog', { name: 'Подай сигнал' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
-    expect(screen.getByRole('dialog', { name: 'Выбери варианты' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
-    expect(screen.getByRole('dialog', { name: 'Запусти движ' })).toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: 'Как работает ДВИЖ' })).toBeInTheDocument()
+    const dialog = screen.getByRole('dialog', { name: 'Как работает ДВИЖ' })
+    expect(within(dialog).getByText('Подай сигнал')).toBeInTheDocument()
+    expect(within(dialog).getByText('Выбери места')).toBeInTheDocument()
+    expect(within(dialog).getByText('ДВИЖ спросит друзей')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Далее' })).not.toBeInTheDocument()
+    expect(api.markOnboardingSeen).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Понятно' }))
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(api.markOnboardingSeen).toHaveBeenCalled()
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(api.markOnboardingSeen).toHaveBeenCalledTimes(1)
   })
 
   it('skips onboarding for a user who has already opened the app', async () => {
     mockData([], true)
     render(<App />)
     expect(await screen.findByRole('heading', { name: 'Есть идея на вечер?' })).toBeInTheDocument()
-    expect(screen.queryByRole('dialog', { name: 'Подай сигнал' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Как работает ДВИЖ' })).not.toBeInTheDocument()
     expect(api.markOnboardingSeen).not.toHaveBeenCalled()
+  })
+
+  it('keeps onboarding open when saving its acknowledgement fails', async () => {
+    mockData()
+    vi.mocked(api.markOnboardingSeen).mockRejectedValueOnce(new Error('HTTP 503'))
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Понятно' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось сохранить.')
+    expect(screen.getByRole('dialog', { name: 'Как работает ДВИЖ' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Понятно' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(api.markOnboardingSeen).toHaveBeenCalledTimes(2)
   })
 
   it('lets the owner pause and soft-delete a recurring signal', async () => {
@@ -277,7 +293,7 @@ describe('new Dvizh product route', () => {
       .spyOn(api, 'deleteRecurringSignal')
       .mockResolvedValue({ id: rule.id, status: 'DELETED' })
     render(<App />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Пропустить' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Понятно' }))
     fireEvent.click(screen.getByRole('button', { name: 'Движи' }))
     fireEvent.click(screen.getByRole('button', { name: 'Приостановить' }))
     await waitFor(() => expect(pause).toHaveBeenCalledWith(rule.id))

@@ -35,7 +35,6 @@ export function AppShell({
           {items.map((item) => (
             <button
               key={item.id}
-              data-coach={item.id === 'dvizhi' ? 'dvizhi' : undefined}
               className={screen === item.id ? 'is-active' : ''}
               onClick={() => onNavigate(item.id)}
               aria-current={screen === item.id ? 'page' : undefined}

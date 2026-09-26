@@ -1,55 +1,29 @@
 import { useEffect, useRef } from 'react'
 
-export type CoachStep = 'signal' | 'choice' | 'dvizhi'
-const copy: Record<CoachStep, { title: string; body: string; number: number }> = {
-  signal: {
-    title: 'Подай сигнал',
-    body: 'Скажи, когда и куда ты готов пойти. Остальных спросит ДВИЖ.',
-    number: 1,
-  },
-  choice: {
-    title: 'Выбери варианты',
-    body: 'После сигнала покажем места по одному. Отметь, куда пошёл бы. Твой выбор приватный.',
-    number: 2,
-  },
-  dvizhi: {
-    title: 'Запусти движ',
-    body: 'После выбора запусти движ. Мы спросим друзей и напишем в MAX, когда понадобится подтверждение.',
-    number: 3,
-  },
-}
+const steps = [
+  { title: 'Подай сигнал', detail: 'Когда и куда хочешь.' },
+  { title: 'Выбери места', detail: 'Куда реально пошёл бы.' },
+  { title: 'ДВИЖ спросит друзей', detail: 'Если совпадёт — подтвердите участие.' },
+]
 
 export function CoachMark({
-  step,
   onDone,
-  onSkip,
+  busy,
+  error,
 }: {
-  step: CoachStep
   onDone: () => void
-  onSkip: () => void
+  busy: boolean
+  error: string
 }) {
   const dialog = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
-    const target = document.querySelector<HTMLElement>(`[data-coach="${step}"]`)
     const previousFocus =
       document.activeElement instanceof HTMLElement ? document.activeElement : null
     dialog.current?.focus()
-    if (!target) return () => previousFocus?.focus()
-    const previous = {
-      position: target.style.position,
-      zIndex: target.style.zIndex,
-      boxShadow: target.style.boxShadow,
-      borderRadius: target.style.borderRadius,
-    }
-    target.style.position = 'relative'
-    target.style.zIndex = '1001'
-    target.style.boxShadow = '0 0 0 4px #fff'
-    target.style.borderRadius = '16px'
-    return () => {
-      Object.assign(target.style, previous)
-      previousFocus?.focus()
-    }
-  }, [step])
+    return () => previousFocus?.focus()
+  }, [])
+
   return (
     <>
       <div className="coach-backdrop" aria-hidden="true" />
@@ -57,43 +31,36 @@ export function CoachMark({
         className="coach"
         role="dialog"
         aria-modal="true"
-        aria-label={copy[step].title}
+        aria-labelledby="coach-title"
         tabIndex={-1}
         ref={dialog}
         onKeyDown={(event) => {
-          if (event.key === 'Escape') onSkip()
           if (event.key === 'Tab') {
-            const buttons = dialog.current?.querySelectorAll('button')
-            if (!buttons?.length) return
-            const first = buttons[0]
-            const last = buttons[buttons.length - 1]
-            if (
-              event.shiftKey &&
-              (document.activeElement === first || document.activeElement === dialog.current)
-            ) {
-              event.preventDefault()
-              last.focus()
-            } else if (
-              !event.shiftKey &&
-              (document.activeElement === last || document.activeElement === dialog.current)
-            ) {
-              event.preventDefault()
-              first.focus()
-            }
+            event.preventDefault()
+            dialog.current?.querySelector('button')?.focus()
           }
         }}
       >
-        <span>{copy[step].number} / 3</span>
-        <h2>{copy[step].title}</h2>
-        <p>{copy[step].body}</p>
-        <div className="coach__actions">
-          <button type="button" onClick={onSkip}>
-            Пропустить
-          </button>
-          <button type="button" onClick={onDone}>
-            {step === 'dvizhi' ? 'Понятно' : 'Далее'}
-          </button>
-        </div>
+        <h2 id="coach-title">Как работает ДВИЖ</h2>
+        <ol className="coach__steps">
+          {steps.map((step, index) => (
+            <li key={step.title}>
+              <span aria-hidden="true">{index + 1}</span>
+              <div>
+                <strong>{step.title}</strong>
+                <p>{step.detail}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+        {error ? (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <button type="button" className="primary-button" disabled={busy} onClick={onDone}>
+          Понятно
+        </button>
       </div>
     </>
   )

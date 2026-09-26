@@ -267,7 +267,7 @@ input[type='checkbox'] {
   margin: 0;
   font-size: 36px;
 }
-.home-intro > p:not(.home-intro__steps) {
+.home-intro > p {
   position: relative;
   max-width: 330px;
   margin: 0;
@@ -276,12 +276,6 @@ input[type='checkbox'] {
 }
 .home-intro > .primary-button {
   margin-top: 8px;
-}
-.home-intro__steps {
-  margin: 4px 0 0;
-  color: var(--dvizh-muted);
-  font-size: 14px;
-  line-height: 1.5;
 }
 @keyframes home-orbit {
   from {
@@ -309,11 +303,6 @@ input[type='checkbox'] {
 }
 .home-intro__repeat strong {
   font-size: 15px;
-}
-.home-intro__repeat p {
-  margin: 4px 0 0;
-  color: var(--dvizh-muted);
-  font-size: 14px;
 }
 .home-intro__repeat .text-action {
   flex: 0 0 auto;
