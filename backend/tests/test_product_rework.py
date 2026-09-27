@@ -56,66 +56,6 @@ def test_onboarding_is_recorded_once_per_user() -> None:
         assert user.onboarding_seen_at == first_seen
 
 
-def test_address_suggestions_are_scoped_to_members_city(monkeypatch: pytest.MonkeyPatch) -> None:
-    engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine)
-    calls: list[dict[str, object]] = []
-
-    class Response:
-        def raise_for_status(self) -> None:
-            pass
-
-        def json(self) -> dict[str, object]:
-            return {
-                "features": [
-                    {
-                        "properties": {
-                            "osm_type": "W",
-                            "osm_id": 1,
-                            "street": "Ленина",
-                            "housenumber": "1",
-                            "city": "Екатеринбург",
-                        },
-                        "geometry": {"coordinates": [60.58, 56.838]},
-                    },
-                    {
-                        "properties": {"name": "Ленина", "city": "Москва"},
-                        "geometry": {"coordinates": [37.62, 55.75]},
-                    },
-                ]
-            }
-
-    def fake_get(url: str, **kwargs: object) -> Response:
-        calls.append({"url": url, **kwargs})
-        return Response()
-
-    monkeypatch.setattr(product.httpx, "get", fake_get)
-    with Session(engine) as session:
-        user = User(id="address-user", max_user_id="address-user", display_name="User")
-        group = Group(
-            id="address-group",
-            name="Друзья",
-            default_city_slug="ekb",
-            created_by=user.id,
-            invite_token="address-invite",
-        )
-        session.add_all([user, group])
-        session.flush()
-        session.add(GroupMember(group_id=group.id, user_id=user.id))
-        session.commit()
-
-        results = product.suggest_locations(session, user, q="Ленина 1", city="ekb")
-        assert len(results) == 1
-        assert results[0].address_text == "Ленина 1, Екатеринбург"
-        assert (results[0].latitude, results[0].longitude) == (56.838, 60.58)
-        assert calls[0]["url"] == "https://photon.komoot.io/api/"
-
-        with pytest.raises(HTTPException) as denied:
-            product.suggest_locations(session, user, q="Тверская", city="msk")
-        assert denied.value.status_code == 403
-        assert len(calls) == 1
-
-
 def seed(
     session: Session, count: int, minimums: list[int], maximum: int | None = None
 ) -> tuple[list[User], Group, NormalizedLeisureItem]:

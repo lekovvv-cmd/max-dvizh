@@ -277,13 +277,9 @@ export function App() {
   const focused = dvizhi.find((item) => item.id === targetId)
   const homeDvizhi = useMemo(() => {
     return dvizhi
-      .filter(
-        (item) =>
-          item.group_id === group?.id &&
-          !['CANCELLED', 'EXPIRED', 'NO_MATCH'].includes(item.status),
-      )
+      .filter((item) => !['CANCELLED', 'EXPIRED', 'NO_MATCH'].includes(item.status))
       .sort((a, b) => priority(a) - priority(b))
-  }, [dvizhi, group?.id])
+  }, [dvizhi])
   const finishCoach = () => {
     setIntroDone(true)
     void api.markOnboardingSeen().catch(() => undefined)

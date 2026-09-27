@@ -238,6 +238,37 @@ describe('new Dvizh product route', () => {
     expect(screen.getByRole('button', { name: 'Подать сигнал' })).toBeInTheDocument()
   })
 
+  it('shows and opens another company’s active Dvizh in priority order on Home', async () => {
+    const otherGroup: Group = { ...group, id: 'group-2', name: 'Компания B' }
+    const inSelectedGroup = { ...dvizh('COLLECTING_REACTIONS'), id: 'session-a' }
+    const inOtherGroup = {
+      ...dvizh('CHOOSING_CANDIDATES'),
+      id: 'session-b',
+      group_id: otherGroup.id,
+      group_name: otherGroup.name,
+      candidates: [candidate('3')],
+    }
+    mockData([inSelectedGroup, inOtherGroup], true)
+    vi.mocked(api.groups).mockResolvedValue([group, otherGroup])
+    render(<App />)
+    const home = await screen.findByRole('region', { name: 'Твои движи' })
+    const cards = within(home).getAllByRole('button')
+    expect(cards).toHaveLength(2)
+    expect(cards[0]).toHaveTextContent('Компания B')
+    expect(cards[1]).toHaveTextContent('Друзья')
+    fireEvent.click(cards[0])
+    expect(await screen.findByText('Квест 3')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Вернуться на главную' })).toBeInTheDocument()
+  })
+
+  it.each(['CANCELLED', 'EXPIRED', 'NO_MATCH'])('hides %s Dvizh from Home', async (status) => {
+    mockData([{ ...dvizh(status), group_name: 'Скрытая компания' }], true)
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Есть идея на вечер?' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Твои движи' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Скрытая компания')).not.toBeInTheDocument()
+  })
+
   it('does not ask for confirmation again after the user is already in', async () => {
     const confirmed = dvizh('AWAITING_CONFIRMATION')
     confirmed.active_candidate_id = '1'

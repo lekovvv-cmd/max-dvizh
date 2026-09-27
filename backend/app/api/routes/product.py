@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import re
 from datetime import UTC, datetime, timedelta
+from math import isfinite
 from uuid import uuid4
 
 import httpx
@@ -48,6 +50,7 @@ from app.db.models import (
     User,
 )
 from app.modules.auth.service import optional_max_chat_id
+from app.modules.leisure.geoapify import resolve_city
 from app.modules.leisure.provider import (
     KudaGoProvider,
     NormalizedLeisureItem,
@@ -444,13 +447,6 @@ def location_out(location: Location) -> LocationOut:
     )
 
 
-CITY_GEOCODE_NAMES = {
-    "ekb": "Екатеринбург",
-    "msk": "Москва",
-    "spb": "Санкт-Петербург",
-}
-
-
 @router.get("/locations/suggest", response_model=list[AddressSuggestionOut])
 def suggest_locations(
     session: DbSession,
@@ -468,49 +464,80 @@ def suggest_locations(
         .limit(1)
     ):
         raise error(status.HTTP_403_FORBIDDEN, "Город компании недоступен")
-    city_name = CITY_GEOCODE_NAMES.get(city)
-    if city_name is None:
-        city_name = supported_cities().get(city, {}).get("name", city)
+    if not settings.geoapify_api_key:
+        raise error(status.HTTP_503_SERVICE_UNAVAILABLE, "Поиск адресов временно недоступен")
+
+    async def fetch() -> tuple[object, str]:
+        async with httpx.AsyncClient(
+            base_url=settings.geoapify_base_url.rstrip("/"),
+            timeout=settings.geoapify_timeout_seconds,
+        ) as client:
+            boundary, resolved_city = await resolve_city(city, client)
+            response = await client.get(
+                "/v1/geocode/autocomplete",
+                params={
+                    "text": q.strip(),
+                    "filter": f"place:{boundary}",
+                    "format": "json",
+                    "lang": "ru",
+                    "limit": 8,
+                    "apiKey": settings.geoapify_api_key,
+                },
+            )
+            response.raise_for_status()
+            return response.json(), resolved_city
+
     try:
-        response = httpx.get(
-            "https://photon.komoot.io/api/",
-            params={"q": f"{q.strip()} {city_name}", "limit": 7, "countrycode": "RU"},
-            headers={"User-Agent": "MAX-DVIZH/1.0 (address suggestions)"},
-            timeout=4,
-        )
-        response.raise_for_status()
-        features = response.json().get("features", [])
-    except (httpx.HTTPError, ValueError) as exc:
+        payload, resolved_city = asyncio.run(fetch())
+        if not isinstance(payload, dict) or not isinstance(payload.get("results"), list):
+            raise ValueError("Malformed Geoapify autocomplete response")
+        results = payload["results"]
+    except (httpx.HTTPError, ValueError, TypeError) as exc:
         raise error(status.HTTP_503_SERVICE_UNAVAILABLE, "Не удалось найти адреса") from exc
     suggestions: list[AddressSuggestionOut] = []
-    for feature in features:
-        properties = feature.get("properties") or {}
-        coordinates = (feature.get("geometry") or {}).get("coordinates") or []
-        if len(coordinates) < 2 or not all(
-            isinstance(value, int | float) for value in coordinates[:2]
+    expected_city = resolved_city.casefold()
+    for result in results:
+        if not isinstance(result, dict):
+            continue
+        if str(result.get("country_code") or "").casefold() != "ru":
+            continue
+        result_city = result.get("city") or result.get("town")
+        if not isinstance(result_city, str) or result_city.casefold() != expected_city:
+            continue
+        latitude, longitude = result.get("lat"), result.get("lon")
+        if (
+            isinstance(latitude, bool)
+            or isinstance(longitude, bool)
+            or not isinstance(latitude, int | float)
+            or not isinstance(longitude, int | float)
+            or not isfinite(latitude)
+            or not isfinite(longitude)
+            or not (-90 <= latitude <= 90 and -180 <= longitude <= 180)
         ):
             continue
-        result_city = properties.get("city") or properties.get("town")
-        if result_city and str(result_city).casefold() != city_name.casefold():
+        identifier = result.get("place_id")
+        title = result.get("name") or result.get("address_line1")
+        address = result.get("formatted")
+        if (
+            not isinstance(identifier, str)
+            or not identifier.strip()
+            or not isinstance(title, str)
+            or not title.strip()
+            or not isinstance(address, str)
+            or not address.strip()
+        ):
             continue
-        street = str(properties.get("street") or "").strip()
-        number = str(properties.get("housenumber") or "").strip()
-        name = str(properties.get("name") or "").strip()
-        address = " ".join(part for part in (street, number) if part)
-        title = name if name and name.casefold() not in address.casefold() else address
-        if not title:
-            continue
-        subtitle = ", ".join(
-            part for part in (address if address != title else "", city_name) if part
-        )
+        subtitle = result.get("address_line2")
+        if not isinstance(subtitle, str) or not subtitle.strip():
+            subtitle = resolved_city
         suggestions.append(
             AddressSuggestionOut(
-                id=f"{feature.get('properties', {}).get('osm_type', '')}:{feature.get('properties', {}).get('osm_id', '')}",
-                title=title,
-                subtitle=subtitle,
-                address_text=", ".join(part for part in (address or title, city_name) if part),
-                latitude=float(coordinates[1]),
-                longitude=float(coordinates[0]),
+                id=identifier,
+                title=title.strip(),
+                subtitle=subtitle.strip(),
+                address_text=address.strip(),
+                latitude=float(latitude),
+                longitude=float(longitude),
             )
         )
         if len(suggestions) == 5:

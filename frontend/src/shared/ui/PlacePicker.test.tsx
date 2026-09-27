@@ -7,6 +7,7 @@ import { PlacePicker, type SelectedPlace } from './PlacePicker'
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 it('offers addresses while typing and requires choosing a suggestion', async () => {
@@ -41,4 +42,63 @@ it('offers addresses while typing and requires choosing a suggestion', async () 
     target: { value: 'Мира' },
   })
   expect(onSelect).toHaveBeenLastCalledWith(null)
+})
+
+it('waits for three characters and debounces changes', async () => {
+  const suggest = vi.spyOn(api, 'suggestLocations').mockResolvedValue([])
+  render(<PlacePicker city="ekb" value={null} onSelect={vi.fn()} />)
+  const input = screen.getByLabelText('Адрес или название места')
+  fireEvent.change(input, { target: { value: 'Ле' } })
+  await new Promise((resolve) => setTimeout(resolve, 750))
+  expect(suggest).not.toHaveBeenCalled()
+  fireEvent.change(input, { target: { value: 'Лен' } })
+  await new Promise((resolve) => setTimeout(resolve, 350))
+  fireEvent.change(input, { target: { value: 'Ленина' } })
+  await new Promise((resolve) => setTimeout(resolve, 400))
+  expect(suggest).not.toHaveBeenCalled()
+  await waitFor(() => expect(suggest).toHaveBeenCalledTimes(1))
+  expect(suggest).toHaveBeenCalledWith('Ленина', 'ekb', expect.anything())
+  expect(await screen.findByText('Ничего не нашли. Уточни запрос.')).toBeInTheDocument()
+})
+
+it('aborts an in-flight request when the query changes', async () => {
+  const suggest = vi
+    .spyOn(api, 'suggestLocations')
+    .mockImplementationOnce(() => new Promise(() => {}))
+    .mockResolvedValue([])
+  render(<PlacePicker city="ekb" value={null} onSelect={vi.fn()} />)
+  const input = screen.getByLabelText('Адрес или название места')
+  fireEvent.change(input, { target: { value: 'Ленина' } })
+  await waitFor(() => expect(suggest).toHaveBeenCalledTimes(1))
+  const previousSignal = suggest.mock.calls[0][2]
+  fireEvent.change(input, { target: { value: 'Мира' } })
+  expect(previousSignal?.aborted).toBe(true)
+  await waitFor(() => expect(suggest).toHaveBeenCalledTimes(2))
+  expect(suggest.mock.calls[1][0]).toBe('Мира')
+})
+
+it('shows provider failure while keeping current geolocation available', async () => {
+  vi.spyOn(api, 'suggestLocations').mockRejectedValue(new Error('Unavailable'))
+  const getCurrentPosition = vi.fn((success: PositionCallback) =>
+    success({ coords: { latitude: 56.838, longitude: 60.58 } } as GeolocationPosition),
+  )
+  vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } })
+  const onSelect = vi.fn<(place: SelectedPlace | null) => void>()
+  render(<PlacePicker city="ekb" value={null} onSelect={onSelect} />)
+  fireEvent.change(screen.getByLabelText('Адрес или название места'), {
+    target: { value: 'Ленина' },
+  })
+  expect(
+    await screen.findByText('Не удалось загрузить адреса. Попробуй ещё раз.'),
+  ).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Взять мою геопозицию' }))
+  await waitFor(() =>
+    expect(onSelect).toHaveBeenLastCalledWith({
+      latitude: 56.838,
+      longitude: 60.58,
+      addressText: null,
+      title: 'Моя геопозиция',
+    }),
+  )
+  expect(getCurrentPosition).toHaveBeenCalledTimes(1)
 })

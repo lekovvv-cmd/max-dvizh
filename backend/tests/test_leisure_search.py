@@ -10,7 +10,7 @@ from typing import Any
 
 import httpx
 
-from app.modules.leisure import search
+from app.modules.leisure import geoapify, search
 from app.modules.leisure.provider import NormalizedLeisureItem, ProviderQuery
 from app.modules.leisure.taxonomy import expand, geoapify_retrieval, retrieval_intents
 
@@ -66,7 +66,8 @@ def test_geoapify_uses_city_boundary_without_coordinates_and_circle_with_point(
     monkeypatch: Any,
 ) -> None:
     monkeypatch.setattr(search, "settings", replace(search.settings, geoapify_api_key="test"))
-    search._city_ids.clear()
+    monkeypatch.setattr(geoapify, "settings", search.settings)
+    geoapify._cities.clear()
     seen: list[tuple[str, dict[str, str]]] = []
 
     def respond(request: httpx.Request) -> httpx.Response:
@@ -169,7 +170,7 @@ def test_kudago_nearby_query_passes_explicit_radius_to_provider(monkeypatch: Any
 
 def test_exact_place_search_uses_geoapify_after_explicit_submit(monkeypatch: Any) -> None:
     monkeypatch.setattr(search, "settings", replace(search.settings, geoapify_api_key="test"))
-    search._city_ids["spb"] = ("city-id", search.monotonic() + 100)
+    geoapify._cities["spb"] = ("city-id", "Санкт-Петербург", geoapify.monotonic() + 100)
     real_client = httpx.AsyncClient
 
     def respond(request: httpx.Request) -> httpx.Response:

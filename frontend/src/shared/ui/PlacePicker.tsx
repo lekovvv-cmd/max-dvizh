@@ -41,7 +41,7 @@ export function PlacePicker({
           if (!controller.signal.aborted) setStatus('error')
         },
       )
-    }, 500)
+    }, 700)
     return () => {
       window.clearTimeout(timer)
       controller.abort()
@@ -139,7 +139,11 @@ export function PlacePicker({
           {locationError}
         </p>
       ) : null}
-      <p className="place-picker__credit">Адреса: © OpenStreetMap, поиск Photon</p>
+      <p className="place-picker__credit">
+        Адреса: <a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a>
+        {' · '}
+        <a href="https://www.geoapify.com/">Powered by Geoapify</a>
+      </p>
     </div>
   )
 }

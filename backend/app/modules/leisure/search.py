@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 import httpx
 
 from app.core.config import settings
+from app.modules.leisure.geoapify import resolve_city_id
 from app.modules.leisure.provider import (
     KudaGoProvider,
     NormalizedLeisureItem,
@@ -31,16 +32,6 @@ from app.modules.leisure.taxonomy import (
 from app.modules.matching.domain import haversine_km
 
 logger = logging.getLogger(__name__)
-CITY_NAMES = {
-    "msk": "Москва",
-    "spb": "Санкт-Петербург",
-    "ekb": "Екатеринбург",
-    "kzn": "Казань",
-    "nn": "Нижний Новгород",
-    "nnv": "Нижний Новгород",
-    "nsk": "Новосибирск",
-}
-_city_ids: dict[str, tuple[str, float]] = {}
 _kudago_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="kudago-search")
 
 
@@ -83,7 +74,7 @@ def _normalize(
     if not title or not identifier or not activities:
         return None
     coordinates = (feature.get("geometry") or {}).get("coordinates")
-    if not isinstance(coordinates, (list, tuple)) or len(coordinates) < 2:
+    if not isinstance(coordinates, list | tuple) or len(coordinates) < 2:
         return None
     try:
         longitude, latitude = float(coordinates[0]), float(coordinates[1])
@@ -130,34 +121,6 @@ def _normalize(
 
 
 class GeoapifyVenueProvider:
-    async def _city_id(self, city_slug: str, client: httpx.AsyncClient) -> str:
-        cached = _city_ids.get(city_slug)
-        if cached and cached[1] > monotonic():
-            return cached[0]
-        city = CITY_NAMES.get(city_slug, city_slug.replace("-", " "))
-        response = await client.get(
-            "/v1/geocode/search",
-            params={
-                "text": f"{city}, Россия",
-                "type": "city",
-                "format": "json",
-                "limit": 1,
-                "apiKey": settings.geoapify_api_key,
-            },
-        )
-        response.raise_for_status()
-        results = response.json().get("results") or []
-        if not results:
-            raise ValueError("Geoapify city boundary unavailable")
-        result = results[0]
-        if str(result.get("country_code") or "").casefold() != "ru":
-            raise ValueError("Geoapify city boundary mismatch")
-        identifier = str(result.get("place_id") or "")
-        if not identifier:
-            raise ValueError("Geoapify city boundary missing place_id")
-        _city_ids[city_slug] = (identifier, monotonic() + 86400)
-        return identifier
-
     async def search_places(
         self, query: ProviderQuery, client: httpx.AsyncClient, *, offset: int = 0
     ) -> list[NormalizedLeisureItem]:
@@ -170,7 +133,7 @@ class GeoapifyVenueProvider:
             geo_filter = f"circle:{query.longitude},{query.latitude},{query.radius_m}"
             bias = f"proximity:{query.longitude},{query.latitude}"
         else:
-            geo_filter = f"place:{await self._city_id(query.city_slug, client)}"
+            geo_filter = f"place:{await resolve_city_id(query.city_slug, client)}"
             bias = None
         requests: list[dict[str, str | int]] = []
         if categories:
@@ -381,11 +344,10 @@ def search_exact_place(query: ProviderQuery, phrase: str) -> ProviderResult:
                     if names:
                         categories = (*categories, "entertainment", "catering.bar")
                     if categories:
-                        provider = GeoapifyVenueProvider()
                         boundary = (
                             f"circle:{query.longitude},{query.latitude},{query.radius_m}"
                             if query.origin_kind == "USER_POINT"
-                            else f"place:{await provider._city_id(query.city_slug, client)}"
+                            else f"place:{await resolve_city_id(query.city_slug, client)}"
                         )
                         response = await client.get(
                             "/v2/places",
