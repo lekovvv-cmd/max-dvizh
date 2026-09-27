@@ -1,6 +1,7 @@
 """New product flow with real persistence, privacy and idempotent state changes."""
 
 import json
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -99,6 +100,47 @@ def create(
         lambda query: ProviderResult([item], cached=False, fetched_at=datetime.now(UTC)),
     )
     return routes.create_signal(payload, session, user, "request-1")
+
+
+def test_unknown_price_keeps_candidate_and_allows_reaction(monkeypatch: pytest.MonkeyPatch) -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        users, _, item, payload = fixture(session)
+        unknown = replace(item, price_min=None, price_text=None, price_kind="UNKNOWN")
+        created = create(monkeypatch, session, unknown, payload, users[0])
+        dvizh = created["dvizhi"][0]
+        assert dvizh["status"] == "CHOOSING_CANDIDATES"
+        candidate = dvizh["candidates"][0]
+        assert candidate["compatibility"] == "UNVERIFIED"
+        reacted = routes.react(
+            dvizh["id"], candidate["id"], routes.ReactionIn(value="WOULD_GO"), session, users[0]
+        )
+        assert reacted["candidates"][0]["my_reaction"] == "WOULD_GO"
+
+
+def test_unknown_hours_are_not_treated_as_explicitly_closed() -> None:
+    start = datetime.now(UTC) + timedelta(hours=2)
+    assert _daily_hours_fit(None, start, start + timedelta(hours=1), "Europe/Moscow")
+
+
+def test_partial_provider_failure_is_visible_after_hard_filters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        users, _, item, payload = fixture(session)
+        wrong_activity = replace(item, categories=("concert",))
+        monkeypatch.setattr(
+            routes,
+            "fetch_items",
+            lambda query: ProviderResult(
+                [wrong_activity], cached=False, fetched_at=datetime.now(UTC), partial=True
+            ),
+        )
+        result = routes.create_signal(payload, session, users[0], "partial-after-filter")
+        assert result["dvizhi"][0]["status"] == "PROVIDER_UNAVAILABLE"
 
 
 def test_taxonomy_and_strict_classifier() -> None:
@@ -250,7 +292,7 @@ def test_provider_weekly_and_overnight_hours_are_checked_without_guessing() -> N
     )
     saturday = datetime(2026, 9, 26, 8, tzinfo=UTC)
     assert _daily_hours_fit(trampoline, saturday, saturday + timedelta(hours=2), "Europe/Moscow")
-    assert not _daily_hours_fit(
+    assert _daily_hours_fit(
         trampoline + ", часы уточняйте", saturday, saturday + timedelta(hours=2), "Europe/Moscow"
     )
 
@@ -670,15 +712,15 @@ def test_confirmation_capacity_keeps_extra_member_on_private_waitlist(
         )
 
 
-def test_unverified_never_becomes_candidate(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_unverified_remains_candidate(monkeypatch: pytest.MonkeyPatch) -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)
     with Session(engine) as session:
         users, _, item, payload = fixture(session)
         item = NormalizedLeisureItem(**{**item.__dict__, "price_min": None, "price_text": None})
         result = create(monkeypatch, session, item, payload, users[0])
-        assert result["dvizhi"][0]["status"] == "NO_SOURCE"
-        assert result["dvizhi"][0]["candidates"] == []
+        assert result["dvizhi"][0]["status"] == "CHOOSING_CANDIDATES"
+        assert result["dvizhi"][0]["candidates"][0]["compatibility"] == "UNVERIFIED"
 
 
 def test_no_source_round_and_signal_expire_together(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -686,7 +728,7 @@ def test_no_source_round_and_signal_expire_together(monkeypatch: pytest.MonkeyPa
     Base.metadata.create_all(engine)
     with Session(engine) as session:
         users, _, item, payload = fixture(session)
-        item = NormalizedLeisureItem(**{**item.__dict__, "price_min": None, "price_text": None})
+        item = NormalizedLeisureItem(**{**item.__dict__, "categories": ("concert",)})
         result = create(monkeypatch, session, item, payload, users[0])
         dvizh = session.get(DvizhSession, result["dvizhi"][0]["id"])
         signal = session.scalar(select(Intent).where(Intent.signal_batch_id == "request-1"))

@@ -25,6 +25,7 @@ DIRECTIONS = (
     ("culture", "Культура"),
     ("evening", "Музыка и вечер"),
     ("relax", "Релакс"),
+    ("walk", "Прогулки"),
 )
 
 ACTIVITIES = (
@@ -142,10 +143,68 @@ ACTIVITIES = (
         keywords=("термы", "термальный"),
         supported=False,
     ),
+    Activity("walk", "Погулять", ("walk",)),
 )
 BY_ID = {activity.id: activity for activity in ACTIVITIES}
 DIRECTION_IDS = {item[0] for item in DIRECTIONS}
 CONFIDENCE_ORDER = {"UNKNOWN": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3}
+
+# Activity IDs expand into provider-independent retrieval intents first.
+ACTIVITY_INTENTS: dict[str, tuple[str, ...]] = {
+    activity.id: (activity.id.upper(),) for activity in ACTIVITIES if activity.supported
+}
+ACTIVITY_INTENTS["restaurant"] = ("CAFE_RESTAURANT",)
+ACTIVITY_INTENTS["walk"] = ("WALK", "PARK", "GARDEN")
+
+# Geoapify Places category keys from https://apidocs.geoapify.com/docs/places/.
+# There is no documented billiards, waterfront or ropes-course category: those
+# require a bounded name lookup or the existing KudaGo title/tag classifier.
+GEOAPIFY_CATEGORIES: dict[str, tuple[str, ...]] = {
+    "QUEST": ("entertainment.escape_game",),
+    "BOWLING": ("entertainment.bowling_alley",),
+    "TRAMPOLINE": ("entertainment.activity_park.trampoline",),
+    "CLIMBING": ("entertainment.activity_park.climbing",),
+    "MUSEUM": ("entertainment.museum",),
+    "THEATER": ("entertainment.culture.theatre",),
+    "BAR": ("catering.bar", "catering.pub"),
+    "CAFE_RESTAURANT": ("catering.cafe", "catering.restaurant"),
+    "SAUNA": ("leisure.spa.sauna", "leisure.spa.public_bath"),
+    "SPA": ("leisure.spa",),
+    "PARK": ("leisure.park",),
+    "GARDEN": ("leisure.park.garden",),
+}
+GEOAPIFY_NAME_SEARCH: dict[str, str] = {"billiards": "бильярд"}
+
+
+def retrieval_intents(selection: list[str] | tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(sorted({intent for aid in expand(selection) for intent in ACTIVITY_INTENTS[aid]}))
+
+
+def geoapify_categories_for_activity(activity_id: str) -> tuple[str, ...]:
+    return tuple(
+        category
+        for intent in ACTIVITY_INTENTS.get(activity_id, ())
+        for category in GEOAPIFY_CATEGORIES.get(intent, ())
+    )
+
+
+def geoapify_retrieval(
+    selection: list[str] | tuple[str, ...],
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    activities = expand(selection)
+    categories = tuple(
+        sorted(
+            {
+                category
+                for intent in retrieval_intents(selection)
+                for category in GEOAPIFY_CATEGORIES.get(intent, ())
+            }
+        )
+    )
+    names = tuple(
+        sorted({GEOAPIFY_NAME_SEARCH[aid] for aid in activities if aid in GEOAPIFY_NAME_SEARCH})
+    )
+    return categories, names
 
 
 def taxonomy_out() -> dict[str, object]:

@@ -41,16 +41,11 @@ export function DvizhFlow({
       ? dvizh.candidates.slice(0, choosing ? limit : undefined)
       : []
   const pending = stack.filter(
-    (candidate) =>
-      candidate.compatibility !== 'UNVERIFIED' &&
-      !candidate.my_reaction &&
-      new Date(candidate.expires_at) > new Date(),
+    (candidate) => !candidate.my_reaction && new Date(candidate.expires_at) > new Date(),
   )
   const current =
     dvizh.status === 'AWAITING_CONFIRMATION' || selectionFinished ? undefined : pending[0]
-  const actionableCount = stack.filter(
-    (candidate) => candidate.compatibility !== 'UNVERIFIED',
-  ).length
+  const actionableCount = stack.length
   const answered = actionableCount - pending.length
   const match = dvizh.candidates.find((candidate) => candidate.id === dvizh.active_candidate_id)
   const chosenPlaces = dvizh.candidates.filter((candidate) => candidate.my_reaction === 'WOULD_GO')

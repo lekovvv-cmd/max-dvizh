@@ -187,12 +187,23 @@ describe('finite candidate round', () => {
     expect(screen.queryByText(/KudaGo/i)).not.toBeInTheDocument()
   })
 
-  it('does not offer reactions for an unverified candidate', () => {
+  it('offers reactions for an unverified candidate with an honest price label', () => {
     const item = sample()
     item.candidates[0].compatibility = 'UNVERIFIED'
     render(<DvizhFlow dvizh={item} onUpdate={vi.fn()} onEdit={vi.fn()} onNew={vi.fn()} />)
-    expect(screen.queryByRole('button', { name: 'Пошёл бы' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Не моё' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Пошёл бы' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Не моё' })).toBeInTheDocument()
+  })
+
+  it('keeps a larger internal pool in the existing eight-card round', () => {
+    const item = sample()
+    item.candidates = Array.from({ length: 12 }, (_, index) => ({
+      ...item.candidates[0],
+      id: `c${index}`,
+      position: index,
+    }))
+    render(<DvizhFlow dvizh={item} onUpdate={vi.fn()} onEdit={vi.fn()} onNew={vi.fn()} />)
+    expect(screen.getByText('1 / 8')).toBeInTheDocument()
   })
 
   it('lets a waitlisted member check for an open place after gathering', async () => {

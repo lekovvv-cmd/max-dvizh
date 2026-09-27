@@ -26,6 +26,7 @@ from app.db.models import (
     User,
 )
 from app.modules.leisure.provider import KudaGoProvider, ProviderQuery, fetch_items
+from app.modules.leisure.search import search_exact_place
 from app.modules.leisure.taxonomy import taxonomy_out, valid_selection
 from app.modules.matching.dvizh import (
     active,
@@ -61,13 +62,35 @@ class PlaceSearchIn(BaseModel):
     query: str = Field(min_length=2, max_length=300)
 
 
-def _query(payload: SignalBatchIn, city: str) -> ProviderQuery:
+def _query(payload: SignalBatchIn, city: str, location: Location | None = None) -> ProviderQuery:
     return ProviderQuery(
         city_slug=city,
         starts_at=payload.available_from,
         ends_at=payload.available_to,
         categories=tuple(payload.activity_categories),
         product=True,
+        origin_kind="USER_POINT" if payload.radius_km is not None and location else "CITY_BOUNDARY",
+        latitude=location.latitude if payload.radius_km is not None and location else None,
+        longitude=location.longitude if payload.radius_km is not None and location else None,
+        radius_m=round(payload.radius_km * 1000) if payload.radius_km is not None else None,
+    )
+
+
+def _signal_query(signal: Intent, session: DbSession) -> ProviderQuery:
+    assert signal.available_from and signal.available_to
+    location = (
+        session.get(Location, signal.origin_location_id) if signal.origin_location_id else None
+    )
+    return ProviderQuery(
+        city_slug=signal.city_slug,
+        starts_at=signal.available_from,
+        ends_at=signal.available_to,
+        categories=tuple(signal.activity_categories or ()),
+        product=True,
+        origin_kind="USER_POINT" if signal.radius_km is not None and location else "CITY_BOUNDARY",
+        latitude=location.latitude if signal.radius_km is not None and location else None,
+        longitude=location.longitude if signal.radius_km is not None and location else None,
+        radius_m=round(signal.radius_km * 1000) if signal.radius_km is not None else None,
     )
 
 
@@ -144,8 +167,12 @@ def _create(
     if (existing := _existing_batch(session, user, batch_id)) is not None:
         return existing
     # Provider I/O is outside the transaction and the per-user lock.
+    origin = (
+        session.get(Location, payload.origin_location_id) if payload.origin_location_id else None
+    )
+    provider_query = _query(payload, city, origin)
     session.commit()
-    result = fetch_items(_query(payload, city))
+    result = fetch_items(provider_query)
     session.scalar(select(User.id).where(User.id == user.id).with_for_update())
     groups, city = _validate_groups(payload, session, user)
     if (existing := _existing_batch(session, user, batch_id)) is not None:
@@ -214,10 +241,10 @@ def _create(
         session.flush()
         count = 0 if result.unavailable else add_candidates(session, dvizh, signal, result.items)
         if not result.unavailable and count == 0:
-            dvizh.status = "NO_SOURCE"
+            dvizh.status = "PROVIDER_UNAVAILABLE" if result.partial else "NO_SOURCE"
         signal.provider_state = (
             "PROVIDER_UNAVAILABLE"
-            if result.unavailable
+            if dvizh.status == "PROVIDER_UNAVAILABLE"
             else "CANDIDATES_READY"
             if count
             else "NO_SOURCE"
@@ -542,13 +569,7 @@ def more(dvizh_id: str, session: DbSession, user: CurrentUser) -> dict[str, obje
         raise fail(409, "Выбор уже завершён")
     signal = session.get(Intent, dvizh.signal_id)
     assert signal and signal.available_from and signal.available_to
-    query = ProviderQuery(
-        city_slug=signal.city_slug,
-        starts_at=signal.available_from,
-        ends_at=signal.available_to,
-        categories=tuple(dvizh.activity_ids),
-        product=True,
-    )
+    query = _signal_query(signal, session)
     session.commit()
     result = fetch_items(query, force_refresh=True)
     dvizh = get_dvizh(session, dvizh_id, user.id, lock=True)
@@ -559,7 +580,7 @@ def more(dvizh_id: str, session: DbSession, user: CurrentUser) -> dict[str, obje
         session.flush()
     dvizh.status = (
         "PROVIDER_UNAVAILABLE"
-        if result.unavailable
+        if result.unavailable or (result.partial and not candidates(session, dvizh.id))
         else "CHOOSING_CANDIDATES"
         if candidates(session, dvizh.id)
         else "NO_SOURCE"
@@ -583,20 +604,17 @@ def search_place(
         raise fail(409, "Поиск доступен до запуска движа")
     signal = session.get(Intent, dvizh.signal_id)
     assert signal and signal.available_from and signal.available_to
-    query = ProviderQuery(
-        city_slug=signal.city_slug,
-        starts_at=signal.available_from,
-        ends_at=signal.available_to,
-        categories=tuple(dvizh.activity_ids),
-        product=True,
-    )
+    query = _signal_query(signal, session)
     session.commit()
     try:
-        items = KudaGoProvider().search_place_items(query, payload.query.strip())
+        result = search_exact_place(query, payload.query.strip())
     except (httpx.HTTPError, ValueError) as error:
         raise fail(503, "Источник временно недоступен") from error
+    items = result.items
     if not items:
-        raise fail(422, "Не нашли это место в KudaGo для выбранного занятия и города")
+        if result.unavailable:
+            raise fail(503, "Источник временно недоступен")
+        raise fail(422, "Не нашли это место для выбранного занятия и города")
     dvizh = get_dvizh(session, dvizh_id, user.id, lock=True)
     if dvizh.status not in {"CHOOSING_CANDIDATES", "NO_SOURCE", "PROVIDER_UNAVAILABLE"}:
         raise fail(409, "Поиск доступен до запуска движа")
@@ -628,8 +646,6 @@ def react(
         or aware(candidate.expires_at) <= now()
     ):
         raise fail(404, "Вариант устарел")
-    if candidate.compatibility == "UNVERIFIED":
-        raise fail(409, "Условия варианта не подтверждены")
     if (
         payload.value == "WOULD_GO"
         and candidate.compatibility == "NEAR"

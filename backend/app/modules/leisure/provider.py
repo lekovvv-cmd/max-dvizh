@@ -13,6 +13,7 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from hashlib import sha256
+from time import monotonic
 from typing import Any, cast
 from urllib.parse import urlparse
 
@@ -74,6 +75,7 @@ class ProviderResult:
     cached: bool
     fetched_at: datetime | None
     unavailable: bool = False
+    partial: bool = False
 
 
 @dataclass(frozen=True)
@@ -85,13 +87,18 @@ class ProviderQuery:
     ends_at: datetime
     categories: tuple[str, ...] = ()
     product: bool = False
+    origin_kind: str = "CITY_BOUNDARY"
+    latitude: float | None = None
+    longitude: float | None = None
+    radius_m: int | None = None
+    limit: int = 32
 
     def cache_key(self) -> str:
         categories = ",".join(sorted(self.categories))
         category_hash = sha256(categories.encode()).hexdigest()[:12]
         return (
             f"kudago:items:{'product' if self.product else 'legacy'}:{self.city_slug}:{int(self.starts_at.timestamp())}-"
-            f"{int(self.ends_at.timestamp())}:{category_hash}"
+            f"{int(self.ends_at.timestamp())}:{category_hash}:{self.origin_kind}:{self.radius_m or 0}"
         )
 
 
@@ -428,6 +435,7 @@ class KudaGoProvider:
 
     def product_items(self, query: ProviderQuery) -> list[NormalizedLeisureItem]:
         """Bounded native-category and documented full-text retrieval, then strict classification."""
+        deadline = monotonic() + settings.leisure_search_deadline_seconds
         place_categories, event_categories, searches = retrieval(query.categories)
         selected = expand(query.categories)
         fetched_at = utcnow()
@@ -444,9 +452,22 @@ class KudaGoProvider:
                 "location": query.city_slug,
                 "categories": ",".join(sorted(categories)),
                 "fields": fields_place if kind == "places" else fields_event,
-                "page_size": 100,
+                "page_size": 40,
                 "text_format": "plain",
             }
+            if (
+                query.origin_kind == "USER_POINT"
+                and query.latitude is not None
+                and query.longitude is not None
+                and query.radius_m is not None
+            ):
+                params.update(
+                    {
+                        "lat": str(query.latitude),
+                        "lon": str(query.longitude),
+                        "radius": query.radius_m,
+                    }
+                )
             if kind == "events":
                 params.update(
                     {
@@ -455,13 +476,17 @@ class KudaGoProvider:
                         "expand": "place",
                     }
                 )
-            for page in range(1, max(1, settings.kudago_max_pages) + 1):
+            for page in range(1, min(2, max(1, settings.kudago_max_pages)) + 1):
+                if monotonic() >= deadline:
+                    break
                 params["page"] = page
                 try:
                     response = httpx.get(
                         f"{settings.kudago_base_url}/{kind}/",
                         params=params,
-                        timeout=settings.kudago_timeout_seconds,
+                        timeout=min(
+                            settings.kudago_timeout_seconds, max(0.1, deadline - monotonic())
+                        ),
                     )
                     response.raise_for_status()
                     data = response.json()
@@ -473,11 +498,31 @@ class KudaGoProvider:
                     break
         seen_search_ids: set[str] = set()
         for search in sorted(searches):
+            if monotonic() >= deadline or len(seen_search_ids) >= query.limit:
+                break
             try:
+                search_params: dict[str, str | int] = {
+                    "q": search,
+                    "location": query.city_slug,
+                    "ctype": "place",
+                }
+                if (
+                    query.origin_kind == "USER_POINT"
+                    and query.latitude is not None
+                    and query.longitude is not None
+                    and query.radius_m is not None
+                ):
+                    search_params.update(
+                        {
+                            "lat": str(query.latitude),
+                            "lon": str(query.longitude),
+                            "radius": query.radius_m,
+                        }
+                    )
                 response = httpx.get(
                     f"{settings.kudago_base_url}/search/",
-                    params={"q": search, "location": query.city_slug, "ctype": "place"},
-                    timeout=settings.kudago_timeout_seconds,
+                    params=search_params,
+                    timeout=min(settings.kudago_timeout_seconds, max(0.1, deadline - monotonic())),
                 )
                 response.raise_for_status()
                 hits = response.json().get("results", [])
@@ -489,7 +534,7 @@ class KudaGoProvider:
                 if not identifier.isdecimal():
                     continue
                 seen_search_ids.add(identifier)
-        if seen_search_ids:
+        if seen_search_ids and monotonic() < deadline:
             try:
                 response = httpx.get(
                     f"{settings.kudago_base_url}/places/",
@@ -499,7 +544,7 @@ class KudaGoProvider:
                         "page_size": 40,
                         "text_format": "plain",
                     },
-                    timeout=settings.kudago_timeout_seconds,
+                    timeout=min(settings.kudago_timeout_seconds, max(0.1, deadline - monotonic())),
                 )
                 response.raise_for_status()
                 raw_items.extend(("places", raw) for raw in response.json().get("results", []))
@@ -540,6 +585,8 @@ class KudaGoProvider:
                         ),
                     )
                 )
+        if not result and monotonic() >= deadline:
+            raise httpx.TimeoutException("KudaGo product search deadline exceeded")
         if not result and last_error is not None:
             raise last_error
         return result
@@ -570,9 +617,27 @@ class KudaGoProvider:
             response.raise_for_status()
             places = [response.json()]
         else:
+            search_params: dict[str, str | int] = {
+                "q": phrase,
+                "location": query.city_slug,
+                "ctype": "place",
+            }
+            if (
+                query.origin_kind == "USER_POINT"
+                and query.latitude is not None
+                and query.longitude is not None
+                and query.radius_m is not None
+            ):
+                search_params.update(
+                    {
+                        "lat": str(query.latitude),
+                        "lon": str(query.longitude),
+                        "radius": query.radius_m,
+                    }
+                )
             search = httpx.get(
                 f"{settings.kudago_base_url}/search/",
-                params={"q": phrase, "location": query.city_slug, "ctype": "place"},
+                params=search_params,
                 timeout=settings.kudago_timeout_seconds,
             )
             search.raise_for_status()
@@ -635,6 +700,10 @@ def fetch_items(
     force_refresh: bool = False,
 ) -> ProviderResult:
     """Cache-aside for one needed provider query; never mirror a whole catalogue."""
+    if query.product and provider is None and cache is None:
+        from app.modules.leisure.search import search_product
+
+        return search_product(query)
     cache = cache or RedisProviderCache()
     cached = None if force_refresh else cache.get_events(query)
     if cached is not None:

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import UTC, datetime, time, timedelta
+from time import monotonic
 
 from fastapi import HTTPException
 from sqlalchemy import func, select
@@ -28,6 +30,8 @@ from app.db.models import (
 from app.modules.leisure.provider import NormalizedLeisureItem
 from app.modules.leisure.taxonomy import expand
 from app.modules.matching.domain import compatibility, contains_interval, haversine_km, overlaps
+
+logger = logging.getLogger(__name__)
 
 
 def now() -> datetime:
@@ -216,24 +220,24 @@ def _schedule_days(value: str) -> set[int]:
 def _daily_hours_fit(
     timetable: str | None, start: datetime, end: datetime, timezone_name: str | None
 ) -> bool:
-    """Accept only a fully parsed provider schedule covering the entire visit."""
+    """Reject only a parsed schedule that proves the visit is outside opening hours."""
     if not timetable:
-        return False
+        return True
     zone = display_timezone(timezone_name)
     local_start, local_end = start.astimezone(zone), end.astimezone(zone)
     entries: list[tuple[set[int], int, int]] = []
     cursor = 0
     for match in _HOURS_ENTRY.finditer(timetable.casefold()):
         if timetable[cursor : match.start()].strip(" ,;\n"):
-            return False
+            return True
         opening = int(match["open_h"]) * 60 + int(match["open_m"])
         closing = int(match["close_h"]) * 60 + int(match["close_m"])
         if opening >= 24 * 60 or closing > 24 * 60 or not _schedule_days(match["days"]):
-            return False
+            return True
         entries.append((_schedule_days(match["days"]), opening, closing))
         cursor = match.end()
     if not entries or timetable[cursor:].strip(" ,;\n"):
-        return False
+        return True
     for offset in (-1, 0):
         day = local_start.date() + timedelta(days=offset)
         for days, opening, closing in entries:
@@ -298,7 +302,7 @@ def build_candidate(
         distance_km=distance,
         radius_km=intent.radius_km,
     )
-    if fit.kind not in {"EXACT", "NEAR"}:
+    if fit.kind == "CONFLICT" or (intent.radius_km is not None and distance is None):
         return None
     return DvizhCandidate(
         session_id=dvizh.id,
@@ -327,6 +331,7 @@ def build_candidate(
 def add_candidates(
     session: Session, dvizh: DvizhSession, intent: Intent, items: list[NormalizedLeisureItem]
 ) -> int:
+    started = monotonic()
     location = (
         session.get(Location, intent.origin_location_id) if intent.origin_location_id else None
     )
@@ -344,7 +349,7 @@ def add_candidates(
         )
         for c in existing
     }
-    prepared: list[DvizhCandidate] = []
+    prepared: list[tuple[DvizhCandidate, NormalizedLeisureItem]] = []
     for item in items:
         identity = (
             item.provider,
@@ -368,20 +373,47 @@ def add_candidates(
                 continue
             seen.add(identity)
             seen_titles.add(title_identity)
-            prepared.append(candidate)
-    prepared.sort(
-        key=lambda c: (
-            c.compatibility != "EXACT",
-            c.distance_km is None,
-            c.distance_km or 0,
-            c.starts_at,
-            c.provider_item_id,
-        )
-    )
-    for position, candidate in enumerate(prepared, start=len(existing)):
+            prepared.append((candidate, item))
+    filtered_ms = round((monotonic() - started) * 1000)
+    # Quality first, then a small diversity bonus for umbrella selections.
+    # Distance is relevant only for an explicitly selected user point.
+    activity_counts: dict[str, int] = {}
+    ranked: list[DvizhCandidate] = []
+    while prepared:
+
+        def score(entry: tuple[DvizhCandidate, NormalizedLeisureItem]) -> tuple[float, str]:
+            candidate, source = entry
+            activity = next(iter(candidate.activity_ids), "")
+            quality: float = {"EXACT": 4, "NEAR": 2, "UNVERIFIED": 1}.get(
+                candidate.compatibility, 0
+            )
+            quality += 3 if source.classification_confidence == "HIGH" else 1
+            quality += 0.2 if candidate.address_text else 0
+            quality += 0.2 if candidate.source_url else 0
+            if intent.radius_km is not None and candidate.distance_km is not None:
+                quality += max(0.0, 1 - candidate.distance_km / intent.radius_km)
+            if len(expand(dvizh.activity_ids)) > 1:
+                quality -= min(activity_counts.get(activity, 0), 3) * 0.7
+            return (-quality, candidate.title.casefold() + candidate.provider_item_id)
+
+        prepared.sort(key=score)
+        candidate, _ = prepared.pop(0)
+        activity = next(iter(candidate.activity_ids), "")
+        activity_counts[activity] = activity_counts.get(activity, 0) + 1
+        ranked.append(candidate)
+    for position, candidate in enumerate(ranked, start=len(existing)):
         candidate.position = position
         session.add(candidate)
-    return len(prepared)
+    logger.info(
+        "leisure_candidates city=%s activities=%s filter_ms=%d rank_ms=%d ranked_pool_count=%d returned_count=%d",
+        intent.city_slug,
+        ",".join(sorted(dvizh.activity_ids)),
+        filtered_ms,
+        round((monotonic() - started) * 1000) - filtered_ms,
+        len(ranked),
+        min(8, len(ranked)),
+    )
+    return len(ranked)
 
 
 def expire(session: Session, dvizh: DvizhSession) -> None:
