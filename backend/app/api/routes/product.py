@@ -465,18 +465,49 @@ def create_location(payload: LocationIn, session: DbSession, user: CurrentUser) 
     )
     if city_is_joined is None:
         raise error(status.HTTP_422_UNPROCESSABLE_ENTITY, "Выбери город своей компании")
+    if payload.kind == "CURRENT":
+        current = session.scalar(
+            select(Location)
+            .where(
+                Location.user_id == user.id,
+                Location.city_slug == payload.city_slug,
+                Location.kind == "CURRENT",
+                Location.is_ephemeral.is_(False),
+            )
+            .order_by(Location.created_at.desc())
+            .limit(1)
+        )
+        if current is not None and session.scalar(
+            select(Intent.id).where(Intent.origin_location_id == current.id).limit(1)
+        ) is None:
+            current.latitude = payload.latitude
+            current.longitude = payload.longitude
+            current.is_default = False
+            session.commit()
+            return location_out(current)
     has_default = session.scalar(
         select(Location.id)
         .where(
             Location.user_id == user.id,
             Location.city_slug == payload.city_slug,
+            Location.kind != "CURRENT",
             Location.is_ephemeral.is_(False),
             Location.is_default.is_(True),
         )
         .limit(1)
     )
     location = Location(user_id=user.id, **payload.model_dump())
-    location.is_default = has_default is None
+    location.is_default = payload.kind != "CURRENT" and has_default is None
+    if location.is_default:
+        for old_current in session.scalars(
+            select(Location).where(
+                Location.user_id == user.id,
+                Location.city_slug == payload.city_slug,
+                Location.kind == "CURRENT",
+                Location.is_default.is_(True),
+            )
+        ):
+            old_current.is_default = False
     session.add(location)
     session.commit()
     session.refresh(location)

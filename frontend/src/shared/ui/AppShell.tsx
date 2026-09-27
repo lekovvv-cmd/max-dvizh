@@ -5,12 +5,11 @@ export type Screen = 'home' | 'signal' | 'dvizhi' | 'group'
 const items: Array<{
   id: Exclude<Screen, 'signal'>
   icon: IconName
-  activeIcon: IconName
   label: string
 }> = [
-  { id: 'home', icon: 'home', activeIcon: 'homeSolid', label: 'Главная' },
-  { id: 'dvizhi', icon: 'list', activeIcon: 'listSolid', label: 'Движи' },
-  { id: 'group', icon: 'users', activeIcon: 'usersSolid', label: 'Компания' },
+  { id: 'home', icon: 'home', label: 'Главная' },
+  { id: 'dvizhi', icon: 'list', label: 'Движи' },
+  { id: 'group', icon: 'users', label: 'Компания' },
 ]
 
 export function AppShell({
@@ -39,7 +38,9 @@ export function AppShell({
               onClick={() => onNavigate(item.id)}
               aria-current={screen === item.id ? 'page' : undefined}
             >
-              <Icon name={screen === item.id ? item.activeIcon : item.icon} />
+              <span className="bottom-nav__icon">
+                <Icon name={item.icon} />
+              </span>
               {item.label}
             </button>
           ))}

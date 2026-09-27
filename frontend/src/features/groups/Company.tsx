@@ -174,7 +174,9 @@ export function Company({
       active.city_slug
     ] ||
     'Твой город'
-  const cityLocations = locations.filter((item) => item.city_slug === active.city_slug)
+  const cityLocations = locations.filter(
+    (item) => item.city_slug === active.city_slug && item.kind !== 'CURRENT',
+  )
   return (
     <section className="page-stack company-page">
       <SectionHeader
@@ -349,7 +351,9 @@ export function Company({
             ))}
           </div>
         ) : (
-          <p className="empty-copy">Мест пока нет.</p>
+          <p className="empty-copy">
+            Сохранённых мест пока нет. В сигнале можно использовать текущую геопозицию.
+          </p>
         )}
         <div className={'add-place' + (placeOpen ? ' is-open' : '')}>
           <button

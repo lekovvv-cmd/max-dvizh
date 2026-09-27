@@ -212,9 +212,11 @@ export function SignalComposer({
   const [placeError, setPlaceError] = useState('')
   const [checking, setChecking] = useState(false)
   const [locatingCurrent, setLocatingCurrent] = useState(false)
+  const locatingCurrentRef = useRef(false)
   const [catalogOpen, setCatalogOpen] = useState(false)
   const [categorySearch, setCategorySearch] = useState('')
   const taxonomy = getActivityTaxonomy()
+  const allDirections = taxonomy.directions.map((item) => `${item.id}/*`)
   const [direction, setDirection] = useState(taxonomy.directions[0]?.id || '')
   const visibleActivities = searchActivities(categorySearch)
 
@@ -226,11 +228,17 @@ export function SignalComposer({
   const selectedGroups = groups.filter((item) => form.groupIds.includes(item.id))
   const cityMismatch = new Set(selectedGroups.map((item) => item.city_slug)).size > 1
   const city = cityMismatch ? '' : (selectedGroups[0]?.city_slug ?? group.city_slug)
-  const places = locations.filter((item) => item.city_slug === city)
+  const places = locations.filter((item) => item.city_slug === city && item.kind !== 'CURRENT')
   const budget = parseOptionalInteger(form.budget, 0, 100000)
   const radius = parseOptionalRadius(form.radius)
   const people = groupSizeRange(form.people, parseExactPeople(form.exactPeople))
-  const selectedPlace = places.find((item) => item.id === form.locationId)
+  const selectedPlace = locations.find(
+    (item) => item.city_slug === city && item.id === form.locationId,
+  )
+  const anyActivitySelected =
+    allDirections.length > 0 &&
+    form.categories.length === allDirections.length &&
+    allDirections.every((item) => form.categories.includes(item))
   const valid = Boolean(
     form.groupIds.length &&
       form.categories.length > 0 &&
@@ -258,8 +266,9 @@ export function SignalComposer({
                 new Date(form.end).toISOString(),
               )
             : 'Выбери время'
-  const selectedActivitySummary =
-    form.categories.length > 3
+  const selectedActivitySummary = anyActivitySelected
+    ? 'Любое занятие'
+    : form.categories.length > 3
       ? form.categories.slice(0, 2).map(activityLabel).join(', ') +
         ` и ещё ${form.categories.length - 2}`
       : form.categories.map(activityLabel).join(' или ')
@@ -287,6 +296,11 @@ export function SignalComposer({
 
   function toggleCategory(value: string) {
     setForm((current) => {
+      const allSelected =
+        allDirections.length > 0 &&
+        current.categories.length === allDirections.length &&
+        allDirections.every((item) => current.categories.includes(item))
+      if (allSelected) return { ...current, categories: [value] }
       const wildcardDirection = value.endsWith('/*') ? value.slice(0, -2) : null
       const activityWildcards = new Set(
         taxonomy.activities
@@ -463,6 +477,8 @@ export function SignalComposer({
   }
 
   async function selectCurrentLocation() {
+    if (locatingCurrentRef.current) return
+    locatingCurrentRef.current = true
     setLocatingCurrent(true)
     setPlaceError('')
     try {
@@ -485,6 +501,7 @@ export function SignalComposer({
       setPlaceError(geolocationError(reason))
       setPlaceOpen(true)
     } finally {
+      locatingCurrentRef.current = false
       setLocatingCurrent(false)
     }
   }
@@ -625,65 +642,23 @@ export function SignalComposer({
         </section>
         <section className="form-section" aria-labelledby="category-title">
           <h2 id="category-title">Что хочется?</h2>
-          <button
-            type="button"
-            className={'activity-search-trigger' + (catalogOpen ? ' is-open' : '')}
-            aria-expanded={catalogOpen}
-            aria-controls="activity-catalog"
-            onClick={() => setCatalogOpen((value) => !value)}
-          >
+          <label className="activity-catalog__search activity-catalog__search--inline">
             <Icon name="search" size={20} />
-            <span>Найти занятие</span>
-          </button>
-          <div
-            className="choices activity-quick"
-            role="group"
-            aria-label="Направление для просмотра"
-          >
-            {taxonomy.directions.map((item) => (
-              <button
-                type="button"
-                key={item.id}
-                className={'direction-tab' + (direction === item.id ? ' is-current' : '')}
-                aria-pressed={direction === item.id}
-                onClick={() => setDirection(item.id)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-          <div className="choices activity-quick" role="group" aria-label="Занятие">
-            <Choice
-              active={form.categories.includes(`${direction}/*`)}
-              onClick={() => toggleCategory(`${direction}/*`)}
-            >
-              Любое
-            </Choice>
-            {taxonomy.activities
-              .filter((item) => item.directions.includes(direction))
-              .map((item) => (
-                <Choice
-                  key={item.id}
-                  active={form.categories.includes(item.id)}
-                  onClick={() => toggleCategory(item.id)}
-                >
-                  {item.label}
-                </Choice>
-              ))}
-          </div>
-          {catalogOpen ? (
+            <span className="sr-only">Поиск занятия</span>
+            <input
+              type="search"
+              value={categorySearch}
+              placeholder="Найти занятие"
+              onChange={(event) => {
+                setCategorySearch(event.target.value)
+                setCatalogOpen(Boolean(event.target.value.trim()))
+              }}
+              onFocus={() => setCatalogOpen(Boolean(categorySearch.trim()))}
+            />
+          </label>
+          {catalogOpen && categorySearch.trim() ? (
             <div className="activity-catalog" id="activity-catalog">
-              <label className="activity-catalog__search">
-                <Icon name="search" size={20} />
-                <span className="sr-only">Поиск занятия</span>
-                <input
-                  type="search"
-                  value={categorySearch}
-                  placeholder="Квесты, музеи, театр…"
-                  onChange={(event) => setCategorySearch(event.target.value)}
-                />
-              </label>
-              <div className="activity-catalog__list" role="group" aria-label="Все занятия">
+              <div className="activity-catalog__list" role="group" aria-label="Результаты поиска">
                 {visibleActivities.map((category) => (
                   <button
                     type="button"
@@ -711,13 +686,67 @@ export function SignalComposer({
                     </span>
                   </button>
                 ))}
-                {visibleActivities.length === 0 ? (
-                  <p className="activity-catalog__empty">
-                    Ничего не нашли. Попробуй другое занятие.
-                  </p>
+                {!visibleActivities.length ? (
+                  <p className="activity-catalog__empty">Ничего не нашли.</p>
                 ) : null}
               </div>
             </div>
+          ) : null}
+          <Choice
+            active={anyActivitySelected}
+            className="activity-any"
+            onClick={() => update({ categories: anyActivitySelected ? [] : allDirections })}
+          >
+            <strong>Любое занятие</strong>
+            <small>Покажем все варианты</small>
+          </Choice>
+          <p className="activity-section-label">1. Направление — для просмотра вариантов</p>
+          <div
+            className="choices activity-quick"
+            role="group"
+            aria-label="Направление для просмотра"
+          >
+            {taxonomy.directions.map((item) => (
+              <button
+                type="button"
+                key={item.id}
+                className={'direction-tab' + (direction === item.id ? ' is-current' : '')}
+                aria-pressed={direction === item.id}
+                onClick={() => setDirection(item.id)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <p className="activity-section-label">
+            2. Выбери занятия · {taxonomy.directions.find((item) => item.id === direction)?.label}
+          </p>
+          <div className="choices activity-quick" role="group" aria-label="Занятие">
+            <Choice
+              active={form.categories.includes(`${direction}/*`)}
+              onClick={() => toggleCategory(`${direction}/*`)}
+            >
+              Любое из «{taxonomy.directions.find((item) => item.id === direction)?.label}»
+            </Choice>
+            {taxonomy.activities
+              .filter((item) => item.directions.includes(direction))
+              .map((item) => (
+                <Choice
+                  key={item.id}
+                  active={form.categories.includes(item.id)}
+                  onClick={() => toggleCategory(item.id)}
+                >
+                  {item.label}
+                </Choice>
+              ))}
+          </div>
+          {form.categories.length ? (
+            <p className="activity-selection">
+              Выбрано:{' '}
+              {anyActivitySelected
+                ? 'любое занятие'
+                : form.categories.map(activityLabel).join(' или ')}
+            </p>
           ) : null}
         </section>
         <section className="form-section" aria-labelledby="company-title">
@@ -814,47 +843,53 @@ export function SignalComposer({
             </section>
             <section className="subsection">
               <h3>Расстояние</h3>
-              <div className="choices" role="group" aria-label="Точка отсчёта">
-                {places.map((place) => (
-                  <Choice
-                    key={place.id}
-                    active={form.locationId === place.id}
-                    onClick={() => update({ locationId: place.id })}
-                  >
-                    {place.label}
-                  </Choice>
-                ))}
-                <button
-                  type="button"
-                  className="choice"
-                  onClick={() => void selectCurrentLocation()}
-                  disabled={locatingCurrent}
-                >
-                  {locatingCurrent ? 'Определяем…' : 'Текущее местоположение'}
-                </button>
-                <button type="button" className="choice" onClick={() => setPlaceOpen(true)}>
-                  + Добавить место
-                </button>
-              </div>
-              {placeError && !placeOpen ? (
-                <p className="form-error" role="alert">
-                  {placeError}
-                </p>
-              ) : null}
+              <p className="form-hint">Ограничь поиск по расстоянию от выбранной точки.</p>
               <div className="choices" role="group" aria-label="Радиус">
                 {radiusOptions.map((option) => (
                   <Choice
                     key={option}
                     active={form.radius === option}
                     onClick={() => update({ radius: option })}
-                    disabled={!selectedPlace && Boolean(option)}
                   >
                     {option ? 'До ' + option + ' км' : 'Неважно'}
                   </Choice>
                 ))}
               </div>
-              {!selectedPlace ? (
-                <p className="form-hint">Выбери точку, чтобы задать расстояние.</p>
+              {form.radius ? <p className="activity-section-label">Откуда считать</p> : null}
+              {form.radius ? (
+                <div className="choices" role="group" aria-label="Точка отсчёта">
+                  {places.map((place) => (
+                    <Choice
+                      key={place.id}
+                      active={form.locationId === place.id}
+                      onClick={() => update({ locationId: place.id })}
+                    >
+                      {place.label}
+                    </Choice>
+                  ))}
+                  <button
+                    type="button"
+                    className={
+                      'choice' + (selectedPlace?.kind === 'CURRENT' ? ' choice--selected' : '')
+                    }
+                    aria-pressed={selectedPlace?.kind === 'CURRENT'}
+                    onClick={() => void selectCurrentLocation()}
+                    disabled={locatingCurrent}
+                  >
+                    {locatingCurrent ? 'Определяем…' : 'Текущее местоположение'}
+                  </button>
+                  <button type="button" className="choice" onClick={() => setPlaceOpen(true)}>
+                    + Добавить место
+                  </button>
+                </div>
+              ) : null}
+              {placeError && !placeOpen ? (
+                <p className="form-error" role="alert">
+                  {placeError}
+                </p>
+              ) : null}
+              {form.radius && !selectedPlace ? (
+                <p className="form-hint">Теперь выбери точку отсчёта.</p>
               ) : null}
               {radius === undefined ? (
                 <p className="form-error">Укажи расстояние до 100 км.</p>

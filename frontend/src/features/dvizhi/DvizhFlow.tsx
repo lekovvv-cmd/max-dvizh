@@ -235,7 +235,10 @@ export function DvizhFlow({
           {placeSearch}
         </>
       ) : doneChoosing ? (
-        <div className="dvizh-result">
+        <div className="dvizh-result dvizh-result--selection">
+          <span className="dvizh-result__mark" aria-hidden="true">
+            ✓
+          </span>
           <h1>{dvizh.chosen_count ? `Выбрано: ${dvizh.chosen_count}` : 'Ничего не выбрал'}</h1>
           {dvizh.chosen_count ? (
             <button

@@ -96,6 +96,10 @@ declare global {
     WebApp?: {
       initData?: string
       initDataUnsafe?: { start_param?: string }
+      colorScheme?: 'light' | 'dark'
+      themeParams?: { bg_color?: string }
+      onEvent?: (event: string, listener: () => void) => void
+      offEvent?: (event: string, listener: () => void) => void
       shareMaxContent?: (params: { text?: string; link?: string }) => void | Promise<void>
       openMaxLink?: (url: string) => void
     }

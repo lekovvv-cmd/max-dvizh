@@ -80,33 +80,53 @@ function DvizhList({
       <h1 className="dvizh-list__title">ДВИЖИ</h1>
       {collecting.length ? (
         <section>
-          <h2>Собираются</h2>
+          <h2>
+            Собираются <span aria-hidden="true">{collecting.length}</span>
+          </h2>
           {collecting.map((item) => (
             <button className="dvizh-list__item" key={item.id} onClick={() => onOpen(item.id)}>
+              <span className="dvizh-list__status">{dvizhStatusLabel(item)}</span>
               <strong>{item.activity_ids.map(activityLabel).join(' или ')}</strong>
-              <span>
-                {item.group_name} · {formatSignalWindow(item.available_from, item.available_to)}
+              <span className="dvizh-list__meta">
+                <Icon name="calendar" size={16} />
+                {formatSignalWindow(item.available_from, item.available_to)}
               </span>
-              <small>{dvizhStatusLabel(item)}</small>
+              <span className="dvizh-list__meta">
+                <Icon name="users" size={16} />
+                {item.group_name}
+              </span>
+              <span className="dvizh-list__arrow">
+                <Icon name="arrowRight" size={19} />
+              </span>
             </button>
           ))}
         </section>
       ) : null}
       {gathered.length ? (
         <section>
-          <h2>Собрались</h2>
+          <h2>
+            Собрались <span aria-hidden="true">{gathered.length}</span>
+          </h2>
           {gathered.map((item) => (
             <button className="dvizh-list__item" key={item.id} onClick={() => onOpen(item.id)}>
+              <span className="dvizh-list__status dvizh-list__status--gathered">
+                {dvizhStatusLabel(item)} · {item.participants.length} участников
+              </span>
               <strong>
                 {item.candidates.find((candidate) => candidate.id === item.active_candidate_id)
                   ?.title || item.activity_ids.map(activityLabel).join(' или ')}
               </strong>
-              <span>
-                {item.group_name} · {formatSignalWindow(item.available_from, item.available_to)}
+              <span className="dvizh-list__meta">
+                <Icon name="calendar" size={16} />
+                {formatSignalWindow(item.available_from, item.available_to)}
               </span>
-              <small>
-                {dvizhStatusLabel(item)} · {item.participants.length} участников
-              </small>
+              <span className="dvizh-list__meta">
+                <Icon name="users" size={16} />
+                {item.group_name}
+              </span>
+              <span className="dvizh-list__arrow">
+                <Icon name="arrowRight" size={19} />
+              </span>
             </button>
           ))}
         </section>
@@ -371,7 +391,17 @@ export function App() {
       kind,
       is_ephemeral: false,
     })
-    setLocations((items) => [location, ...items])
+    setLocations((items) =>
+      kind === 'CURRENT'
+        ? [
+            location,
+            ...items.filter(
+              (item) =>
+                item.id !== location.id && !(item.kind === 'CURRENT' && item.city_slug === city),
+            ),
+          ]
+        : [location, ...items],
+    )
     return location
   }
   const addLocation = async (label: string, latitude?: number, longitude?: number) => {

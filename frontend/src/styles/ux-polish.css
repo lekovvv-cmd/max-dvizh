@@ -1,0 +1,429 @@
+/* Shared finishing details for the mobile flow. */
+input[type='number'] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.signal-composer .choices--when .choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  min-height: 68px;
+  gap: 3px;
+}
+.signal-composer .choices--when .choice::after {
+  display: none !important;
+}
+.signal-composer .choices--when .choice--selected {
+  box-shadow: 0 5px 15px rgb(13 0 26 / 13%);
+}
+
+.activity-section-label {
+  margin-top: 8px;
+  color: var(--dvizh-ink);
+  font-size: 14px;
+  font-weight: 500;
+}
+.signal-composer .activity-any {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  width: 100%;
+  min-height: 63px !important;
+  border-color: var(--dvizh-line);
+  border-radius: 16px;
+  padding: 11px 14px;
+  text-align: left;
+}
+.signal-composer .activity-any strong {
+  font-size: 15px;
+  font-weight: 500;
+}
+.signal-composer .activity-any small {
+  font-size: 12px;
+  color: var(--dvizh-muted);
+}
+.signal-composer .activity-any.choice--selected {
+  border-color: var(--dvizh-blue);
+  background: var(--dvizh-blue-soft);
+  color: var(--dvizh-ink);
+}
+.activity-catalog__search--inline {
+  min-height: 52px;
+  border-radius: 15px;
+  background: var(--dvizh-surface);
+}
+.activity-catalog__search--inline button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--dvizh-blue-soft);
+  color: var(--dvizh-blue);
+}
+.activity-catalog {
+  max-height: 260px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 15px;
+  padding: 6px;
+  box-shadow: 0 12px 28px rgb(38 20 91 / 9%);
+}
+.activity-quick[aria-label='Направление для просмотра'] {
+  padding-bottom: 13px;
+  border-bottom: 1px solid var(--dvizh-line);
+}
+.activity-quick[aria-label='Занятие'] > .choice:first-child {
+  border-color: var(--dvizh-blue);
+  color: var(--dvizh-blue);
+}
+.activity-quick[aria-label='Занятие'] > .choice:first-child.choice--selected {
+  background: var(--dvizh-blue);
+  color: #fff;
+}
+.signal-composer .subsection:has([aria-label='Радиус']) .activity-section-label {
+  margin: 8px 0 0;
+}
+
+.bottom-nav {
+  padding: 7px 10px max(7px, env(safe-area-inset-bottom));
+  box-shadow: 0 -6px 24px rgb(33 19 72 / 5%);
+}
+.bottom-nav button {
+  gap: 3px;
+  border-radius: 15px;
+}
+.bottom-nav button.is-active {
+  background: transparent;
+}
+.bottom-nav__icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--dvizh-surface-muted);
+  color: var(--dvizh-muted);
+}
+.bottom-nav button.is-active .bottom-nav__icon {
+  background: var(--dvizh-blue);
+  color: #fff;
+}
+.bottom-nav button .icon {
+  stroke-width: 2.4;
+}
+
+.dvizh-list {
+  gap: 24px;
+}
+.dvizh-list__title {
+  font-size: 34px;
+}
+.dvizh-list > section {
+  gap: 11px;
+}
+.dvizh-list > section h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 19px;
+}
+.dvizh-list > section h2 span {
+  display: grid;
+  min-width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--dvizh-blue-soft);
+  color: var(--dvizh-blue);
+  font-size: 12px;
+}
+.dvizh-list__item {
+  position: relative;
+  gap: 8px;
+  border: 1px solid var(--dvizh-line);
+  border-radius: 20px;
+  padding: 17px 48px 17px 17px;
+  background: var(--dvizh-surface);
+  box-shadow: 0 6px 24px rgb(38 20 91 / 5%);
+}
+.dvizh-list__item:active {
+  transform: scale(0.99);
+}
+.dvizh-list__item strong {
+  font-size: 19px;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+}
+.dvizh-list__item .dvizh-list__status {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: var(--dvizh-blue-soft);
+  color: var(--dvizh-blue-strong);
+  font-size: 12px;
+  font-weight: 600;
+}
+.dvizh-list__item .dvizh-list__status--gathered {
+  background: #e6f7f0;
+  color: #17664e;
+}
+.dvizh-list__item .dvizh-list__meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--dvizh-muted);
+  font-size: 13px;
+  line-height: 1.25;
+}
+.dvizh-list__meta .icon {
+  color: var(--dvizh-blue);
+  stroke-width: 2.1;
+}
+.dvizh-list__arrow {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  display: grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--dvizh-blue-soft);
+  color: var(--dvizh-blue);
+  transform: translateY(-50%);
+}
+
+.dvizh-flow {
+  gap: 15px;
+}
+.dvizh-flow .signal-card {
+  gap: 3px;
+  border: 0;
+  border-radius: 16px;
+  padding: 13px 15px;
+  box-shadow: none;
+}
+.dvizh-flow .signal-card h2 {
+  font-size: 15px;
+}
+.dvizh-flow .signal-card__label {
+  font-size: 10px;
+}
+.dvizh-flow > h1 {
+  font-size: 30px;
+}
+.dvizh-flow__progress {
+  width: fit-content;
+  margin: 1px 0 0;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: var(--dvizh-blue-soft);
+}
+.activity-card {
+  border-radius: 23px;
+  box-shadow: 0 15px 42px rgb(38 20 91 / 12%);
+}
+.activity-card__image,
+.activity-card__art {
+  height: clamp(210px, 64vw, 300px);
+}
+.activity-card__body {
+  gap: 14px;
+  padding: 19px;
+}
+.activity-card__body h2 {
+  font-size: 23px;
+  line-height: 1.13;
+  letter-spacing: -0.035em;
+}
+.activity-card__facts {
+  gap: 0;
+  border-top: 1px solid var(--dvizh-line);
+}
+.activity-card__facts div {
+  padding: 11px 8px 3px 0;
+}
+.activity-card__facts dt {
+  font-size: 11px;
+}
+.activity-card__facts dd {
+  font-size: 14px;
+  font-weight: 500;
+}
+.swipe-actions {
+  gap: 10px;
+}
+.swipe-actions button {
+  min-height: 56px;
+  border-radius: 16px;
+  font-size: 16px;
+}
+.swipe-actions button:last-child {
+  border-color: var(--dvizh-blue);
+  background: var(--dvizh-blue);
+  color: #fff;
+}
+.dvizh-flow__hint {
+  font-size: 13px;
+}
+.dvizh-result--selection {
+  justify-items: start;
+  gap: 15px;
+  border: 0;
+  border-radius: 22px;
+  padding: 24px;
+  background: var(--dvizh-surface);
+  box-shadow: 0 10px 35px rgb(38 20 91 / 8%);
+}
+.dvizh-result__mark {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  place-items: center;
+  border-radius: 17px;
+  background: var(--dvizh-blue-soft);
+  color: var(--dvizh-blue);
+  font-size: 29px;
+  font-weight: 600;
+}
+.dvizh-result--selection .primary-button {
+  width: 100%;
+}
+.dvizh-result--selection .inline-actions {
+  gap: 15px;
+}
+.dvizh-result--selection .text-action {
+  min-height: 32px;
+}
+
+:root[data-theme='dark'] {
+  --dvizh-bg: #151323;
+  --dvizh-surface: #211e32;
+  --dvizh-surface-muted: #2b2740;
+  --dvizh-ink: #f6f3ff;
+  --dvizh-muted: #b9b1ce;
+  --dvizh-line: #3d3753;
+  --dvizh-line-strong: #827a9b;
+  --dvizh-blue: #a68cff;
+  --dvizh-blue-strong: #c1afff;
+  --dvizh-blue-soft: #342957;
+  --dvizh-violet: #b49bff;
+  --dvizh-warm: #e2b8ff;
+  --dvizh-warm-soft: #3d2b52;
+  --dvizh-danger: #ff9285;
+  color-scheme: dark;
+}
+:root[data-theme='dark'] .app-shell,
+:root[data-theme='dark'] .start-screen,
+:root[data-theme='dark'] .system-state {
+  background: var(--dvizh-bg);
+}
+:root[data-theme='dark'] input,
+:root[data-theme='dark'] .activity-catalog__search,
+:root[data-theme='dark'] .activity-catalog__item,
+:root[data-theme='dark'] .direction-tab,
+:root[data-theme='dark'] .choice,
+:root[data-theme='dark'] .company-option,
+:root[data-theme='dark'] .repeat-control,
+:root[data-theme='dark'] .signal-composer .repeat-control,
+:root[data-theme='dark'] .signal-composer .conditions,
+:root[data-theme='dark'] .company-page .settings-section,
+:root[data-theme='dark'] .company-page .company-overview,
+:root[data-theme='dark'] .activity-card,
+:root[data-theme='dark'] .dvizh-result,
+:root[data-theme='dark'] .dvizh-list__item,
+:root[data-theme='dark'] .home-dvizhi__item,
+:root[data-theme='dark'] .bot-connect,
+:root[data-theme='dark'] .confirm-dialog,
+:root[data-theme='dark'] .start-card,
+:root[data-theme='dark'] .system-card,
+:root[data-theme='dark'] .collecting-card,
+:root[data-theme='dark'] .collecting-card__facts div,
+:root[data-theme='dark'] .row-menu button,
+:root[data-theme='dark'] .city-picker__trigger,
+:root[data-theme='dark'] .city-picker__options,
+:root[data-theme='dark'] .city-picker__options button {
+  background: var(--dvizh-surface);
+  color: var(--dvizh-ink);
+  border-color: var(--dvizh-line);
+}
+:root[data-theme='dark'] .activity-catalog,
+:root[data-theme='dark'] .bottom-nav {
+  background: #211e32;
+  border-color: var(--dvizh-line);
+}
+:root[data-theme='dark'] .signal-composer .choices--when .choice--selected,
+:root[data-theme='dark'] .signal-composer .choice--selected,
+:root[data-theme='dark']
+  .activity-quick[aria-label='Занятие']
+  > .choice:first-child.choice--selected,
+:root[data-theme='dark'] .swipe-actions button:last-child {
+  background: #7860df;
+  color: #fff;
+  border-color: #7860df;
+}
+:root[data-theme='dark'] .signal-composer .wizard__footer {
+  background: #151323;
+  border-color: var(--dvizh-line);
+}
+:root[data-theme='dark'] .app-shell:has(.offer-pool) {
+  background: var(--dvizh-bg);
+}
+:root[data-theme='dark'] .activity-catalog__item.is-selected,
+:root[data-theme='dark'] .direction-tab.is-current,
+:root[data-theme='dark'] .city-picker__options button.is-selected {
+  background: var(--dvizh-blue-soft);
+  color: var(--dvizh-ink);
+}
+:root[data-theme='dark'] .activity-card__warning {
+  background: var(--dvizh-warm-soft);
+  color: var(--dvizh-warm);
+}
+:root[data-theme='dark'] .dvizh-list__item .dvizh-list__status--gathered {
+  background: #21483e;
+  color: #9ce6ca;
+}
+:root[data-theme='dark'] .primary-button,
+:root[data-theme='dark'] .bottom-nav button.is-active .bottom-nav__icon,
+:root[data-theme='dark'] .company-page .add-place__form > button,
+:root[data-theme='dark'] .confirm-dialog .form-actions button:first-child,
+:root[data-theme='dark'] .start-card .create-company__submit,
+:root[data-theme='dark'] .start-card .create-company__chat {
+  background: #7860df;
+  border-color: #7860df;
+  color: #fff;
+}
+:root[data-theme='dark'] .start-card:has(.create-company__chat) .create-company__submit {
+  background: var(--dvizh-surface);
+  border-color: var(--dvizh-line-strong);
+  color: var(--dvizh-ink);
+}
+:root[data-theme='dark'] .bottom-nav button.is-active {
+  color: #b7a2ff;
+}
+:root[data-theme='dark'] .signal-composer .company-option.is-selected .company-option__check {
+  background: #7860df;
+  border-color: #7860df;
+  color: #fff;
+}
+:root[data-theme='dark'] .add-place__icon,
+:root[data-theme='dark'] .company-option__check,
+:root[data-theme='dark'] .activity-catalog__check {
+  background: var(--dvizh-surface-muted);
+  border-color: var(--dvizh-line-strong);
+}
+:root[data-theme='dark'] .swipe-actions button:first-child {
+  background: var(--dvizh-surface);
+  color: var(--dvizh-ink);
+}

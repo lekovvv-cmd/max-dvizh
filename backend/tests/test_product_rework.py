@@ -433,6 +433,54 @@ def test_saved_places_are_private_city_scoped_and_support_default_rename_delete(
         assert product.list_locations(session, owner)[0].is_default
 
 
+def test_current_position_reuses_draft_point_but_preserves_signal_origin() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        owner = User(id="geo-owner", max_user_id="geo-owner", display_name="Owner")
+        group = Group(id="geo-group", name="Друзья", default_city_slug="ekb", created_by=owner.id)
+        session.add_all([owner, group, GroupMember(group_id=group.id, user_id=owner.id)])
+        session.commit()
+
+        def locate(latitude: float):
+            return product.create_location(
+                LocationIn(
+                    label="Текущее местоположение",
+                    city_slug="ekb",
+                    latitude=latitude,
+                    longitude=60.6,
+                    kind="CURRENT",
+                ),
+                session,
+                owner,
+            )
+
+        first = locate(56.8)
+        repeated = locate(56.9)
+        assert repeated.id == first.id
+        assert not repeated.is_default
+        assert session.get(Location, first.id).latitude == 56.9
+
+        session.add(
+            Intent(
+                user_id=owner.id,
+                group_id=group.id,
+                type="ONE_TIME",
+                status="ACTIVE",
+                city_slug="ekb",
+                activity_category="games",
+                origin_location_id=first.id,
+                radius_km=5,
+                min_people=2,
+            )
+        )
+        session.commit()
+        next_point = locate(57.0)
+        assert next_point.id != first.id
+        assert session.get(Location, first.id).latitude == 56.9
+        assert locate(57.1).id == next_point.id
+
+
 def test_dynamic_offer_ttl() -> None:
     current = datetime(2026, 9, 18, tzinfo=UTC)
     assert offer_expiry(current, current + timedelta(hours=2)) == current + timedelta(hours=1)
