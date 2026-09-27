@@ -72,6 +72,15 @@ class LocationOut(BaseModel):
     is_default: bool = False
 
 
+class AddressSuggestionOut(BaseModel):
+    id: str
+    title: str
+    subtitle: str
+    address_text: str
+    latitude: float
+    longitude: float
+
+
 class LocationRenameIn(BaseModel):
     label: str = Field(min_length=1, max_length=80)
 

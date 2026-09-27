@@ -67,6 +67,14 @@ export type Location = {
   address_text: string | null
   is_default: boolean
 }
+export type AddressSuggestion = {
+  id: string
+  title: string
+  subtitle: string
+  address_text: string
+  latitude: number
+  longitude: number
+}
 export type Intent = {
   id: string
   type: string
@@ -203,6 +211,11 @@ export const api = {
   join: (token: string) =>
     request<{ group: Group; already_member: boolean }>(`/groups/join/${token}`, { method: 'POST' }),
   locations: () => request<Location[]>('/locations'),
+  suggestLocations: (query: string, city: string, signal?: AbortSignal) =>
+    request<AddressSuggestion[]>(
+      `/locations/suggest?q=${encodeURIComponent(query)}&city=${encodeURIComponent(city)}`,
+      { signal },
+    ),
   createLocation: (body: object) =>
     request<Location>('/locations', { method: 'POST', body: JSON.stringify(body) }),
   renameLocation: (id: string, label: string) =>

@@ -23,7 +23,7 @@ export function ActivityCard({
         {status ? <span className="activity-card__status">{status}</span> : null}
         <h2>{candidate.title}</h2>
         {candidate.venue_name && candidate.venue_name !== candidate.title ? (
-          <p>{candidate.venue_name}</p>
+          <p className="activity-card__venue">{candidate.venue_name}</p>
         ) : null}
         <dl className="activity-card__facts">
           <div>
@@ -42,19 +42,16 @@ export function ActivityCard({
               <dd>{candidate.distance_km.toLocaleString('ru-RU')} км</dd>
             </div>
           ) : null}
-          {candidate.address_text ? (
-            <div>
-              <dt>Адрес</dt>
-              <dd>{candidate.address_text}</dd>
-            </div>
-          ) : null}
         </dl>
+        {candidate.address_text ? (
+          <p className="activity-card__address">{candidate.address_text}</p>
+        ) : null}
         {candidate.compatibility === 'NEAR' ? (
           <p className="activity-card__warning">Бюджет выше на {candidate.budget_delta} ₽.</p>
         ) : null}
         {candidate.source_url ? (
           <a href={candidate.source_url} target="_blank" rel="noreferrer">
-            Подробнее
+            Подробнее о месте
           </a>
         ) : null}
         {children}

@@ -6,13 +6,11 @@ import { CreateCompany } from '../features/groups/CreateCompany'
 import { HomeIntro } from '../features/signals/HomeIntro'
 import { SignalComposer } from '../features/signals/SignalComposer'
 import { setActivityTaxonomy } from '../shared/lib/activityCatalog'
-import { activityLabel, formatSignalWindow } from '../shared/lib/format'
-import { currentCoordinates } from '../shared/lib/geolocation'
-import { dvizhStatusLabel, needsDvizhConfirmation } from '../shared/lib/dvizhStatus'
+import { needsDvizhConfirmation } from '../shared/lib/dvizhStatus'
 import { AppShell, type Screen } from '../shared/ui/AppShell'
 import { CoachMark } from '../shared/ui/CoachMark'
 import { ConfirmDialog } from '../shared/ui/ConfirmDialog'
-import { Icon } from '../shared/ui/Icon'
+import { DvizhCard } from '../shared/ui/DvizhCard'
 import {
   api,
   ApiError,
@@ -84,21 +82,7 @@ function DvizhList({
             Собираются <span aria-hidden="true">{collecting.length}</span>
           </h2>
           {collecting.map((item) => (
-            <button className="dvizh-list__item" key={item.id} onClick={() => onOpen(item.id)}>
-              <span className="dvizh-list__status">{dvizhStatusLabel(item)}</span>
-              <strong>{item.activity_ids.map(activityLabel).join(' или ')}</strong>
-              <span className="dvizh-list__meta">
-                <Icon name="calendar" size={16} />
-                {formatSignalWindow(item.available_from, item.available_to)}
-              </span>
-              <span className="dvizh-list__meta">
-                <Icon name="users" size={16} />
-                {item.group_name}
-              </span>
-              <span className="dvizh-list__arrow">
-                <Icon name="arrowRight" size={19} />
-              </span>
-            </button>
+            <DvizhCard dvizh={item} key={item.id} onOpen={() => onOpen(item.id)} />
           ))}
         </section>
       ) : null}
@@ -108,26 +92,7 @@ function DvizhList({
             Собрались <span aria-hidden="true">{gathered.length}</span>
           </h2>
           {gathered.map((item) => (
-            <button className="dvizh-list__item" key={item.id} onClick={() => onOpen(item.id)}>
-              <span className="dvizh-list__status dvizh-list__status--gathered">
-                {dvizhStatusLabel(item)} · {item.participants.length} участников
-              </span>
-              <strong>
-                {item.candidates.find((candidate) => candidate.id === item.active_candidate_id)
-                  ?.title || item.activity_ids.map(activityLabel).join(' или ')}
-              </strong>
-              <span className="dvizh-list__meta">
-                <Icon name="calendar" size={16} />
-                {formatSignalWindow(item.available_from, item.available_to)}
-              </span>
-              <span className="dvizh-list__meta">
-                <Icon name="users" size={16} />
-                {item.group_name}
-              </span>
-              <span className="dvizh-list__arrow">
-                <Icon name="arrowRight" size={19} />
-              </span>
-            </button>
+            <DvizhCard dvizh={item} key={item.id} onOpen={() => onOpen(item.id)} />
           ))}
         </section>
       ) : null}
@@ -382,6 +347,7 @@ export function App() {
     longitude: number,
     city: string,
     kind: 'SAVED' | 'CURRENT' = 'SAVED',
+    addressText: string | null = null,
   ) => {
     const location = await api.createLocation({
       label,
@@ -389,6 +355,7 @@ export function App() {
       longitude,
       city_slug: city,
       kind,
+      address_text: addressText,
       is_ephemeral: false,
     })
     setLocations((items) =>
@@ -404,12 +371,13 @@ export function App() {
     )
     return location
   }
-  const addLocation = async (label: string, latitude?: number, longitude?: number) => {
-    const coordinates =
-      latitude === undefined || longitude === undefined
-        ? await currentCoordinates()
-        : { latitude, longitude }
-    return createLocationAt(label, coordinates.latitude, coordinates.longitude, group.city_slug)
+  const addLocation = async (
+    label: string,
+    latitude: number,
+    longitude: number,
+    addressText: string | null = null,
+  ) => {
+    return createLocationAt(label, latitude, longitude, group.city_slug, 'SAVED', addressText)
   }
   const batch = intents.filter(
     (item) => item.signal_batch_id === editingBatch && item.status === 'ACTIVE',
@@ -525,8 +493,7 @@ export function App() {
             setScreen(detailReturn)
           }}
         >
-          <Icon name={detailReturn === 'home' ? 'home' : 'list'} size={18} />
-          Назад
+          {detailReturn === 'home' ? 'Главная' : 'Все движи'}
         </button>
         <DvizhFlow
           key={focused.id}
@@ -548,20 +515,15 @@ export function App() {
             <h2 id="home-dvizhi-title">Твои движи</h2>
             <div className="home-dvizhi__list">
               {homeDvizhi.map((item) => (
-                <button
-                  type="button"
-                  className="home-dvizhi__item"
+                <DvizhCard
+                  dvizh={item}
                   key={item.id}
-                  onClick={() => {
+                  onOpen={() => {
                     setDetailReturn('home')
                     setTargetId(item.id)
                     setScreen('dvizhi')
                   }}
-                >
-                  <strong>{item.activity_ids.map(activityLabel).join(' или ')}</strong>
-                  <span>{formatSignalWindow(item.available_from, item.available_to)}</span>
-                  <small>{dvizhStatusLabel(item)}</small>
-                </button>
+                />
               ))}
             </div>
           </section>

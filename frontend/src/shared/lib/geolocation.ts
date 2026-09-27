@@ -12,11 +12,11 @@ export function parseCoordinates(latitude: string, longitude: string): Coordinat
 export function geolocationError(reason: unknown): string {
   if (reason && typeof reason === 'object' && 'code' in reason) {
     if (reason.code === 1)
-      return 'Доступ к геопозиции запрещён. Разреши его для MAX или браузера либо введи координаты из карты.'
+      return 'Доступ к геопозиции запрещён. Разреши его для MAX или найди адрес в поиске.'
     if (reason.code === 3)
-      return 'Не дождались геопозиции. Попробуй ещё раз или введи координаты из карты.'
+      return 'Не дождались геопозиции. Попробуй ещё раз или найди адрес в поиске.'
   }
-  return 'Не получилось определить геопозицию. Введи координаты из карты.'
+  return 'Не получилось определить геопозицию. Найди адрес в поиске.'
 }
 
 export function currentCoordinates(): Promise<Coordinates> {

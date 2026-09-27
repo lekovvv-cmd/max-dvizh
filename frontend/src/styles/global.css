@@ -8,6 +8,7 @@
 @import './activity-catalog.css';
 @import './dvizh.css';
 @import './ux-polish.css';
+@import './ux-followup.css';
 
 @keyframes spin {
   to {

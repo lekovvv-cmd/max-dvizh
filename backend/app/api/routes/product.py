@@ -5,11 +5,12 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Query, status
 from sqlalchemy import func, select
 
 from app.api.deps import CurrentUser, DbSession
 from app.api.schemas import (
+    AddressSuggestionOut,
     AutoSignalIn,
     CityOut,
     GroupCityUpdateIn,
@@ -443,6 +444,80 @@ def location_out(location: Location) -> LocationOut:
     )
 
 
+CITY_GEOCODE_NAMES = {
+    "ekb": "Екатеринбург",
+    "msk": "Москва",
+    "spb": "Санкт-Петербург",
+}
+
+
+@router.get("/locations/suggest", response_model=list[AddressSuggestionOut])
+def suggest_locations(
+    session: DbSession,
+    user: CurrentUser,
+    q: str = Query(min_length=3, max_length=120),
+    city: str = Query(min_length=2, max_length=64),
+) -> list[AddressSuggestionOut]:
+    """Suggest addresses in a user's city without exposing the geocoder to the browser."""
+    if len(q.strip()) < 3:
+        return []
+    if not session.scalar(
+        select(Group.id)
+        .join(GroupMember, GroupMember.group_id == Group.id)
+        .where(GroupMember.user_id == user.id, Group.default_city_slug == city)
+        .limit(1)
+    ):
+        raise error(status.HTTP_403_FORBIDDEN, "Город компании недоступен")
+    city_name = CITY_GEOCODE_NAMES.get(city)
+    if city_name is None:
+        city_name = supported_cities().get(city, {}).get("name", city)
+    try:
+        response = httpx.get(
+            "https://photon.komoot.io/api/",
+            params={"q": f"{q.strip()} {city_name}", "limit": 7, "countrycode": "RU"},
+            headers={"User-Agent": "MAX-DVIZH/1.0 (address suggestions)"},
+            timeout=4,
+        )
+        response.raise_for_status()
+        features = response.json().get("features", [])
+    except (httpx.HTTPError, ValueError) as exc:
+        raise error(status.HTTP_503_SERVICE_UNAVAILABLE, "Не удалось найти адреса") from exc
+    suggestions: list[AddressSuggestionOut] = []
+    for feature in features:
+        properties = feature.get("properties") or {}
+        coordinates = (feature.get("geometry") or {}).get("coordinates") or []
+        if len(coordinates) < 2 or not all(
+            isinstance(value, int | float) for value in coordinates[:2]
+        ):
+            continue
+        result_city = properties.get("city") or properties.get("town")
+        if result_city and str(result_city).casefold() != city_name.casefold():
+            continue
+        street = str(properties.get("street") or "").strip()
+        number = str(properties.get("housenumber") or "").strip()
+        name = str(properties.get("name") or "").strip()
+        address = " ".join(part for part in (street, number) if part)
+        title = name if name and name.casefold() not in address.casefold() else address
+        if not title:
+            continue
+        subtitle = ", ".join(
+            part for part in (address if address != title else "", city_name) if part
+        )
+        suggestions.append(
+            AddressSuggestionOut(
+                id=f"{feature.get('properties', {}).get('osm_type', '')}:{feature.get('properties', {}).get('osm_id', '')}",
+                title=title,
+                subtitle=subtitle,
+                address_text=", ".join(part for part in (address or title, city_name) if part),
+                latitude=float(coordinates[1]),
+                longitude=float(coordinates[0]),
+            )
+        )
+        if len(suggestions) == 5:
+            break
+    return suggestions
+
+
 def own_location(session: DbSession, user_id: str, location_id: str) -> Location:
     location = session.get(Location, location_id)
     if location is None or location.user_id != user_id or location.is_ephemeral:
@@ -477,9 +552,13 @@ def create_location(payload: LocationIn, session: DbSession, user: CurrentUser) 
             .order_by(Location.created_at.desc())
             .limit(1)
         )
-        if current is not None and session.scalar(
-            select(Intent.id).where(Intent.origin_location_id == current.id).limit(1)
-        ) is None:
+        if (
+            current is not None
+            and session.scalar(
+                select(Intent.id).where(Intent.origin_location_id == current.id).limit(1)
+            )
+            is None
+        ):
             current.latitude = payload.latitude
             current.longitude = payload.longitude
             current.is_default = False

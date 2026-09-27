@@ -135,7 +135,7 @@ describe('new Dvizh product route', () => {
     render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: 'Понятно' }))
     fireEvent.click(screen.getByRole('button', { name: 'Подать сигнал' }))
-    expect(screen.getByRole('button', { name: 'Игры' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Игры' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Квест' }))
     fireEvent.click(screen.getByRole('button', { name: 'Начать поиск' }))
     await waitFor(() => expect(submit).toHaveBeenCalledTimes(1))
@@ -155,7 +155,7 @@ describe('new Dvizh product route', () => {
     render(<App />)
     expect(await screen.findByRole('heading', { name: 'Куда пошёл бы?' })).toBeInTheDocument()
     expect(screen.getByText('Квест 1')).toBeInTheDocument()
-    expect(screen.getByText('1 из 2')).toBeInTheDocument()
+    expect(screen.getByText('1 / 2')).toBeInTheDocument()
   })
 
   it('reads the documented MAX WebAppStartParam deep link', async () => {

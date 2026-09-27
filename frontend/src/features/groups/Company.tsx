@@ -5,7 +5,7 @@ import type { Group, GroupCityUpdateResult, GroupMember, Location } from '../../
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog'
 import { Icon } from '../../shared/ui/Icon'
 import { formatPeople } from '../../shared/lib/format'
-import { geolocationError, parseCoordinates } from '../../shared/lib/geolocation'
+import { PlacePicker, type SelectedPlace } from '../../shared/ui/PlacePicker'
 import { SectionHeader } from '../../shared/ui/SectionHeader'
 import { CityPicker } from '../../shared/ui/CityPicker'
 
@@ -29,7 +29,12 @@ export function Company({
   onSelect: (group: Group) => void
   onNew: () => void
   onChangeCity: (groupId: string, city: string) => Promise<GroupCityUpdateResult>
-  onAddPlace: (label: string, latitude?: number, longitude?: number) => Promise<Location>
+  onAddPlace: (
+    label: string,
+    latitude: number,
+    longitude: number,
+    address?: string | null,
+  ) => Promise<Location>
   onRenamePlace: (id: string, label: string) => Promise<void>
   onDefaultPlace: (id: string) => Promise<void>
   onDeletePlace: (id: string) => Promise<void>
@@ -38,8 +43,7 @@ export function Company({
   const [inviteOpen, setInviteOpen] = useState(false)
   const [person, setPerson] = useState('anton')
   const [label, setLabel] = useState('')
-  const [placeLatitude, setPlaceLatitude] = useState('')
-  const [placeLongitude, setPlaceLongitude] = useState('')
+  const [selectedPlace, setSelectedPlace] = useState<SelectedPlace | null>(null)
   const [placeOpen, setPlaceOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -121,25 +125,21 @@ export function Company({
     }
   }
   async function addPlace() {
+    if (!selectedPlace) return
     setBusy(true)
     setPlaceError('')
     try {
-      const manual = parseCoordinates(placeLatitude, placeLongitude)
-      if ((placeLatitude.trim() || placeLongitude.trim()) && !manual) {
-        setPlaceError('Проверь широту и долготу.')
-        return
-      }
-      await onAddPlace(label.trim(), manual?.latitude, manual?.longitude)
-      setLabel('')
-      setPlaceLatitude('')
-      setPlaceLongitude('')
-      setPlaceOpen(false)
-    } catch (reason) {
-      setPlaceError(
-        placeLatitude.trim() || placeLongitude.trim()
-          ? 'Не удалось сохранить место. Попробуй ещё раз.'
-          : geolocationError(reason),
+      await onAddPlace(
+        label.trim() || selectedPlace.title,
+        selectedPlace.latitude,
+        selectedPlace.longitude,
+        selectedPlace.addressText,
       )
+      setLabel('')
+      setSelectedPlace(null)
+      setPlaceOpen(false)
+    } catch {
+      setPlaceError('Не удалось сохранить место. Попробуй ещё раз.')
     } finally {
       setBusy(false)
     }
@@ -352,7 +352,8 @@ export function Company({
           </div>
         ) : (
           <p className="empty-copy">
-            Сохранённых мест пока нет. В сигнале можно использовать текущую геопозицию.
+            Сохранённых мест пока нет. Найди адрес или сохрани свою геопозицию под понятным
+            названием.
           </p>
         )}
         <div className={'add-place' + (placeOpen ? ' is-open' : '')}>
@@ -381,35 +382,20 @@ export function Company({
           </button>
           {placeOpen ? (
             <div className="add-place__form">
+              <PlacePicker
+                city={active.city_slug}
+                value={selectedPlace}
+                onSelect={setSelectedPlace}
+              />
               <label>
-                Название
+                Как назвать место
                 <input
                   value={label}
                   maxLength={80}
-                  placeholder="Например, Дом"
+                  placeholder="Например, Дом или Работа"
                   onChange={(event) => setLabel(event.target.value)}
                 />
               </label>
-              <div className="form-row form-row--coordinates">
-                <label>
-                  Широта
-                  <input
-                    inputMode="decimal"
-                    placeholder="56.8389"
-                    value={placeLatitude}
-                    onChange={(event) => setPlaceLatitude(event.target.value)}
-                  />
-                </label>
-                <label>
-                  Долгота
-                  <input
-                    inputMode="decimal"
-                    placeholder="60.6057"
-                    value={placeLongitude}
-                    onChange={(event) => setPlaceLongitude(event.target.value)}
-                  />
-                </label>
-              </div>
               {placeError ? (
                 <p className="form-error" role="alert">
                   {placeError}
@@ -418,10 +404,10 @@ export function Company({
               <Button
                 variant="primary"
                 loading={busy}
-                disabled={busy || !label.trim()}
+                disabled={busy || !selectedPlace}
                 onClick={() => void addPlace()}
               >
-                {placeLatitude || placeLongitude ? 'Сохранить место' : 'Определить и сохранить'}
+                Сохранить место
               </Button>
             </div>
           ) : null}

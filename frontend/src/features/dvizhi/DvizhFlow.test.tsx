@@ -79,7 +79,7 @@ describe('finite candidate round', () => {
     expect(signal).toHaveTextContent('Твой сигнал')
     expect(signal).toHaveTextContent('Квест')
     expect(signal).toHaveTextContent('Друзья')
-    expect(screen.getByText('1 из 1')).toBeInTheDocument()
+    expect(screen.getByText('1 / 1')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Пошёл бы' }))
     await waitFor(() => expect(save).toHaveBeenCalledWith('d1', 'c1', 'WOULD_GO', false))
     expect(update).toHaveBeenCalled()
@@ -116,7 +116,7 @@ describe('finite candidate round', () => {
     const item = sample()
     item.candidates[0].my_reaction = 'PASS'
     render(<DvizhFlow dvizh={item} onUpdate={vi.fn()} onEdit={vi.fn()} onNew={vi.fn()} />)
-    expect(screen.getByRole('heading', { name: 'Ничего не выбрал' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Пока ничего не выбрал' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Запустить движ' })).not.toBeInTheDocument()
   })
 
@@ -125,7 +125,7 @@ describe('finite candidate round', () => {
     item.candidates[0].my_reaction = 'WOULD_GO'
     item.chosen_count = 1
     render(<DvizhFlow dvizh={item} onUpdate={vi.fn()} onEdit={vi.fn()} onNew={vi.fn()} />)
-    expect(screen.getByRole('heading', { name: 'Выбрано: 1' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '1 место на примете' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Запустить движ' })).toBeInTheDocument()
   })
 
@@ -134,10 +134,10 @@ describe('finite candidate round', () => {
     item.chosen_count = 1
     const launch = vi.spyOn(api, 'launch')
     render(<DvizhFlow dvizh={item} onUpdate={vi.fn()} onEdit={vi.fn()} onNew={vi.fn()} />)
-    expect(screen.getByText('1 из 1')).toBeInTheDocument()
+    expect(screen.getByText('1 / 1')).toBeInTheDocument()
     expect(screen.queryByText('Свайп влево или вправо тоже работает')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Закончить выбор' }))
-    expect(screen.getByRole('heading', { name: 'Выбрано: 1' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '1 место на примете' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Запустить движ' })).toBeInTheDocument()
     expect(launch).not.toHaveBeenCalled()
   })

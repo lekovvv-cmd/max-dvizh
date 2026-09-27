@@ -3,11 +3,7 @@ import { ApiTimeoutError, api } from '../../app/api'
 import type { Dvizh, Group, Intent, Location } from '../../app/api'
 import { getActivityTaxonomy, searchActivities } from '../../shared/lib/activityCatalog'
 import { activityLabel, formatPeople, formatSignalWindow, weekDays } from '../../shared/lib/format'
-import {
-  currentCoordinates,
-  geolocationError,
-  parseCoordinates,
-} from '../../shared/lib/geolocation'
+import { currentCoordinates, geolocationError } from '../../shared/lib/geolocation'
 import {
   formatLocalDateTimeInput,
   groupSizeRange,
@@ -20,6 +16,7 @@ import {
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog'
 import { Icon } from '../../shared/ui/Icon'
 import { PulseMark } from '../../shared/ui/PulseMark'
+import { PlacePicker, type SelectedPlace } from '../../shared/ui/PlacePicker'
 
 type When = 'today' | 'tomorrow' | 'weekend' | 'custom'
 export type SignalAdjustment = 'tomorrow' | 'any' | 'radius' | 'budget' | 'repeat' | null
@@ -180,6 +177,7 @@ export function SignalComposer({
     longitude: number,
     city: string,
     kind?: 'SAVED' | 'CURRENT',
+    addressText?: string | null,
   ) => Promise<Location>
   onDone: (created?: Dvizh[]) => void | Promise<void>
   onBack: () => void
@@ -205,9 +203,7 @@ export function SignalComposer({
   const [exitOpen, setExitOpen] = useState(false)
   const [placeOpen, setPlaceOpen] = useState(false)
   const [placeLabel, setPlaceLabel] = useState('Дом')
-  const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null)
-  const [manualLatitude, setManualLatitude] = useState('')
-  const [manualLongitude, setManualLongitude] = useState('')
+  const [selectedNewPlace, setSelectedNewPlace] = useState<SelectedPlace | null>(null)
   const [placeBusy, setPlaceBusy] = useState(false)
   const [placeError, setPlaceError] = useState('')
   const [checking, setChecking] = useState(false)
@@ -461,21 +457,6 @@ export function SignalComposer({
     }
   }
 
-  async function locate() {
-    setPlaceError('')
-    setPlaceBusy(true)
-    try {
-      const point = await currentCoordinates()
-      setCoords(point)
-      setManualLatitude(String(point.latitude))
-      setManualLongitude(String(point.longitude))
-    } catch (reason) {
-      setPlaceError(geolocationError(reason))
-    } finally {
-      setPlaceBusy(false)
-    }
-  }
-
   async function selectCurrentLocation() {
     if (locatingCurrentRef.current) return
     locatingCurrentRef.current = true
@@ -507,21 +488,21 @@ export function SignalComposer({
   }
 
   async function savePlace() {
-    if (!coords || !placeLabel.trim() || placeBusy) return
+    if (!selectedNewPlace || placeBusy) return
     setPlaceBusy(true)
     setPlaceError('')
     try {
       const place = await onCreateLocation(
-        placeLabel.trim(),
-        coords.latitude,
-        coords.longitude,
+        placeLabel.trim() || selectedNewPlace.title,
+        selectedNewPlace.latitude,
+        selectedNewPlace.longitude,
         city,
+        'SAVED',
+        selectedNewPlace.addressText,
       )
       update({ locationId: place.id })
       setPlaceOpen(false)
-      setCoords(null)
-      setManualLatitude('')
-      setManualLongitude('')
+      setSelectedNewPlace(null)
     } catch {
       setPlaceError('Не удалось сохранить место. Попробуй ещё раз.')
     } finally {
@@ -700,10 +681,10 @@ export function SignalComposer({
             <strong>Любое занятие</strong>
             <small>Покажем все варианты</small>
           </Choice>
-          <p className="activity-section-label">1. Направление — для просмотра вариантов</p>
+          <p className="activity-section-label">Посмотреть занятия по теме</p>
           <div
             className="choices activity-quick"
-            role="group"
+            role="tablist"
             aria-label="Направление для просмотра"
           >
             {taxonomy.directions.map((item) => (
@@ -711,22 +692,21 @@ export function SignalComposer({
                 type="button"
                 key={item.id}
                 className={'direction-tab' + (direction === item.id ? ' is-current' : '')}
-                aria-pressed={direction === item.id}
+                role="tab"
+                aria-selected={direction === item.id}
                 onClick={() => setDirection(item.id)}
               >
                 {item.label}
               </button>
             ))}
           </div>
-          <p className="activity-section-label">
-            2. Выбери занятия · {taxonomy.directions.find((item) => item.id === direction)?.label}
-          </p>
+          <p className="activity-section-label">Выбери занятия</p>
           <div className="choices activity-quick" role="group" aria-label="Занятие">
             <Choice
               active={form.categories.includes(`${direction}/*`)}
               onClick={() => toggleCategory(`${direction}/*`)}
             >
-              Любое из «{taxonomy.directions.find((item) => item.id === direction)?.label}»
+              Любое в теме «{taxonomy.directions.find((item) => item.id === direction)?.label}»
             </Choice>
             {taxonomy.activities
               .filter((item) => item.directions.includes(direction))
@@ -780,8 +760,8 @@ export function SignalComposer({
                       </small>
                     </span>
                   </span>
-                  <span className="company-option__check" aria-hidden="true">
-                    {selected ? <Icon name="check" size={17} /> : null}
+                  <span className="company-option__state" aria-hidden="true">
+                    {selected ? 'Выбрана' : 'Выбрать'}
                   </span>
                 </button>
               )
@@ -974,7 +954,7 @@ export function SignalComposer({
           description="Это место видно только тебе."
           confirmLabel="Сохранить место"
           cancelLabel="Закрыть"
-          confirmDisabled={!coords || !placeLabel.trim()}
+          confirmDisabled={!selectedNewPlace}
           busy={placeBusy}
           onConfirm={() => void savePlace()}
           onCancel={() => {
@@ -982,50 +962,15 @@ export function SignalComposer({
             setPlaceError('')
           }}
         >
+          <PlacePicker city={city} value={selectedNewPlace} onSelect={setSelectedNewPlace} />
           <label>
-            Название{' '}
+            Как назвать место{' '}
             <input
               value={placeLabel}
               maxLength={80}
               onChange={(event) => setPlaceLabel(event.target.value)}
             />
           </label>
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={() => void locate()}
-            disabled={placeBusy}
-          >
-            Использовать мою геопозицию
-          </button>
-          <p className="form-hint">Если MAX не даёт доступ, вставь координаты из карты.</p>
-          <div className="form-row form-row--coordinates">
-            <label>
-              Широта
-              <input
-                inputMode="decimal"
-                placeholder="56.8389"
-                value={manualLatitude}
-                onChange={(event) => {
-                  setManualLatitude(event.target.value)
-                  setCoords(parseCoordinates(event.target.value, manualLongitude))
-                }}
-              />
-            </label>
-            <label>
-              Долгота
-              <input
-                inputMode="decimal"
-                placeholder="60.6057"
-                value={manualLongitude}
-                onChange={(event) => {
-                  setManualLongitude(event.target.value)
-                  setCoords(parseCoordinates(manualLatitude, event.target.value))
-                }}
-              />
-            </label>
-          </div>
-          {coords ? <p role="status">Точка получена. Можно сохранить место.</p> : null}
           {placeError ? (
             <p className="form-error" role="alert">
               {placeError}

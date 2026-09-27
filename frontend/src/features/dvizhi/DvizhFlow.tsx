@@ -1,11 +1,10 @@
 import { useRef, useState } from 'react'
 
 import { api, type Dvizh, type DvizhCandidate } from '../../app/api'
-import { formatPeople } from '../../shared/lib/format'
+import { activityLabel, formatPeople, formatSignalWindow } from '../../shared/lib/format'
 import { dvizhStatusLabel } from '../../shared/lib/dvizhStatus'
 import { ActivityCard } from '../../shared/ui/ActivityCard'
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog'
-import { SignalCard } from '../../shared/ui/SignalCard'
 
 const ROUND_SIZE = 8
 
@@ -54,6 +53,7 @@ export function DvizhFlow({
   ).length
   const answered = actionableCount - pending.length
   const match = dvizh.candidates.find((candidate) => candidate.id === dvizh.active_candidate_id)
+  const chosenPlaces = dvizh.candidates.filter((candidate) => candidate.my_reaction === 'WOULD_GO')
 
   async function act(
     action: () => Promise<Dvizh>,
@@ -169,7 +169,13 @@ export function DvizhFlow({
 
   return (
     <section className="dvizh-flow" aria-live="polite">
-      <SignalCard dvizh={dvizh} />
+      <div className="dvizh-flow__context" role="region" aria-label="Сигнал">
+        <span>{dvizh.is_initiator ? 'Твой сигнал' : 'Сигнал компании'}</span>
+        <strong>{dvizh.activity_ids.map(activityLabel).join(' или ')}</strong>
+        <small>
+          {formatSignalWindow(dvizh.available_from, dvizh.available_to)} · {dvizh.group_name}
+        </small>
+      </div>
       {error ? (
         <p className="inline-notice" role="alert">
           {error}
@@ -177,10 +183,18 @@ export function DvizhFlow({
       ) : null}
       {current ? (
         <>
-          <h1>Куда пошёл бы?</h1>
-          <p className="dvizh-flow__progress">
-            {answered + 1} из {actionableCount}
-          </p>
+          <header className="dvizh-flow__heading">
+            <div>
+              <h1>Куда пошёл бы?</h1>
+              <p>Выбери места, которые тебе нравятся</p>
+            </div>
+            <span>
+              {answered + 1} / {actionableCount}
+            </span>
+          </header>
+          <div className="dvizh-flow__progress-track" aria-hidden="true">
+            <span style={{ width: `${((answered + 1) / Math.max(actionableCount, 1)) * 100}%` }} />
+          </div>
           <div
             className="swipe-surface"
             style={{ transform: `translateX(${drag}px) rotate(${drag / 24}deg)` }}
@@ -236,10 +250,26 @@ export function DvizhFlow({
         </>
       ) : doneChoosing ? (
         <div className="dvizh-result dvizh-result--selection">
-          <span className="dvizh-result__mark" aria-hidden="true">
-            ✓
-          </span>
-          <h1>{dvizh.chosen_count ? `Выбрано: ${dvizh.chosen_count}` : 'Ничего не выбрал'}</h1>
+          <div className="dvizh-result__intro">
+            <span>Выбор завершён</span>
+            <h1>
+              {dvizh.chosen_count
+                ? `${dvizh.chosen_count} ${placeNoun} на примете`
+                : 'Пока ничего не выбрал'}
+            </h1>
+            <p>
+              {dvizh.chosen_count
+                ? 'Отправим эти варианты компании и посмотрим, кто готов пойти.'
+                : 'Можно посмотреть ещё варианты или изменить сигнал.'}
+            </p>
+          </div>
+          {chosenPlaces.length ? (
+            <ol className="dvizh-result__places">
+              {chosenPlaces.map((candidate) => (
+                <li key={candidate.id}>{candidate.title}</li>
+              ))}
+            </ol>
+          ) : null}
           {dvizh.chosen_count ? (
             <button
               className="primary-button"
@@ -259,7 +289,7 @@ export function DvizhFlow({
                   if (pending.length === 0) setLimit((value) => value + ROUND_SIZE)
                 }}
               >
-                Показать ещё
+                Вернуться к выбору
               </button>
             ) : null}
             <button className="text-action" onClick={onEdit}>
