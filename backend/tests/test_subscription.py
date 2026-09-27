@@ -25,6 +25,26 @@ def configure(monkeypatch, handler):
     )
 
 
+@pytest.mark.parametrize("field", ["max_bot_token", "max_webhook_url", "max_webhook_secret"])
+def test_subscription_requires_all_webhook_settings_before_http(monkeypatch, field):
+    values = {
+        "max_bot_token": "private-token",
+        "max_webhook_url": "https://example.org/webhook",
+        "max_webhook_secret": "private-secret",
+    }
+    values[field] = ""
+    monkeypatch.setattr(subscribe_webhook, "settings", Settings(**values))
+
+    def unexpected_http(**_kwargs):
+        raise AssertionError("Invalid subscription configuration must not make HTTP requests")
+
+    monkeypatch.setattr(subscribe_webhook.httpx, "Client", unexpected_http)
+    with pytest.raises(SystemExit) as error:
+        subscribe_webhook.subscribe()
+    assert str(error.value) == "Set MAX_BOT_TOKEN, MAX_WEBHOOK_URL and MAX_WEBHOOK_SECRET"
+    assert "private-" not in str(error.value)
+
+
 def test_repeated_subscription_updates_one_url_and_verifies_types(monkeypatch, capsys):
     subscriptions = {}
     calls = []

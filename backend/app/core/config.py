@@ -96,9 +96,7 @@ class Settings:
             return
         if self.allow_demo_auth:
             raise ConfigurationError("ALLOW_DEMO_AUTH must be false in production")
-        if process == "api":
-            self.validate_webhook()
-        elif process == "worker" and not self.max_bot_token:
+        if process == "worker" and not self.max_bot_token:
             raise ConfigurationError("MAX_BOT_TOKEN is required for APP_PROCESS=worker")
 
     @property

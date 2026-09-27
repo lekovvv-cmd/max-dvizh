@@ -41,7 +41,7 @@ Redis **необязателен для MVP**: без него KudaGo запра
 ## MAX в production
 
 Во всех backend-процессах задайте `APP_ENV=production`, `ALLOW_DEMO_AUTH=false` и **одинаковый явный** `DATABASE_URL`; процесс выбирается через `APP_PROCESS=api|worker|scheduler`.
-API требует `MAX_BOT_TOKEN`, `MAX_WEBHOOK_URL`, `MAX_WEBHOOK_SECRET`, worker — токен. `MAX_BOT_USERNAME` у API и worker нужен для ссылок в Mini App; scheduler не требует настроек MAX. Секреты задаются в окружении deployment.
+API запускается без настроек MAX с предупреждением `max_webhook_not_configured`; readiness от них не зависит. Команда подписки требует `MAX_BOT_TOKEN`, `MAX_WEBHOOK_URL`, `MAX_WEBHOOK_SECRET`; без секрета webhook возвращает 403. Worker по-прежнему требует токен. `MAX_BOT_USERNAME` у API и worker нужен для ссылок в Mini App; scheduler не требует настроек MAX. Секреты задаются в окружении deployment.
 
 MAX работает через Webhook на публичный HTTPS API и заголовок `X-Max-Bot-Api-Secret`. После настройки окружения выполните из `backend/`:
 

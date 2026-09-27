@@ -125,8 +125,12 @@ AUTOSIGNAL_LOOKAHEAD_DAYS=7
 текущая продуктовая логика не использует; публичный URL Mini App регистрируется в MAX
 отдельно.
 
-API в production проверяет `MAX_BOT_TOKEN`, HTTPS `MAX_WEBHOOK_URL` и
-`MAX_WEBHOOK_SECRET` до запуска. Секрет: 5–256 символов `A-Z a-z 0-9 _ -`.
+Для старта API в production нужны валидный `DATABASE_URL` и `ALLOW_DEMO_AUTH=false`.
+При отсутствии настроек MAX API запускается с безопасным предупреждением
+`max_webhook_not_configured`; `/health/ready` продолжает проверять конфигурацию
+приложения и PostgreSQL. Команда `subscribe_webhook` по-прежнему требует
+`MAX_BOT_TOKEN`, HTTPS `MAX_WEBHOOK_URL` и `MAX_WEBHOOK_SECRET` до сетевого запроса.
+Секрет: 5–256 символов `A-Z a-z 0-9 _ -`. Без `MAX_WEBHOOK_SECRET` endpoint возвращает 403.
 `MAX_BOT_USERNAME` нужен для ссылок в Mini App и приглашений: без него API
 запускается с предупреждением `max_deep_links_disabled`, ссылки недоступны.
 Worker требует токен, но не webhook URL/secret. Scheduler требует БД, но не

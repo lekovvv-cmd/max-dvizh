@@ -11,6 +11,8 @@ from app.core.config import settings
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     settings.validate_process("api")
+    if not (settings.max_bot_token and settings.max_webhook_url and settings.max_webhook_secret):
+        logging.getLogger(__name__).warning("max_webhook_not_configured")
     if not settings.max_bot_username:
         logging.getLogger(__name__).warning("max_deep_links_disabled reason=missing_bot_username")
     yield

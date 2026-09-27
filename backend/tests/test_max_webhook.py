@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
@@ -24,6 +25,31 @@ from app.db.models import (
 from app.db.session import get_session
 from app.modules.max_integration import client as max_client
 from app.modules.max_integration import subscribe_webhook
+
+
+@pytest.mark.parametrize("header", [None, "", "arbitrary-secret"])
+def test_webhook_without_configured_secret_is_closed(monkeypatch, header) -> None:
+    monkeypatch.setattr(max_webhook, "settings", Settings(max_webhook_secret=""))
+    app = FastAPI()
+    app.include_router(max_webhook.router)
+
+    def unused_session():
+        yield None  # Rejection must happen before any database operation.
+
+    app.dependency_overrides[get_session] = unused_session
+    headers = {} if header is None else {"X-Max-Bot-Api-Secret": header}
+    with TestClient(app) as client:
+        response = client.post(
+            "/integrations/max/webhook",
+            json={
+                "update_type": "bot_started",
+                "timestamp": 1750000000000,
+                "user": {"user_id": 123, "name": "Test"},
+            },
+            headers=headers,
+        )
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Invalid webhook secret"}
 
 
 def test_webhook_secret_and_duplicate_bot_start(monkeypatch) -> None:

@@ -6,6 +6,7 @@ from sqlalchemy.exc import OperationalError
 
 from app.core.config import ConfigurationError, Settings, normalize_database_url
 from app.modules.matching import scheduler
+from app.modules.max_integration import worker
 
 
 def test_normalize_database_url_selects_psycopg_for_provider_urls() -> None:
@@ -52,10 +53,24 @@ def test_database_default_is_development_only_and_api_username_is_optional() -> 
 
 
 @pytest.mark.parametrize("field", ["max_bot_token", "max_webhook_url", "max_webhook_secret"])
-def test_api_rejects_missing_webhook_configuration(field: str) -> None:
-    with pytest.raises(ConfigurationError, match="MAX_") as error:
-        production(**{field: ""}).validate_process("api")
-    assert "private-" not in str(error.value)
+def test_api_accepts_missing_webhook_configuration(field: str) -> None:
+    production(**{field: ""}).validate_process("api")
+
+
+def test_production_api_still_rejects_demo_auth() -> None:
+    with pytest.raises(ConfigurationError, match="ALLOW_DEMO_AUTH"):
+        production(allow_demo_auth=True).validate_process("api")
+
+
+def test_worker_without_token_exits_before_starting_loop(monkeypatch) -> None:
+    monkeypatch.setattr(worker, "settings", production(max_bot_token=""))
+
+    def unexpected_session():
+        raise AssertionError("Worker must fail before opening an outbox session")
+
+    monkeypatch.setattr(worker, "SessionLocal", unexpected_session)
+    with pytest.raises(SystemExit, match="MAX_BOT_TOKEN is required for APP_PROCESS=worker"):
+        worker.run()
 
 
 @pytest.mark.parametrize(
