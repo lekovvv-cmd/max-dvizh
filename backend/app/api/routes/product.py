@@ -543,22 +543,18 @@ def create_location(payload: LocationIn, session: DbSession, user: CurrentUser) 
     if payload.kind == "CURRENT":
         current = session.scalar(
             select(Location)
+            .outerjoin(Intent, Intent.origin_location_id == Location.id)
             .where(
                 Location.user_id == user.id,
                 Location.city_slug == payload.city_slug,
                 Location.kind == "CURRENT",
                 Location.is_ephemeral.is_(False),
+                Intent.id.is_(None),
             )
-            .order_by(Location.created_at.desc())
+            .order_by(Location.created_at.desc(), Location.id.desc())
             .limit(1)
         )
-        if (
-            current is not None
-            and session.scalar(
-                select(Intent.id).where(Intent.origin_location_id == current.id).limit(1)
-            )
-            is None
-        ):
+        if current is not None:
             current.latitude = payload.latitude
             current.longitude = payload.longitude
             current.is_default = False
