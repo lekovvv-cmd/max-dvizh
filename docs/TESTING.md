@@ -11,15 +11,33 @@ npm --prefix frontend run test
 npm --prefix frontend run build
 
 cd backend
-python -m pip install -r requirements-dev.txt
-python -m ruff check app tests
-python -m ruff format --check app tests
-python -m mypy app
+python -m pip install -r requirements.lock
+python -m ruff check .
+python -m ruff format --check .
+python -m mypy app scripts
 python -m pytest -q
 python -m alembic upgrade head
 ```
 
-Полный `pytest` использует отдельный PostgreSQL через `TEST_DATABASE_URL` для интеграционных тестов. Без него можно выполнить `python -m pytest -q --ignore=tests/test_postgres_reliability.py`, но это не заменяет PostgreSQL/Compose gate.
+Перед запуском задайте `DATABASE_URL` и `TEST_DATABASE_URL` на отдельную PostgreSQL
+для тестов: `test_postgres_reliability.py` удаляет и пересоздаёт таблицы этой БД.
+Не используйте рабочую или production-базу. Тесты сами включают development/demo;
+если окружение уже задаёт `APP_ENV`, установите для тестов `development`.
+Без PostgreSQL можно выполнить `python -m pytest -q --ignore=tests/test_postgres_reliability.py`,
+но это не заменяет полный gate.
+
+CI проверяет переход с заполненной схемы `20260916_0005` и создание чистой БД до
+`20260927_0013`. Новые проверки охватывают классификацию ошибок MAX, ограниченные
+повторы outbox, безопасные CLI, позднее вступление, необязательный Redis, ошибки
+онбординга/приглашений и расчёт продуктовых метрик. MAX HTTP в тестах подменён;
+реальные аккаунты и реальная доставка не используются.
+
+Известное ограничение полной сверки `alembic check`: исходная схема до этой
+стабилизации уже отличается от ORM по 18 legacy-операциям (nullable timestamps,
+индексы и представление уникальности `users.max_user_id`). Сверка исходного HEAD
+на `0012` и текущей схемы на `0013` дала одинаковый список; новая миграция
+расхождений не добавляет. Это отдельно от успешных `upgrade head` и проверки
+сохранности данных; legacy-схема в рамках стабилизации не переделывалась.
 
 ```powershell
 docker compose up --build -d

@@ -6,15 +6,7 @@ const steps = [
   { title: 'ДВИЖ спросит друзей', detail: 'Если совпадёт — подтвердите участие.' },
 ]
 
-export function CoachMark({
-  onDone,
-  busy,
-  error,
-}: {
-  onDone: () => void
-  busy: boolean
-  error: string
-}) {
+export function CoachMark({ onDone }: { onDone: () => void }) {
   const dialog = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -53,12 +45,7 @@ export function CoachMark({
             </li>
           ))}
         </ol>
-        {error ? (
-          <p className="form-error" role="alert">
-            {error}
-          </p>
-        ) : null}
-        <button type="button" className="primary-button" disabled={busy} onClick={onDone}>
+        <button type="button" className="primary-button" onClick={onDone}>
           Понятно
         </button>
       </div>

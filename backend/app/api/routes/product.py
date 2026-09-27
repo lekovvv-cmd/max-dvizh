@@ -55,6 +55,7 @@ from app.modules.leisure.provider import (
     fetch_items,
 )
 from app.modules.matching.domain import overlaps
+from app.modules.matching.dvizh import notify_joining_member
 from app.modules.matching.scheduler import evaluate_auto_signal
 from app.modules.matching.service import (
     _has_other_overlap,
@@ -403,7 +404,7 @@ def update_group_city(
 
 @router.post("/groups/join/{token}", response_model=JoinOut)
 def join_group(token: str, session: DbSession, user: CurrentUser) -> JoinOut:
-    group = session.scalar(select(Group).where(Group.invite_token == token))
+    group = session.scalar(select(Group).where(Group.invite_token == token).with_for_update())
     if group is None:
         raise error(status.HTTP_404_NOT_FOUND, "Приглашение недействительно")
     if group.invite_expires_at is not None and aware(group.invite_expires_at) <= now():
@@ -413,7 +414,9 @@ def join_group(token: str, session: DbSession, user: CurrentUser) -> JoinOut:
     )
     if existing is None:
         session.add(GroupMember(group_id=group.id, user_id=user.id, role="MEMBER"))
-        session.commit()
+        session.flush()
+        notify_joining_member(session, group.id, user.id)
+    session.commit()
     return JoinOut(
         group=group_out(session, group, expose_token=True), already_member=existing is not None
     )

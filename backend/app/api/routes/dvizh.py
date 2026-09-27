@@ -644,7 +644,9 @@ def react(
         )
     )
     if current is None:
-        current = DvizhReaction(candidate_id=candidate.id, user_id=user.id, value=payload.value)
+        current = DvizhReaction(
+            candidate_id=candidate.id, user_id=user.id, value=payload.value, created_at=now()
+        )
         session.add(current)
     else:
         if (
@@ -716,6 +718,7 @@ def launch(dvizh_id: str, session: DbSession, user: CurrentUser) -> dict[str, ob
             session.commit()
         raise fail(409, "Сначала отметь место, куда пошёл бы")
     dvizh.status = "COLLECTING_REACTIONS"
+    dvizh.launched_at = now()
     session.flush()
     for user_id in session.scalars(
         select(GroupMember.user_id).where(
@@ -809,8 +812,17 @@ def confirm(
     status = "WAITLISTED" if count >= dvizh.max_people else "CONFIRMED"
     if existing:
         existing.status = status
+        if status == "CONFIRMED" and existing.confirmed_at is None:
+            existing.confirmed_at = now()
     else:
-        session.add(DvizhConfirmation(candidate_id=candidate.id, user_id=user.id, status=status))
+        session.add(
+            DvizhConfirmation(
+                candidate_id=candidate.id,
+                user_id=user.id,
+                status=status,
+                confirmed_at=now() if status == "CONFIRMED" else None,
+            )
+        )
     session.flush()
     if dvizh.status != "GATHERED" and confirmation_count(session, candidate.id) >= dvizh.min_people:
         dvizh.status = "GATHERED"

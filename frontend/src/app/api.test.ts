@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiTimeoutError, api } from './api'
+import { ApiError, ApiTimeoutError, api } from './api'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -7,6 +7,21 @@ afterEach(() => {
 })
 
 describe('API error messages', () => {
+  it.each([404, 410, 500, 503])(
+    'preserves HTTP %s for invitation classification',
+    async (status) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: false,
+          status,
+          json: async () => ({ detail: 'Приглашение недействительно' }),
+        }),
+      )
+      await expect(api.join('token')).rejects.toBeInstanceOf(ApiError)
+      await expect(api.join('token')).rejects.toMatchObject({ status })
+    },
+  )
   it.each([
     [
       422,

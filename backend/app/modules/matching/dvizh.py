@@ -147,9 +147,45 @@ def enqueue(
         )
     session.add(
         OutboxNotification(
-            kind=kind, user_id=user_id, payload=payload, dedupe_key=key, status="PENDING"
+            kind=kind,
+            user_id=user_id,
+            payload=payload,
+            dedupe_key=key,
+            status="PENDING",
+            created_at=now(),
         )
     )
+
+
+def notify_joining_member(session: Session, group_id: str, user_id: str) -> None:
+    """Join and outbox insertion commit together; the existing review key deduplicates."""
+    current = now()
+    # Include unlaunched rows in the lock so a concurrent launch sees the membership
+    # after this transaction, or this transaction sees the completed launch.
+    for dvizh in session.scalars(
+        select(DvizhSession)
+        .where(
+            DvizhSession.group_id == group_id,
+            DvizhSession.initiator_id != user_id,
+            DvizhSession.expires_at > current,
+            DvizhSession.status.in_(
+                ("CHOOSING_CANDIDATES", "COLLECTING_REACTIONS", "AWAITING_CONFIRMATION")
+            ),
+        )
+        .order_by(DvizhSession.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    ):
+        if dvizh.status not in {"COLLECTING_REACTIONS", "AWAITING_CONFIRMATION"}:
+            continue
+        if any(
+            candidate.seed
+            and aware(candidate.expires_at) > current
+            and candidate.compatibility in {"EXACT", "NEAR"}
+            and not conflict(session, user_id, candidate)
+            for candidate in candidates(session, dvizh.id)
+        ):
+            enqueue(session, "DVIZH_REVIEW_REQUIRED", user_id, dvizh)
 
 
 _WEEKDAYS = {day: index for index, day in enumerate(("пн", "вт", "ср", "чт", "пт", "сб", "вс"))}

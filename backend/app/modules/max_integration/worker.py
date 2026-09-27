@@ -8,7 +8,7 @@ import time
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.core.config import settings
+from app.core.config import ConfigurationError, settings
 from app.db.models import OutboxNotification
 from app.db.session import SessionLocal
 from app.modules.max_integration.client import dispatch_pending
@@ -17,8 +17,10 @@ logger = logging.getLogger(__name__)
 
 
 def run() -> None:
-    if not settings.max_bot_token and settings.app_env != "development":
-        raise SystemExit("MAX_BOT_TOKEN is required for APP_PROCESS=worker")
+    try:
+        settings.validate_process("worker")
+    except ConfigurationError as error:
+        raise SystemExit(str(error)) from None
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     if not settings.max_bot_token:
         logger.warning("outbox_delivery_disabled reason=missing_token development_mode=true")

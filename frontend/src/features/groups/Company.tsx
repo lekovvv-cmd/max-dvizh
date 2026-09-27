@@ -161,7 +161,7 @@ export function Company({
     try {
       await onChangeCity(active.id, nextCity)
       setChangeCityOpen(false)
-      setCityResult('Город изменён. Старые активные движи остановлены.')
+      setCityResult('Город изменён.')
     } catch {
       setError('Не удалось изменить город. Попробуй ещё раз.')
     } finally {

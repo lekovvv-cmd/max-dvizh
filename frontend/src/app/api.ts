@@ -114,6 +114,15 @@ export class ApiTimeoutError extends Error {
   }
 }
 
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message)
+  }
+}
+
 export class MaxAuthError extends Error {
   constructor(readonly inMax: boolean) {
     super(
@@ -153,10 +162,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     } catch {
       // Keep a useful local fallback when the server did not send JSON.
     }
-    if (detail && /[А-Яа-яЁё]/.test(detail)) throw new Error(detail)
-    if (response.status === 422) throw new Error('Проверь заполненные поля и попробуй ещё раз.')
-    if (response.status === 404) throw new Error('Этот вариант больше недоступен. Обнови страницу.')
-    throw new Error('Сервис временно недоступен. Попробуй ещё раз.')
+    if (detail && /[А-Яа-яЁё]/.test(detail)) throw new ApiError(response.status, detail)
+    if (response.status === 422)
+      throw new ApiError(response.status, 'Проверь заполненные поля и попробуй ещё раз.')
+    if (response.status === 404)
+      throw new ApiError(response.status, 'Этот вариант больше недоступен. Обнови страницу.')
+    throw new ApiError(response.status, 'Сервис временно недоступен. Попробуй ещё раз.')
   }
   try {
     return (await response.json()) as T

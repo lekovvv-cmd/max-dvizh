@@ -2,7 +2,10 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
+import redis
 
+from app.core.config import Settings
+from app.modules.leisure import provider as provider_module
 from app.modules.leisure.provider import (
     KudaGoProvider,
     NormalizedLeisureItem,
@@ -123,6 +126,26 @@ def test_redis_hit_skips_provider_and_miss_populates_cache() -> None:
 
     assert not first.cached
     assert second.cached
+    assert provider.calls == 1
+
+
+@pytest.mark.parametrize("unreachable", [False, True])
+def test_optional_redis_never_blocks_live_catalogue(monkeypatch, unreachable: bool) -> None:
+    monkeypatch.setattr(provider_module, "settings", Settings(redis_url=""))
+    cache = RedisProviderCache()
+    if unreachable:
+
+        class UnavailableRedis:
+            def get(self, _key):
+                raise redis.ConnectionError("unavailable")
+
+            def setex(self, *_args):
+                raise redis.ConnectionError("unavailable")
+
+        cache = RedisProviderCache(UnavailableRedis())
+    provider = RecordingProvider([item()])
+    result = fetch_items(query(), provider=provider, cache=cache)
+    assert len(result.items) == 1 and not result.cached and not result.unavailable
     assert provider.calls == 1
 
 

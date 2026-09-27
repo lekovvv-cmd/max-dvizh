@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.timezones import display_timezone
 from app.db.models import DvizhCandidate, DvizhSession, GroupMember, OutboxNotification, User
+from app.modules.max_integration.diagnostics import classify_failure, failure_summary
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ def utcnow() -> datetime:
     return datetime.now(UTC)
 
 
-def _dvizh_notification_current(session: Session, event: OutboxNotification) -> bool:
+def dvizh_notification_current(session: Session, event: OutboxNotification) -> bool:
     if not event.kind.startswith("DVIZH_"):
         return True
     dvizh_id = event.payload.get("dvizh_id")
@@ -260,8 +261,9 @@ def dispatch_pending(session: Session, batch_size: int = 50) -> int:
         )
         .with_for_update(skip_locked=True)
     ):
-        event.status = "PENDING"
+        event.status = "FAILED" if event.attempts >= 8 else "PENDING"
         event.locked_at = None
+        event.next_attempt_at = None
     session.commit()
     claimed = list(
         session.scalars(
@@ -289,9 +291,10 @@ def dispatch_pending(session: Session, batch_size: int = 50) -> int:
         if current_event is None or current_event.status != "PROCESSING":
             continue
         event = current_event
-        if not _dvizh_notification_current(session, event):
+        if not dvizh_notification_current(session, event):
             event.status = "CANCELLED"
             event.locked_at = None
+            event.next_attempt_at = None
             session.commit()
             logger.info("outbox_cancelled id=%s kind=%s reason=stale", event.id, event.kind)
             continue
@@ -299,9 +302,13 @@ def dispatch_pending(session: Session, batch_size: int = 50) -> int:
         if user is None:
             event.status = "FAILED"
             event.locked_at = None
+            event.next_attempt_at = None
             session.commit()
             logger.error("outbox_failed id=%s kind=%s reason=user_missing", event.id, event.kind)
             continue
+        event.attempts += 1
+        event.next_attempt_at = None
+        session.commit()
         try:
             if event.kind in DVIZH_MESSAGE_KINDS:
                 send_dvizh_message(user.max_user_id, event)
@@ -312,29 +319,24 @@ def dispatch_pending(session: Session, batch_size: int = 50) -> int:
             else:
                 send_bot_message(user.max_user_id, _text(event))
         except httpx.HTTPError as error:
-            event.attempts += 1
-            response_code = (
-                error.response.status_code if isinstance(error, httpx.HTTPStatusError) else None
-            )
-            terminal = (
-                response_code is not None and 400 <= response_code < 500 and response_code != 429
-            )
-            event.status = "FAILED" if terminal or event.attempts >= 8 else "PENDING"
+            failure = classify_failure(error)
+            event.status = "FAILED" if not failure.retryable or event.attempts >= 8 else "PENDING"
             event.locked_at = None
             if event.status == "PENDING":
                 delay = min(2 ** min(event.attempts, 8), settings.outbox_retry_max_seconds)
                 event.next_attempt_at = utcnow() + timedelta(seconds=delay)
             session.commit()
             logger.warning(
-                "outbox_delivery_failed id=%s kind=%s status=%s http_status=%s attempts=%s",
+                "outbox_delivery_failed id=%s kind=%s status=%s attempt=%s %s",
                 event.id,
                 event.kind,
                 event.status,
-                response_code,
                 event.attempts,
+                failure_summary(failure),
             )
         else:
             event.status = "SENT"
+            event.sent_at = utcnow()
             event.locked_at = None
             event.next_attempt_at = None
             session.commit()

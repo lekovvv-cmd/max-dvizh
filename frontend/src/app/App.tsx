@@ -15,6 +15,7 @@ import { ConfirmDialog } from '../shared/ui/ConfirmDialog'
 import { Icon } from '../shared/ui/Icon'
 import {
   api,
+  ApiError,
   MaxAuthError,
   type Dvizh,
   type Group,
@@ -195,8 +196,6 @@ export function App() {
   const [editingBatch, setEditingBatch] = useState<string | null>(null)
   const [repeat, setRepeat] = useState(false)
   const [introDone, setIntroDone] = useState(true)
-  const [introBusy, setIntroBusy] = useState(false)
-  const [introError, setIntroError] = useState('')
   const introInitialized = useRef(false)
 
   const load = useCallback(async () => {
@@ -259,7 +258,13 @@ export function App() {
         setGroupId(result.group.id)
         void load()
       })
-      .catch(() => setJoinError('Приглашение недействительно или устарело.'))
+      .catch((reason: unknown) =>
+        setJoinError(
+          reason instanceof ApiError && [404, 410].includes(reason.status)
+            ? 'Приглашение недействительно или устарело.'
+            : 'Не удалось открыть приглашение. Попробуй ещё раз.',
+        ),
+      )
   }, [load])
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -294,17 +299,9 @@ export function App() {
       )
       .sort((a, b) => priority(a) - priority(b))
   }, [dvizhi, group?.id])
-  const finishCoach = async () => {
-    setIntroError('')
-    setIntroBusy(true)
-    try {
-      await api.markOnboardingSeen()
-      setIntroDone(true)
-    } catch {
-      setIntroError('Не удалось сохранить. Попробуй ещё раз.')
-    } finally {
-      setIntroBusy(false)
-    }
+  const finishCoach = () => {
+    setIntroDone(true)
+    void api.markOnboardingSeen().catch(() => undefined)
   }
   const updateDvizh = (value: Dvizh) =>
     setDvizhi((items) => items.map((item) => (item.id === value.id ? value : item)))
@@ -514,7 +511,7 @@ export function App() {
         <HomeIntro
           onSignal={() => openSignal()}
           onRepeat={() => openSignal(null, true)}
-          hasRepeat={Boolean(recurring)}
+          repeatStatus={recurring?.status}
         />
         {homeDvizhi.length ? (
           <section className="home-dvizhi" aria-labelledby="home-dvizhi-title">
@@ -558,9 +555,7 @@ export function App() {
         ) : null}
         {content}
       </AppShell>
-      {!introDone ? (
-        <CoachMark onDone={() => void finishCoach()} busy={introBusy} error={introError} />
-      ) : null}
+      {!introDone ? <CoachMark onDone={finishCoach} /> : null}
       {joinError ? (
         <ConfirmDialog
           title="Не удалось открыть приглашение"

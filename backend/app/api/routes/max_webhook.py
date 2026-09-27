@@ -15,7 +15,7 @@ from app.api.deps import DbSession
 from app.api.routes.dvizh import ConfirmationIn, confirm
 from app.core.config import settings
 from app.db.models import Group, MaxWebhookEvent, OutboxNotification, User
-from app.modules.max_integration.client import DVIZH_MESSAGE_KINDS
+from app.modules.max_integration.client import DVIZH_MESSAGE_KINDS, dvizh_notification_current
 
 router = APIRouter(tags=["max integration"])
 
@@ -36,6 +36,11 @@ def retry_notifications_after_bot_start(session: DbSession, user_id: str) -> Non
             OutboxNotification.status == "FAILED",
         )
     ):
+        if not dvizh_notification_current(session, notification):
+            notification.status = "CANCELLED"
+            notification.next_attempt_at = None
+            notification.locked_at = None
+            continue
         notification.status = "PENDING"
         notification.attempts = 0
         notification.next_attempt_at = None

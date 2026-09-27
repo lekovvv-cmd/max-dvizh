@@ -1,6 +1,8 @@
 #!/bin/sh
 set -eu
 
+python -m app.core.config
+
 case "${APP_PROCESS:-api}" in
   api)
     alembic upgrade head

@@ -137,7 +137,7 @@ def test_max_outbox_buttons_use_callback_only_for_exact_match(monkeypatch) -> No
     assert all(call[1]["headers"]["Authorization"] == "test-token" for call in sent)
 
 
-def test_bot_start_retries_failed_dvizh_notifications(monkeypatch) -> None:
+def test_bot_start_cancels_failed_notification_for_missing_dvizh(monkeypatch) -> None:
     engine = create_engine(
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
     )
@@ -185,8 +185,8 @@ def test_bot_start_retries_failed_dvizh_notifications(monkeypatch) -> None:
             select(OutboxNotification).where(OutboxNotification.dedupe_key == "failed-invite")
         )
         assert invite is not None
-        assert invite.status == "PENDING"
-        assert invite.attempts == 0
+        assert invite.status == "CANCELLED"
+        assert invite.attempts == 1
 
 
 def test_subscription_setup_posts_and_verifies_official_contract(monkeypatch) -> None:

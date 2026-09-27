@@ -2,7 +2,16 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { App } from './App'
-import { api, MaxAuthError, type Dvizh, type Group, type Intent, type Taxonomy } from './api'
+import {
+  api,
+  ApiError,
+  ApiTimeoutError,
+  MaxAuthError,
+  type Dvizh,
+  type Group,
+  type Intent,
+  type Taxonomy,
+} from './api'
 
 const group: Group = {
   id: 'group-1',
@@ -114,7 +123,7 @@ describe('new Dvizh product route', () => {
     expect(screen.getByRole('button', { name: 'Движи' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Планы' })).not.toBeInTheDocument()
     expect(screen.getByRole('dialog', { name: 'Как работает ДВИЖ' })).toBeInTheDocument()
-    expect(screen.getByText('Выбери когда и куда.')).toBeInTheDocument()
+    expect(screen.queryByText('Выбери когда и куда.')).not.toBeInTheDocument()
     expect(screen.queryByText('Остальное сделает ДВИЖ.')).not.toBeInTheDocument()
   })
 
@@ -167,19 +176,38 @@ describe('new Dvizh product route', () => {
     expect(screen.queryByText('Ты уже участник')).not.toBeInTheDocument()
   })
 
-  it('shows an invalid invitation in a dismissible dialog', async () => {
+  it.each([404, 410])(
+    'shows an invalid invitation for HTTP %s in a dismissible dialog',
+    async (status) => {
+      mockData([], true)
+      window.location.hash = '#startapp=invalid-token'
+      vi.spyOn(api, 'join').mockRejectedValue(new ApiError(status, 'Private backend detail'))
+      render(<App />)
+      expect(
+        await screen.findByRole('dialog', { name: 'Не удалось открыть приглашение' }),
+      ).toBeInTheDocument()
+      expect(screen.getByText('Приглашение недействительно или устарело.')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Понятно' }))
+      expect(
+        screen.queryByRole('dialog', { name: 'Не удалось открыть приглашение' }),
+      ).not.toBeInTheDocument()
+    },
+  )
+
+  it.each([
+    new Error('Network failed'),
+    new ApiTimeoutError(),
+    new ApiError(500, 'Traceback'),
+    new ApiError(503, 'Service unavailable'),
+  ])('does not call an invitation expired after a temporary failure: %s', async (error) => {
     mockData([], true)
-    window.location.hash = '#startapp=invalid-token'
-    vi.spyOn(api, 'join').mockRejectedValue(new Error('Приглашение истекло'))
+    window.location.hash = '#startapp=invite-token'
+    vi.spyOn(api, 'join').mockRejectedValue(error)
     render(<App />)
     expect(
-      await screen.findByRole('dialog', { name: 'Не удалось открыть приглашение' }),
+      await screen.findByText('Не удалось открыть приглашение. Попробуй ещё раз.'),
     ).toBeInTheDocument()
-    expect(screen.getByText('Приглашение недействительно или устарело.')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Понятно' }))
-    expect(
-      screen.queryByRole('dialog', { name: 'Не удалось открыть приглашение' }),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByText('Приглашение недействительно или устарело.')).not.toBeInTheDocument()
   })
 
   it('separates collecting and gathered sessions in Движи', async () => {
@@ -247,16 +275,25 @@ describe('new Dvizh product route', () => {
     expect(api.markOnboardingSeen).not.toHaveBeenCalled()
   })
 
-  it('keeps onboarding open when saving its acknowledgement fails', async () => {
+  it('closes onboarding even when saving its acknowledgement fails', async () => {
     mockData()
     vi.mocked(api.markOnboardingSeen).mockRejectedValueOnce(new Error('HTTP 503'))
     render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: 'Понятно' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось сохранить.')
-    expect(screen.getByRole('dialog', { name: 'Как работает ДВИЖ' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Понятно' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(api.markOnboardingSeen).toHaveBeenCalledTimes(2)
+    fireEvent.click(screen.getByRole('button', { name: 'Подать сигнал' }))
+    expect(screen.getByRole('button', { name: 'Начать поиск' })).toBeInTheDocument()
+    expect(api.markOnboardingSeen).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes onboarding immediately while saving is still pending', async () => {
+    mockData()
+    vi.mocked(api.markOnboardingSeen).mockReturnValue(new Promise(() => {}))
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Понятно' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Подать сигнал' }))
+    expect(screen.getByRole('button', { name: 'Начать поиск' })).toBeInTheDocument()
   })
 
   it('lets the owner pause and soft-delete a recurring signal', async () => {
@@ -294,9 +331,14 @@ describe('new Dvizh product route', () => {
       .mockResolvedValue({ id: rule.id, status: 'DELETED' })
     render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: 'Понятно' }))
+    expect(screen.getByText('Регулярный сигнал настроен')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Движи' }))
+    vi.mocked(api.intents).mockResolvedValue([{ ...rule, status: 'PAUSED' }])
     fireEvent.click(screen.getByRole('button', { name: 'Приостановить' }))
     await waitFor(() => expect(pause).toHaveBeenCalledWith(rule.id))
+    fireEvent.click(screen.getByRole('button', { name: 'Главная' }))
+    expect(await screen.findByText('Регулярный сигнал приостановлен')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Движи' }))
     fireEvent.click(screen.getByRole('button', { name: 'Удалить' }))
     expect(screen.getByRole('dialog', { name: 'Удалить автосигнал?' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Удалить автосигнал' }))

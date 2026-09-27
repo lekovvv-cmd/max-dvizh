@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.core.config import settings
+from app.core.config import ConfigurationError, settings
 from app.db.session import engine
 
 router = APIRouter(tags=["technical"])
@@ -20,7 +20,11 @@ def healthcheck() -> dict[str, str]:
 
 @router.get("/health/ready")
 def readiness() -> dict[str, str]:
-    """Readiness endpoint verifies the configured PostgreSQL connection."""
+    """Readiness covers local API configuration and PostgreSQL, not MAX reachability."""
+    try:
+        settings.validate_process("api")
+    except ConfigurationError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from None
     try:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))

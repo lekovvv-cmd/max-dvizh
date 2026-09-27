@@ -1,5 +1,6 @@
 """New product flow with real persistence, privacy and idempotent state changes."""
 
+import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -8,9 +9,12 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app.api.routes import dvizh as routes
+from app.api.routes.product import join_group
 from app.api.schemas import AutoSignalIn, SignalBatchIn
+from app.core.config import Settings
 from app.db.models import (
     Base,
+    DvizhCandidate,
     DvizhConfirmation,
     DvizhReaction,
     DvizhSession,
@@ -23,7 +27,10 @@ from app.db.models import (
 from app.modules.leisure import provider as leisure_provider
 from app.modules.leisure.provider import NormalizedLeisureItem, ProviderQuery, ProviderResult
 from app.modules.leisure.taxonomy import BY_ID, classify, expand, valid_selection
+from app.modules.matching import dvizh as domain
 from app.modules.matching.dvizh import _daily_hours_fit, eligible_reaction_count, recompute
+from app.modules.max_integration import client as max_client
+from app.scripts.product_metrics import elapsed, metrics_for
 
 
 def fixture(
@@ -137,8 +144,27 @@ def test_one_member_can_start_dvizh_and_friend_join_later(
         monkeypatch.setattr(routes, "_source_available", lambda _candidate: True)
         launched = routes.launch(dvizh["id"], session, users[0])
         assert launched["status"] == "COLLECTING_REACTIONS"
-        session.add(GroupMember(group_id=groups[0].id, user_id=users[1].id))
-        session.commit()
+        assert not join_group(groups[0].invite_token, session, users[1]).already_member
+        assert join_group(groups[0].invite_token, session, users[1]).already_member
+        reviews = list(
+            session.scalars(
+                select(OutboxNotification).where(
+                    OutboxNotification.user_id == users[1].id,
+                    OutboxNotification.kind == "DVIZH_REVIEW_REQUIRED",
+                )
+            )
+        )
+        assert len(reviews) == 1
+        assert reviews[0].payload["dvizh_id"] == dvizh["id"]
+        assert "initiator_id" not in reviews[0].payload
+        assert not list(
+            session.scalars(select(DvizhReaction).where(DvizhReaction.user_id == users[1].id))
+        )
+        assert not list(
+            session.scalars(
+                select(DvizhConfirmation).where(DvizhConfirmation.user_id == users[1].id)
+            )
+        )
         assert (
             routes.get_dvizh_detail(dvizh["id"], session, users[1])["status"]
             == "COLLECTING_REACTIONS"
@@ -147,6 +173,62 @@ def test_one_member_can_start_dvizh_and_friend_join_later(
             dvizh["id"], candidate["id"], routes.ReactionIn(value="WOULD_GO"), session, users[1]
         )
         assert matched["status"] == "AWAITING_CONFIRMATION"
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        "CHOOSING_CANDIDATES",
+        "COLLECTING_REACTIONS",
+        "AWAITING_CONFIRMATION",
+        "GATHERED",
+        "CANCELLED",
+        "EXPIRED",
+        "expired_session",
+        "expired_seed",
+        "no_seed",
+        "conflict",
+    ],
+)
+def test_late_join_only_notifies_for_live_eligible_seed(monkeypatch, state: str) -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        users, groups, item, payload = fixture(session, groups=2)
+        membership = session.scalar(
+            select(GroupMember).where(
+                GroupMember.group_id == groups[0].id, GroupMember.user_id == users[2].id
+            )
+        )
+        session.delete(membership)
+        created = create(monkeypatch, session, item, payload, users[0])
+        dvizh = session.get(DvizhSession, created["dvizhi"][0]["id"])
+        candidate = session.get(DvizhCandidate, created["dvizhi"][0]["candidates"][0]["id"])
+        dvizh.status = state if state.isupper() else "COLLECTING_REACTIONS"
+        candidate.seed = state != "no_seed"
+        if state == "expired_session":
+            dvizh.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+        if state == "expired_seed":
+            candidate.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+        if state == "conflict":
+            other = session.get(DvizhSession, created["dvizhi"][1]["id"])
+            other.status = "GATHERED"
+            other_candidate = created["dvizhi"][1]["candidates"][0]["id"]
+            session.add(
+                DvizhConfirmation(
+                    candidate_id=other_candidate, user_id=users[2].id, status="CONFIRMED"
+                )
+            )
+        session.commit()
+        join_group(groups[0].invite_token, session, users[2])
+        notifications = list(
+            session.scalars(
+                select(OutboxNotification).where(OutboxNotification.user_id == users[2].id)
+            )
+        )
+        assert len(notifications) == (
+            1 if state in {"COLLECTING_REACTIONS", "AWAITING_CONFIRMATION"} else 0
+        )
 
 
 def test_provider_gmt_offset_is_used_for_place_hours() -> None:
@@ -213,6 +295,11 @@ def test_full_flow_no_early_notifications_and_private_reactions(
             dvizh["id"], candidate["id"], routes.ReactionIn(value="WOULD_GO"), session, users[0]
         )
         assert list(session.scalars(select(OutboxNotification))) == []
+        launch_time = datetime.now(UTC)
+        current_time = launch_time
+        monkeypatch.setattr(routes, "now", lambda: current_time)
+        monkeypatch.setattr(domain, "now", lambda: current_time)
+        monkeypatch.setattr(max_client, "utcnow", lambda: current_time)
         launched = routes.launch(dvizh["id"], session, users[0])
         assert launched["status"] == "COLLECTING_REACTIONS"
         assert launched["confirmed_count"] == 0
@@ -222,7 +309,14 @@ def test_full_flow_no_early_notifications_and_private_reactions(
             )
         )
         assert {notification.user_id for notification in review} == {users[1].id, users[2].id}
+        current_time = launch_time + timedelta(seconds=1)
         routes.launch(dvizh["id"], session, users[0])
+        stored_dvizh = session.get(DvizhSession, dvizh["id"])
+        assert domain.aware(stored_dvizh.launched_at) == launch_time
+        assert metrics_for(session, stored_dvizh)["number_of_review_notifications"] == 0
+        monkeypatch.setattr(max_client, "settings", Settings(max_bot_token="test-token"))
+        monkeypatch.setattr(max_client, "send_dvizh_message", lambda *_args: True)
+        assert max_client.dispatch_pending(session) == 2
         assert (
             len(
                 list(
@@ -238,9 +332,11 @@ def test_full_flow_no_early_notifications_and_private_reactions(
         friend = routes.get_dvizh_detail(dvizh["id"], session, users[1])
         assert friend["candidates"][0]["my_reaction"] is None
         assert friend["participants"] == []
+        current_time = launch_time + timedelta(seconds=38)
         routes.react(
             dvizh["id"], candidate["id"], routes.ReactionIn(value="WOULD_GO"), session, users[1]
         )
+        current_time = launch_time + timedelta(seconds=74)
         matched = routes.react(
             dvizh["id"], candidate["id"], routes.ReactionIn(value="WOULD_GO"), session, users[2]
         )
@@ -266,12 +362,14 @@ def test_full_flow_no_early_notifications_and_private_reactions(
             )
         assert stale.value.status_code == 409
         assert list(session.scalars(select(DvizhConfirmation))) == []
+        current_time = launch_time + timedelta(seconds=90)
         routes.confirm(
             dvizh["id"], routes.ConfirmationIn(candidate_id=candidate["id"]), session, users[0]
         )
         routes.confirm(
             dvizh["id"], routes.ConfirmationIn(candidate_id=candidate["id"]), session, users[1]
         )
+        current_time = launch_time + timedelta(seconds=112)
         gathered = routes.confirm(
             dvizh["id"], routes.ConfirmationIn(candidate_id=candidate["id"]), session, users[2]
         )
@@ -287,6 +385,30 @@ def test_full_flow_no_early_notifications_and_private_reactions(
         )
         assert len(list(session.scalars(select(DvizhConfirmation)))) == 3
         assert len(list(session.scalars(select(DvizhReaction)))) == 3
+        report = metrics_for(session, stored_dvizh)
+        assert report["seconds_from_launch_to_first_reaction"] == 38
+        assert report["seconds_from_launch_to_match"] == 74
+        assert report["seconds_from_launch_to_gathered"] == 112
+        assert report["number_of_review_notifications"] == 2
+        assert report["number_of_confirmations"] == 3
+        assert (
+            report["events"]["final_confirmation"]
+            == (launch_time + timedelta(seconds=90)).isoformat()
+        )
+        assert (
+            report["events"]["review_notification_sent"]
+            == (launch_time + timedelta(seconds=1)).isoformat()
+        )
+        rendered = json.dumps(report)
+        assert (
+            "test-token" not in rendered
+            and "Person " not in rendered
+            and "WOULD_GO" not in rendered
+        )
+        assert all(person.id not in rendered for person in users)
+        # Existing records have no trustworthy launch time; never infer it from creation.
+        stored_dvizh.launched_at = None
+        assert metrics_for(session, stored_dvizh)["seconds_from_launch_to_gathered"] == "n/a"
         assert (
             len(
                 list(
@@ -299,6 +421,26 @@ def test_full_flow_no_early_notifications_and_private_reactions(
             )
             == 3
         )
+
+
+def test_product_metrics_before_launch_and_missing_or_inconsistent_times(monkeypatch) -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        users, _, item, payload = fixture(session)
+        created = create(monkeypatch, session, item, payload, users[0])
+        dvizh = session.get(DvizhSession, created["dvizhi"][0]["id"])
+        report = metrics_for(session, dvizh)
+        assert report["events"]["signal_created"] != "n/a"
+        assert all(
+            value == "n/a" for key, value in report["events"].items() if key != "signal_created"
+        )
+        assert report["number_of_confirmations"] == report["number_of_review_notifications"] == 0
+        assert report["seconds_from_launch_to_first_reaction"] == "n/a"
+        assert report["manual_messages_by_initiator_after_launch"]["value"] == 0
+    current = datetime.now(UTC)
+    assert elapsed(None, current) == elapsed(current, None) == "n/a"
+    assert elapsed(current, current - timedelta(seconds=1)) == "n/a"
 
 
 def test_launch_continues_collecting_after_member_leaves(

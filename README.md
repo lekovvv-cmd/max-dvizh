@@ -2,6 +2,14 @@
 
 ДВИЖ помогает собрать компанию на конкретное занятие. Автор подаёт **сигнал** на время, выбирает реальные места и явно запускает **движ**. Друзья приватно отмечают, куда пошли бы. Когда совпадение найдено, каждый отдельно подтверждает участие; после достижения минимума появляется «ДВИЖ СОБРАЛСЯ».
 
+Frontend: React/TypeScript/Vite. Backend: Python 3.13, FastAPI/SQLAlchemy/Alembic/PostgreSQL.
+
+| Процесс | Назначение |
+| --- | --- |
+| API | Mini App, действия пользователей, MAX webhook; применяет миграции при старте |
+| worker | Отправляет уведомления из PostgreSQL outbox, повторяет временные ошибки |
+| scheduler | Создаёт раунды регулярных сигналов, пересчитывает состояния и сроки |
+
 ## Быстрый запуск
 
 ```sh
@@ -11,6 +19,8 @@ docker compose up --build
 Mini App: http://localhost:8080 · API: http://localhost:8000/docs. Для локальной демонстрации Compose явно задаёт `APP_ENV=development` и `ALLOW_DEMO_AUTH=true`, что разрешает `X-Demo-User`; реальные данные MAX этим не подтверждаются. По умолчанию демо-вход выключен. Compose автоматически применяет миграции PostgreSQL и запускает API, MAX worker и планировщик отдельными процессами.
 
 Если порт `8080` занят другим локальным сервером, задайте `FRONTEND_PORT=18080` при запуске Compose и откройте http://localhost:18080. Проверяйте, что страницу отдаёт контейнер `nginx`, а не приложение, уже занявшее стандартный порт.
+
+Redis **необязателен для MVP**: без него KudaGo запрашивается напрямую. Чтобы включить локальный кеш, задайте `REDIS_URL=redis://redis:6379/0` в `.env` и запустите `docker compose --profile cache up --build`. Сигналы, реакции и outbox всегда хранятся в PostgreSQL.
 
 ## Сценарий
 
@@ -30,14 +40,35 @@ Mini App: http://localhost:8080 · API: http://localhost:8000/docs. Для ло�
 
 ## MAX в production
 
-MAX работает через подписку Webhook на публичный HTTPS API и заголовок `X-Max-Bot-Api-Secret`. Укажите `MAX_BOT_TOKEN`, `MAX_BOT_USERNAME`, `MAX_WEBHOOK_URL`, `MAX_WEBHOOK_SECRET`, затем выполните:
+Во всех backend-процессах задайте `APP_ENV=production`, `ALLOW_DEMO_AUTH=false` и **одинаковый явный** `DATABASE_URL`; процесс выбирается через `APP_PROCESS=api|worker|scheduler`.
+API требует `MAX_BOT_TOKEN`, `MAX_WEBHOOK_URL`, `MAX_WEBHOOK_SECRET`, worker — токен. `MAX_BOT_USERNAME` у API и worker нужен для ссылок в Mini App; scheduler не требует настроек MAX. Секреты задаются в окружении deployment.
+
+MAX работает через Webhook на публичный HTTPS API и заголовок `X-Max-Bot-Api-Secret`. После настройки окружения выполните из `backend/`:
 
 ```sh
-cd backend
 python -m app.modules.max_integration.subscribe_webhook
+python -m app.modules.max_integration.diagnose
 ```
 
-Команда создаёт подписку и проверяет её через `GET /subscriptions`. Worker отправляет уведомления из outbox, планировщик создаёт регулярные раунды и пересчитывает сроки. Оба используют ту же базу, что и API. Локальные значения приведены в [.env.example](.env.example), порядок развёртывания — в [DEPLOY_RELAXDEV.md](docs/DEPLOY_RELAXDEV.md). Настоящие токен, домен и HTTPS-сертификат требуются владельцу deployment для финальной проверки в MAX.
+Первая команда создаёт/обновляет подписку и проверяет URL/типы через `GET /subscriptions`. Вторая выполняет только `GET /me`, безопасно классифицирует ошибку и не отправляет сообщения. Локальные значения — в [.env.example](.env.example), настройки по процессам и проверка TLS — в [DEPLOY_RELAXDEV.md](docs/DEPLOY_RELAXDEV.md). Проверку внешней доставки выполняет владелец deployment с действительными секретами и HTTPS-доменом.
+
+## Тесты и метрики
+
+```sh
+npm --prefix frontend ci
+npm --prefix frontend run check
+cd backend
+python -m pip install -r requirements.lock
+python -m ruff check .
+python -m ruff format --check .
+python -m mypy app scripts
+python -m pytest
+```
+
+Перед `pytest` задайте `DATABASE_URL` и `TEST_DATABASE_URL` на **отдельную тестовую PostgreSQL**: тесты блокировок пересоздают её таблицы. Полный набор проверок и миграции — в [TESTING.md](docs/TESTING.md).
+
+Безопасный отчёт из БД: `python -m app.scripts.product_metrics` (или `--dvizh-id <id>`).
+Он показывает время от запуска до первой реакции, совпадения и сборки, число отправленных review-уведомлений и подтверждений; отсутствующие измерения — `n/a`. [Определения метрик](docs/PRODUCT_METRICS.md). Новая миграция `20260927_0013` добавляет недостающие timestamps без восстановления вымышленных исторических значений.
 
 ## Проверка и устройство
 
@@ -47,4 +78,4 @@ python -m app.modules.max_integration.subscribe_webhook
 - [TESTING.md](docs/TESTING.md) — тесты, браузерный и многопользовательский прогон.
 - [DATA-API.yaml](DATA-API.yaml) и [OpenAPI](docs/openapi.json) — проверочные запросы и схема.
 
-Frontend: React/TypeScript/Vite. Backend: FastAPI/SQLAlchemy/Alembic/PostgreSQL. Redis — только временный кеш KudaGo. Данные компании, сигналы и реакции остаются в PostgreSQL.
+Устаревшее задание на редизайн сохранено в [архиве](docs/archive/README.md); оно не описывает текущий сценарий.

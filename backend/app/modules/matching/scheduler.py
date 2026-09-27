@@ -7,9 +7,10 @@ from datetime import UTC, datetime, timedelta
 from time import monotonic, sleep
 
 from sqlalchemy import select, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
+from app.core.config import ConfigurationError, settings
 from app.db.models import CandidatePlanMember, DvizhSession, Intent, Offer, User
 from app.db.session import SessionLocal, engine
 from app.modules.leisure.provider import ProviderQuery, fetch_items
@@ -221,8 +222,26 @@ def run_once() -> int:
             connection.commit()
 
 
+def startup() -> None:
+    try:
+        settings.validate_process("scheduler")
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except ConfigurationError as error:
+        raise SystemExit(str(error)) from None
+    except SQLAlchemyError:
+        raise SystemExit(
+            "scheduler_startup_failed database_connected=false; check DATABASE_URL"
+        ) from None
+    logger.info(
+        "scheduler_started mode=%s database_connected=true",
+        "development" if settings.app_env == "development" else "production",
+    )
+
+
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
+    startup()
     while True:
         started = monotonic()
         try:
