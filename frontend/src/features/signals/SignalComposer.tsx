@@ -22,8 +22,8 @@ import groupIconOnLight from '../../assets/figma-company/690e2.svg'
 import groupIconOnPurple from '../../assets/figma-company/8deaf.svg'
 import settingsArrowIcon from '../../assets/figma-company/18d2d.svg'
 
-type When = 'today' | 'tomorrow' | 'weekend' | 'custom'
-export type SignalAdjustment = 'tomorrow' | 'any' | 'radius' | 'budget' | 'repeat' | null
+type When = 'tomorrow' | 'weekend' | 'custom'
+export type SignalAdjustment = 'repeat' | null
 type Form = {
   when: When
   start: string
@@ -52,7 +52,7 @@ function rangeFor(when: Exclude<When, 'custom'>): [Date, Date] {
     const days = (6 - start.getDay() + 7) % 7
     start.setDate(start.getDate() + days)
   }
-  start.setHours(when === 'today' ? 20 : 18, 0, 0, 0)
+  start.setHours(18, 0, 0, 0)
   if (start <= new Date()) start.setDate(start.getDate() + (when === 'weekend' ? 7 : 1))
   const end = new Date(start)
   end.setHours(23, 0, 0, 0)
@@ -103,6 +103,11 @@ function readDraft(key: string, fallback: Form): Form {
     if (!raw) return fallback
     const saved: Partial<Form> = JSON.parse(raw)
     if (!Array.isArray(saved.categories) || !Array.isArray(saved.groupIds)) return fallback
+    if (saved.when && !['tomorrow', 'weekend', 'custom'].includes(saved.when)) {
+      delete saved.when
+      delete saved.start
+      delete saved.end
+    }
     const taxonomy = getActivityTaxonomy()
     const valid = new Set([
       ...taxonomy.activities.map((activity) => activity.id),
@@ -126,19 +131,6 @@ function readDraft(key: string, fallback: Form): Form {
 
 function adjusted(form: Form, adjustment: SignalAdjustment): Form {
   if (adjustment === 'repeat') return { ...form, repeat: true }
-  if (adjustment === 'any')
-    return {
-      ...form,
-      categories: getActivityTaxonomy().directions.map((item) => `${item.id}/*`),
-    }
-  if (adjustment === 'radius') return { ...form, radius: '10' }
-  if (adjustment === 'budget') return { ...form, budget: String((Number(form.budget) || 0) + 200) }
-  if (adjustment === 'tomorrow') {
-    const end = new Date(form.end)
-    if (!Number.isFinite(end.getTime())) return form
-    end.setDate(end.getDate() + 1)
-    return { ...form, when: 'custom', end: formatLocalDateTimeInput(end) }
-  }
   return form
 }
 
@@ -146,22 +138,17 @@ function Choice({
   active,
   onClick,
   children,
-  className = '',
-  disabled = false,
 }: {
   active: boolean
   onClick: () => void
   children: React.ReactNode
-  className?: string
-  disabled?: boolean
 }) {
   return (
     <button
       type="button"
-      className={'choice ' + (active ? 'choice--selected ' : '') + className}
+      className={'choice' + (active ? ' choice--selected' : '')}
       aria-pressed={active}
       onClick={onClick}
-      disabled={disabled}
     >
       {children}
     </button>
@@ -263,19 +250,14 @@ export function SignalComposer({
   const budgetChoice = budgetOptions.includes(form.budget) ? form.budget : 'custom'
   const whenLabel = form.repeat
     ? 'Каждую неделю · ' + weekDays(form.weekdays)
-    : form.when === 'today'
-      ? 'Сегодня после 20:00'
-      : form.when === 'tomorrow'
-        ? 'Завтра · 18:00–23:00'
-        : form.when === 'weekend'
-          ? 'В субботу · 18:00–23:00'
-          : Number.isFinite(new Date(form.start).getTime()) &&
-              Number.isFinite(new Date(form.end).getTime())
-            ? formatSignalWindow(
-                new Date(form.start).toISOString(),
-                new Date(form.end).toISOString(),
-              )
-            : 'Выбери время'
+    : form.when === 'tomorrow'
+      ? 'Завтра · 18:00–23:00'
+      : form.when === 'weekend'
+        ? 'В субботу · 18:00–23:00'
+        : Number.isFinite(new Date(form.start).getTime()) &&
+            Number.isFinite(new Date(form.end).getTime())
+          ? formatSignalWindow(new Date(form.start).toISOString(), new Date(form.end).toISOString())
+          : 'Выбери время'
   const selectedActivitySummary = anyActivitySelected
     ? 'Любое занятие'
     : form.categories.length > 3
@@ -566,18 +548,7 @@ export function SignalComposer({
       <h1 id="signal-title">{existing ? 'Изменить условия' : 'Движ?'}</h1>
       <form onSubmit={(event) => void submit(event)}>
         <section className="form-section" aria-labelledby="when-title">
-          <div className="signal-composer__when-heading">
-            <h2 id="when-title">Когда?</h2>
-            {new Date().getHours() < 20 && !form.repeat ? (
-              <Choice
-                active={form.when === 'today'}
-                className="signal-composer__today"
-                onClick={() => chooseWhen('today')}
-              >
-                Сегодня после 20:00
-              </Choice>
-            ) : null}
-          </div>
+          <h2 id="when-title">Когда?</h2>
           {form.repeat ? (
             <>
               <div className="choices choices--weekdays" role="group" aria-label="Дни недели">
@@ -664,16 +635,7 @@ export function SignalComposer({
           ) : null}
         </section>
         <section className="form-section" aria-labelledby="category-title">
-          <div className="signal-composer__activity-heading">
-            <h2 id="category-title">Чем хочешь заняться?</h2>
-            <Choice
-              active={anyActivitySelected}
-              className="activity-any"
-              onClick={() => update({ categories: anyActivitySelected ? [] : allDirections })}
-            >
-              Любое занятие
-            </Choice>
-          </div>
+          <h2 id="category-title">Чем хочешь заняться?</h2>
           <label className="activity-catalog__search activity-catalog__search--inline">
             <img src={signalSearchIcon} alt="" />
             <span className="sr-only">Поиск занятия</span>

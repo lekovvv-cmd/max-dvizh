@@ -65,31 +65,6 @@
   letter-spacing: 0;
 }
 
-.signal-composer__when-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.signal-composer .signal-composer__today.choice,
-.signal-composer .signal-composer__today.choice.choice--selected {
-  min-height: 0;
-  border: 0;
-  border-radius: 0;
-  padding: 0;
-  background: transparent;
-  color: #471aff;
-  font-size: 11px;
-  line-height: 15px;
-  box-shadow: none;
-}
-
-.signal-composer .signal-composer__today.choice.choice--selected {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
 .signal-composer .choices--when {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -155,34 +130,6 @@
   padding: 8px 10px;
   background: #fff;
   color: #0d001a;
-}
-
-.signal-composer__activity-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-}
-
-.signal-composer .activity-any.choice {
-  width: auto;
-  min-height: 0 !important;
-  flex: 0 0 auto;
-  border: 0;
-  border-radius: 0;
-  padding: 2px 0;
-  background: transparent;
-  color: #471aff;
-  font-size: 11px;
-  font-weight: 600;
-  text-align: right;
-  white-space: nowrap;
-}
-
-.signal-composer .activity-any.choice.choice--selected {
-  color: #471aff;
-  text-decoration: underline;
-  text-underline-offset: 3px;
 }
 
 .signal-composer .activity-catalog__search--inline {
@@ -579,12 +526,6 @@
   color: var(--dvizh-ink);
 }
 
-:root[data-theme='dark'] .signal-composer .signal-composer__today.choice,
-:root[data-theme='dark'] .signal-composer .signal-composer__today.choice.choice--selected {
-  background: transparent;
-  color: #b7a2ff;
-}
-
 :root[data-theme='dark'] .signal-composer .choices.activity-quick .direction-tab:not(.is-current),
 :root[data-theme='dark']
   .signal-composer
@@ -631,11 +572,6 @@
 :root[data-theme='dark'] .signal-composer .company-option small,
 :root[data-theme='dark'] .signal-composer .choices--when .choice small {
   opacity: 0.8;
-}
-
-:root[data-theme='dark'] .signal-composer .activity-any.choice,
-:root[data-theme='dark'] .signal-composer .activity-any.choice.choice--selected {
-  color: #b7a2ff;
 }
 
 :root[data-theme='dark'] .signal-composer .repeat-control input[type='checkbox'] {

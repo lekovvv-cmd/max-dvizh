@@ -31,45 +31,10 @@ input[type='number']::-webkit-outer-spin-button {
   font-size: 14px;
   font-weight: 500;
 }
-.signal-composer .activity-any {
-  display: grid;
-  justify-items: start;
-  gap: 2px;
-  width: 100%;
-  min-height: 63px !important;
-  border-color: var(--dvizh-line);
-  border-radius: 16px;
-  padding: 11px 14px;
-  text-align: left;
-}
-.signal-composer .activity-any strong {
-  font-size: 15px;
-  font-weight: 500;
-}
-.signal-composer .activity-any small {
-  font-size: 12px;
-  color: var(--dvizh-muted);
-}
-.signal-composer .activity-any.choice--selected {
-  border-color: var(--dvizh-blue);
-  background: var(--dvizh-blue-soft);
-  color: var(--dvizh-ink);
-}
 .activity-catalog__search--inline {
   min-height: 52px;
   border-radius: 15px;
   background: var(--dvizh-surface);
-}
-.activity-catalog__search--inline button {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  flex: 0 0 auto;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  background: var(--dvizh-blue-soft);
-  color: var(--dvizh-blue);
 }
 .activity-catalog {
   max-height: 260px;
@@ -78,10 +43,6 @@ input[type='number']::-webkit-outer-spin-button {
   border-radius: 15px;
   padding: 6px;
   box-shadow: 0 12px 28px rgb(38 20 91 / 9%);
-}
-.activity-quick[aria-label='Направление для просмотра'] {
-  padding-bottom: 13px;
-  border-bottom: 1px solid var(--dvizh-line);
 }
 .activity-quick[aria-label='Занятие'] > .choice:first-child {
   border-color: var(--dvizh-blue);

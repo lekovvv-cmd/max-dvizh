@@ -116,17 +116,6 @@
   line-height: 1.5;
 }
 
-.signal-composer .activity-quick[aria-label='Направление для просмотра'] {
-  gap: 4px;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  padding: 2px 0 0;
-  border-bottom: 1px solid var(--dvizh-line);
-  scrollbar-width: none;
-}
-.signal-composer .activity-quick[aria-label='Направление для просмотра']::-webkit-scrollbar {
-  display: none;
-}
 .signal-composer .direction-tab,
 :root[data-theme='dark'] .signal-composer .direction-tab {
   flex: 0 0 auto;
@@ -151,20 +140,13 @@
   color: var(--dvizh-ink);
 }
 .signal-composer .activity-quick[aria-label='Занятие'] .choice.choice--selected,
-.signal-composer .activity-any.choice--selected,
 :root[data-theme='dark']
   .signal-composer
   .activity-quick[aria-label='Занятие']
-  .choice.choice--selected,
-:root[data-theme='dark'] .signal-composer .activity-any.choice--selected {
+  .choice.choice--selected {
   border-color: var(--dvizh-ink);
   background: var(--dvizh-ink);
   color: var(--dvizh-surface);
-}
-.signal-composer .activity-any.choice--selected small,
-:root[data-theme='dark'] .signal-composer .activity-any.choice--selected small {
-  color: inherit;
-  opacity: 0.8;
 }
 .signal-composer .company-option {
   min-height: 66px;
