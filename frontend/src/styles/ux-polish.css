@@ -329,6 +329,12 @@ input[type='number']::-webkit-outer-spin-button {
 :root[data-theme='dark'] .system-state {
   background: var(--dvizh-bg);
 }
+:root[data-theme='dark'] .dvizh-list__title {
+  color: var(--dvizh-ink);
+}
+:root[data-theme='dark'] .home-intro__repeat .text-action {
+  color: #5d31c4;
+}
 :root[data-theme='dark'] input,
 :root[data-theme='dark'] .activity-catalog__search,
 :root[data-theme='dark'] .activity-catalog__item,

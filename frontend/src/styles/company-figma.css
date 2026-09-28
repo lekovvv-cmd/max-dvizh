@@ -44,9 +44,10 @@
   border-radius: 5px;
   padding: 0;
   background: transparent;
+  color: #471aff;
 }
 
-.company-page__new img {
+.company-page__new svg {
   display: block;
   width: 24px;
   height: 24px;
@@ -336,56 +337,58 @@
   height: 15px;
 }
 
-.bottom-nav.bottom-nav--company {
-  display: flex;
+.bottom-nav.bottom-nav--figma {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: center;
-  justify-content: center;
-  gap: 49px;
+  justify-items: center;
+  gap: 0;
   height: 66px;
-  padding: 13px 32px;
+  padding: 8px 0;
   border: 0;
+  border-radius: 0;
   background: #fff;
   box-shadow: none;
   backdrop-filter: none;
 }
 
-.bottom-nav--company button {
-  min-height: 40px;
+.app-shell:has(.offer-pool) .bottom-nav.bottom-nav--figma {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.bottom-nav--figma button {
+  width: 100%;
+  min-height: 50px;
   gap: 4px;
   border-radius: 0;
   padding: 0;
-  background: transparent !important;
+  background: transparent;
   color: #0d001a;
   font-family: Inter, sans-serif;
   font-size: 10px;
   font-weight: 500;
   line-height: 12px;
   letter-spacing: 0.1px;
-  flex: 0 0 auto;
 }
 
-.bottom-nav--company button:nth-child(1) {
-  width: 41px;
+.company-page button,
+.company-place-dialog button,
+.bottom-nav--figma button {
+  transition: none;
 }
 
-.bottom-nav--company button:nth-child(2) {
-  width: 60px;
+.bottom-nav--figma button:not(.is-active) {
+  color: #68647a;
 }
 
-.bottom-nav--company button:nth-child(3) {
-  width: 53px;
-}
-
-.bottom-nav--company button:not(.is-active) {
-  opacity: 0.3;
-}
-
-.bottom-nav--company button.is-active {
+.bottom-nav--figma button.is-active {
+  background: transparent;
   color: #471aff;
 }
 
-.bottom-nav--company .bottom-nav__icon,
-.bottom-nav--company button.is-active .bottom-nav__icon {
+.bottom-nav--figma .bottom-nav__icon,
+.bottom-nav--figma button.is-active .bottom-nav__icon {
   width: 24px;
   height: 24px;
   border-radius: 0;
@@ -393,12 +396,19 @@
   color: inherit;
 }
 
-.bottom-nav--company .bottom-nav__icon img {
+.bottom-nav--figma .bottom-nav__glyph {
   display: block;
-  width: auto;
-  max-width: 24px;
-  height: auto;
-  max-height: 24px;
+  width: 24px;
+  height: 24px;
+  background: currentColor;
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
+}
+
+.bottom-nav--figma button:first-child .bottom-nav__glyph {
+  width: 21px;
+  height: 20px;
 }
 
 .company-place-overlay {
@@ -637,7 +647,8 @@
 
 :root[data-theme='dark'] .company-group-card__city img,
 :root[data-theme='dark'] .company-group-card__toggle img,
-:root[data-theme='dark'] .company-place > button img {
+:root[data-theme='dark'] .company-place > button img,
+:root[data-theme='dark'] .company-place-dialog__close img {
   filter: brightness(0) invert(1);
 }
 
@@ -659,33 +670,38 @@
   background: #7860df;
 }
 
+:root[data-theme='dark'] .company-page__new {
+  color: #7860df;
+}
+
 :root[data-theme='dark'] .company-group-card__avatar {
   color: #b7a2ff;
 }
 
-:root[data-theme='dark'] .bottom-nav.bottom-nav--company {
+:root[data-theme='dark'] .bottom-nav.bottom-nav--figma {
   background: #211e32;
 }
 
-:root[data-theme='dark'] .bottom-nav--company button:not(.is-active) {
-  color: #f6f3ff;
-  opacity: 0.5;
+:root[data-theme='dark'] .bottom-nav--figma button:not(.is-active) {
+  color: #b9b1ce;
 }
 
-:root[data-theme='dark'] .bottom-nav--company button:not(.is-active) img {
-  filter: brightness(0) invert(1);
-}
-
-:root[data-theme='dark'] .bottom-nav--company button.is-active .bottom-nav__icon {
+:root[data-theme='dark'] .bottom-nav--figma button.is-active .bottom-nav__icon {
   background: transparent;
+  color: inherit;
 }
 
-:root[data-theme='dark'] .bottom-nav--company button.is-active {
+:root[data-theme='dark'] .bottom-nav--figma button.is-active {
   color: #b7a2ff;
 }
 
-:root[data-theme='dark'] .bottom-nav--company button.is-active img {
-  filter: brightness(1.65);
+:root[data-theme='dark'] .company-place-dialog__name input::placeholder,
+:root[data-theme='dark'] .company-place-dialog .place-picker__input input::placeholder {
+  color: var(--dvizh-muted);
+}
+
+:root[data-theme='dark'] .company-place-dialog__danger {
+  color: #ff9b8f;
 }
 
 :root[data-theme='dark'] .company-toast {

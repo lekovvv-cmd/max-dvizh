@@ -8,7 +8,6 @@ import downIcon from '../../assets/figma-company/4ce99.svg'
 import editIcon from '../../assets/figma-company/188ab.svg'
 import avatarCircle from '../../assets/figma-company/5a81c.svg'
 import closeIcon from '../../assets/figma-company/5aeef.svg'
-import plusIcon from '../../assets/figma-company/a4cc3.svg'
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog'
 import { PlacePicker, type SelectedPlace } from '../../shared/ui/PlacePicker'
 import { SectionHeader } from '../../shared/ui/SectionHeader'
@@ -258,7 +257,10 @@ export function Company({
             aria-label="Новая компания"
             onClick={onNew}
           >
-            <img src={plusIcon} alt="" />
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect width="24" height="24" rx="5" fill="currentColor" />
+              <path d="M12 20V4M4 12h16" stroke="white" strokeWidth="2" strokeLinecap="round" />
+            </svg>
           </button>
         }
       />
