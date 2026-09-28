@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import json
+from datetime import timedelta
 
+import httpx
 from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
@@ -15,7 +18,12 @@ from app.api.deps import DbSession
 from app.api.routes.dvizh import ConfirmationIn, confirm
 from app.core.config import settings
 from app.db.models import Group, MaxWebhookEvent, OutboxNotification, User
-from app.modules.max_integration.client import DVIZH_MESSAGE_KINDS, dvizh_notification_current
+from app.modules.max_integration.client import (
+    DVIZH_MESSAGE_KINDS,
+    dvizh_notification_current,
+    send_callback_answer,
+    utcnow,
+)
 
 router = APIRouter(tags=["max integration"])
 
@@ -79,6 +87,7 @@ async def max_webhook(
     key = fingerprint(update)
     if session.get(MaxWebhookEvent, key):
         return {"ok": True}
+    callback_answer: OutboxNotification | None = None
     if update.update_type == "bot_removed" and update.chat_id is not None:
         group = session.scalar(select(Group).where(Group.max_chat_id == str(update.chat_id)))
         if group:
@@ -133,21 +142,36 @@ async def max_webhook(
                         if result["my_confirmation"] == "CONFIRMED"
                         else "Ты в листе ожидания. Проверь позже в ДВИЖе."
                     )
-                except HTTPException:
-                    answer = "Этот вариант уже недоступен. Открой ДВИЖ."
+                except HTTPException as error:
+                    answer = str(error.detail)
             if callback_id:
-                session.add(
-                    OutboxNotification(
-                        kind="MAX_CALLBACK_ANSWER",
-                        user_id=user.id,
-                        payload={"callback_id": callback_id, "text": answer},
-                        dedupe_key=f"MAX_CALLBACK_ANSWER:{callback_id}",
-                        status="PENDING",
-                    )
+                callback_answer = OutboxNotification(
+                    kind="MAX_CALLBACK_ANSWER",
+                    user_id=user.id,
+                    payload={"callback_id": callback_id, "text": answer},
+                    dedupe_key=f"MAX_CALLBACK_ANSWER:{callback_id}",
+                    status="PENDING",
+                    next_attempt_at=utcnow() + timedelta(seconds=10),
                 )
+                session.add(callback_answer)
     session.add(MaxWebhookEvent(fingerprint=key))
     try:
         session.commit()
     except IntegrityError:
         session.rollback()
+        return {"ok": True}
+    if callback_answer is not None:
+        try:
+            await asyncio.to_thread(
+                send_callback_answer,
+                str(callback_answer.payload["callback_id"]),
+                str(callback_answer.payload["text"]),
+            )
+        except httpx.HTTPError:
+            callback_answer.next_attempt_at = None
+        else:
+            callback_answer.status = "SENT"
+            callback_answer.sent_at = utcnow()
+            callback_answer.next_attempt_at = None
+        session.commit()
     return {"ok": True}

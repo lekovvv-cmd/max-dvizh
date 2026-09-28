@@ -48,8 +48,7 @@ export function DvizhFlow({
   const pending = stack.filter(
     (candidate) => !candidate.my_reaction && new Date(candidate.expires_at) > new Date(),
   )
-  const current =
-    dvizh.status === 'AWAITING_CONFIRMATION' || selectionFinished ? undefined : pending[0]
+  const current = selectionFinished || dvizh.my_confirmation ? undefined : pending[0]
   const actionableCount = stack.length
   const match = dvizh.candidates.find((candidate) => candidate.id === dvizh.active_candidate_id)
   const chosenPlaces = dvizh.candidates.filter((candidate) => candidate.my_reaction === 'WOULD_GO')
@@ -213,7 +212,11 @@ export function DvizhFlow({
           <header className="dvizh-flow__heading">
             <div>
               <h1>Куда пошёл бы?</h1>
-              <p>Выбери места, куда ты реально готов пойти</p>
+              <p>
+                {needsConfirm
+                  ? 'Есть совпадение. Посмотри остальные места или перейди к подтверждению.'
+                  : 'Выбери места, куда ты реально готов пойти'}
+              </p>
             </div>
           </header>
           <div
@@ -273,13 +276,13 @@ export function DvizhFlow({
               Пойду
             </button>
           </div>
-          {choosing && dvizh.chosen_count > 0 ? (
+          {(choosing ? dvizh.chosen_count > 0 : chosenPlaces.length > 0) ? (
             <button
               className="text-action"
               disabled={busy}
               onClick={() => setSelectionFinished(true)}
             >
-              Закончить выбор
+              {needsConfirm ? 'Перейти к совпадению' : 'Закончить выбор'}
             </button>
           ) : null}
           {placeSearch}
@@ -442,6 +445,11 @@ export function DvizhFlow({
               </div>
             )}
           </div>
+          {pending.length > 0 && !dvizh.my_confirmation ? (
+            <button className="text-action" onClick={() => setSelectionFinished(false)}>
+              Вернуться к выбору мест
+            </button>
+          ) : null}
         </>
       ) : dvizh.status === 'GATHERED' && match ? (
         <>
@@ -463,6 +471,11 @@ export function DvizhFlow({
           <p>
             {dvizh.chosen_count} {placeNoun} · минимум {formatPeople(dvizh.min_people)}
           </p>
+          {pending.length > 0 && selectionFinished ? (
+            <button className="text-action" onClick={() => setSelectionFinished(false)}>
+              Вернуться к выбору мест
+            </button>
+          ) : null}
           <button type="button" className="secondary-button" onClick={onNew}>
             Подать ещё сигнал
           </button>

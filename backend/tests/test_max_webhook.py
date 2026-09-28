@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 
+import httpx
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -14,6 +15,8 @@ from app.core.config import Settings
 from app.db.models import (
     Base,
     DvizhCandidate,
+    DvizhConfirmation,
+    DvizhReaction,
     DvizhSession,
     Group,
     GroupMember,
@@ -66,6 +69,12 @@ def test_webhook_secret_and_duplicate_bot_start(monkeypatch) -> None:
 
     app.dependency_overrides[get_session] = db_session
     monkeypatch.setattr(max_webhook, "settings", Settings(max_webhook_secret="test-secret"))
+    answers = []
+    monkeypatch.setattr(
+        max_webhook,
+        "send_callback_answer",
+        lambda callback_id, text: answers.append((callback_id, text)),
+    )
     update = {
         "update_type": "bot_started",
         "timestamp": 1750000000000,
@@ -111,6 +120,133 @@ def test_webhook_secret_and_duplicate_bot_start(monkeypatch) -> None:
         events = list(session.scalars(select(OutboxNotification)))
         assert {event.kind for event in events} == {"MAX_WELCOME", "MAX_CALLBACK_ANSWER"}
         assert len(events) == 2
+        assert (
+            next(event for event in events if event.kind == "MAX_CALLBACK_ANSWER").status == "SENT"
+        )
+        assert answers == [("click-1", "Движ не найден")]
+
+
+def test_callback_confirms_participation_and_retries_answer_on_network_failure(monkeypatch) -> None:
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    Base.metadata.create_all(engine)
+    app = FastAPI()
+    app.include_router(max_webhook.router)
+
+    def db_session():
+        with Session(engine) as session:
+            yield session
+
+    app.dependency_overrides[get_session] = db_session
+    monkeypatch.setattr(max_webhook, "settings", Settings(max_webhook_secret="test-secret"))
+    answers = []
+
+    def answer(callback_id, text):
+        answers.append((callback_id, text))
+        if callback_id == "click-2":
+            raise httpx.ConnectError("connection failed")
+
+    monkeypatch.setattr(max_webhook, "send_callback_answer", answer)
+    with Session(engine) as session:
+        user = User(max_user_id="123", display_name="Антон")
+        session.add(user)
+        session.flush()
+        group = Group(name="Компания", default_city_slug="msk", created_by=user.id)
+        session.add(group)
+        session.flush()
+        session.add(GroupMember(group_id=group.id, user_id=user.id))
+        signal = Intent(
+            user_id=user.id,
+            group_id=group.id,
+            type="ONE_TIME",
+            city_slug="msk",
+            activity_category="quest",
+            min_people=2,
+        )
+        session.add(signal)
+        session.flush()
+        start = datetime.now(UTC) + timedelta(hours=2)
+        dvizh = DvizhSession(
+            signal_id=signal.id,
+            group_id=group.id,
+            initiator_id=user.id,
+            status="AWAITING_CONFIRMATION",
+            activity_ids=["quest"],
+            min_people=2,
+            max_people=3,
+            expires_at=start,
+        )
+        session.add(dvizh)
+        session.flush()
+        candidate = DvizhCandidate(
+            session_id=dvizh.id,
+            position=0,
+            provider="KUDAGO",
+            provider_item_id="demo",
+            item_type="EVENT",
+            title="Квест",
+            activity_ids=["quest"],
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+            compatibility="EXACT",
+            seed=True,
+            expires_at=start - timedelta(minutes=10),
+        )
+        session.add(candidate)
+        session.flush()
+        dvizh.active_candidate_id = candidate.id
+        session.add(DvizhReaction(candidate_id=candidate.id, user_id=user.id, value="WOULD_GO"))
+        session.commit()
+        candidate_id, dvizh_id = candidate.id, dvizh.id
+
+    def callback(callback_id):
+        return {
+            "update_type": "message_callback",
+            "timestamp": 1750000000000,
+            "callback": {
+                "callback_id": callback_id,
+                "payload": f"confirm:{dvizh_id}:{candidate_id}",
+                "user": {"user_id": 123},
+            },
+        }
+
+    headers = {"X-Max-Bot-Api-Secret": "test-secret"}
+    with TestClient(app) as client:
+        assert (
+            client.post(
+                "/integrations/max/webhook", json=callback("click-1"), headers=headers
+            ).status_code
+            == 200
+        )
+        assert (
+            client.post(
+                "/integrations/max/webhook", json=callback("click-1"), headers=headers
+            ).status_code
+            == 200
+        )
+        assert (
+            client.post(
+                "/integrations/max/webhook", json=callback("click-2"), headers=headers
+            ).status_code
+            == 200
+        )
+    with Session(engine) as session:
+        confirmations = list(session.scalars(select(DvizhConfirmation)))
+        assert len(confirmations) == 1 and confirmations[0].status == "CONFIRMED"
+        first = session.scalar(
+            select(OutboxNotification).where(
+                OutboxNotification.dedupe_key == "MAX_CALLBACK_ANSWER:click-1"
+            )
+        )
+        second = session.scalar(
+            select(OutboxNotification).where(
+                OutboxNotification.dedupe_key == "MAX_CALLBACK_ANSWER:click-2"
+            )
+        )
+        assert first.status == "SENT"
+        assert second.status == "PENDING" and second.next_attempt_at is None
+        assert answers == [("click-1", "Ты в деле!"), ("click-2", "Ты в деле!")]
 
 
 def test_max_outbox_buttons_use_callback_only_for_exact_match(monkeypatch) -> None:
@@ -153,8 +289,14 @@ def test_max_outbox_buttons_use_callback_only_for_exact_match(monkeypatch) -> No
     max_client.send_dvizh_message("123", near)
     max_client.send_welcome("123")
     max_client.send_callback_answer("click-1", "Сохранено")
-    buttons = [call[1]["json"]["attachments"][0]["payload"]["buttons"][0][0] for call in sent[:3]]
+    keyboards = [call[1]["json"]["attachments"][0]["payload"]["buttons"] for call in sent[:3]]
+    buttons = [keyboard[0][0] for keyboard in keyboards]
     assert buttons[0] == {"type": "callback", "text": "Я в деле", "payload": "confirm:d1:c1"}
+    assert keyboards[0][1][0] == {
+        "type": "link",
+        "text": "Открыть ДВИЖ",
+        "url": "https://max.ru/DvizhBot?startapp=dvizh_d1",
+    }
     assert buttons[1]["type"] == "link" and "startapp=dvizh_d1" in buttons[1]["url"]
     assert buttons[2]["text"] == "Открыть ДВИЖ"
     assert buttons[2]["url"] == "https://max.ru/DvizhBot?startapp"

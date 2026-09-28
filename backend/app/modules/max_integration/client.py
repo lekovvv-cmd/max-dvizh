@@ -190,13 +190,15 @@ def send_dvizh_message(max_user_id: str, event: OutboxNotification) -> bool:
     body: dict[str, object] = {"text": text, "notify": True}
     if link:
         button: dict[str, str] = {"type": "link", "text": label, "url": link}
+        buttons = [[button]]
         if event.kind == "DVIZH_MATCH_FOUND" and event.payload.get("compatibility") == "EXACT":
             button = {
                 "type": "callback",
                 "text": "Я в деле",
                 "payload": f"confirm:{event.payload['dvizh_id']}:{event.payload['candidate_id']}",
             }
-        body["attachments"] = [{"type": "inline_keyboard", "payload": {"buttons": [[button]]}}]
+            buttons = [[button], [{"type": "link", "text": "Открыть ДВИЖ", "url": link}]]
+        body["attachments"] = [{"type": "inline_keyboard", "payload": {"buttons": buttons}}]
     response = httpx.post(
         f"{settings.max_bot_api_base}/messages",
         params={"user_id": max_user_id},
@@ -217,7 +219,13 @@ def send_callback_answer(callback_id: str, message: str) -> None:
         timeout=5,
     )
     response.raise_for_status()
-    if response.json().get("success") is not True:
+    try:
+        result = response.json()
+    except ValueError as error:
+        raise httpx.HTTPStatusError(
+            "MAX returned an invalid callback answer", request=response.request, response=response
+        ) from error
+    if not isinstance(result, dict) or result.get("success") is not True:
         raise httpx.HTTPStatusError(
             "MAX rejected the callback answer", request=response.request, response=response
         )

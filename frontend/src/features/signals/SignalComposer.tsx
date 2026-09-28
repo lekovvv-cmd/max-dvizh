@@ -31,6 +31,7 @@ type Form = {
   categories: string[]
   groupIds: string[]
   budget: string
+  budgetCustom: boolean
   radius: string
   locationId: string
   people: GroupSizeChoice
@@ -86,6 +87,7 @@ function initialForm(groups: Group[], group: Group, existing?: Intent): Form {
             .map((item) => `${item.id}/*`),
     groupIds: [selected],
     budget: existing?.budget_max?.toString() ?? '',
+    budgetCustom: !budgetOptions.includes(existing?.budget_max?.toString() ?? ''),
     radius: existing?.radius_km?.toString() ?? '',
     locationId: existing?.origin_location_id ?? '',
     people: size.choice,
@@ -116,6 +118,10 @@ function readDraft(key: string, fallback: Form): Form {
     return {
       ...fallback,
       ...saved,
+      budgetCustom:
+        typeof saved.budgetCustom === 'boolean'
+          ? saved.budgetCustom
+          : !budgetOptions.includes(saved.budget ?? fallback.budget),
       categories: [
         ...new Set(
           saved.categories.filter(
@@ -226,7 +232,10 @@ export function SignalComposer({
   const cityMismatch = new Set(selectedGroups.map((item) => item.city_slug)).size > 1
   const city = cityMismatch ? '' : (selectedGroups[0]?.city_slug ?? group.city_slug)
   const places = locations.filter((item) => item.city_slug === city && item.kind !== 'CURRENT')
-  const budget = parseOptionalInteger(form.budget, 0, 100000)
+  const budget =
+    form.budgetCustom && form.budget.trim() === ''
+      ? undefined
+      : parseOptionalInteger(form.budget, 0, 100000)
   const radius = parseOptionalRadius(form.radius)
   const people = groupSizeRange(form.people, parseExactPeople(form.exactPeople))
   const selectedPlace = locations.find(
@@ -247,7 +256,7 @@ export function SignalComposer({
       (!form.repeat || form.weekdays.length),
   )
   const dirty = JSON.stringify(form) !== JSON.stringify(initial.current)
-  const budgetChoice = budgetOptions.includes(form.budget) ? form.budget : 'custom'
+  const budgetChoice = form.budgetCustom ? 'custom' : form.budget
   const whenLabel = form.repeat
     ? 'Каждую неделю · ' + weekDays(form.weekdays)
     : form.when === 'tomorrow'
@@ -792,6 +801,7 @@ export function SignalComposer({
                     active={budgetChoice === option}
                     onClick={() =>
                       update({
+                        budgetCustom: option === 'custom',
                         budget:
                           option === 'custom'
                             ? budgetChoice === 'custom'

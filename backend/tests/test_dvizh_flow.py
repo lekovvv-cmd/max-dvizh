@@ -119,6 +119,55 @@ def test_unknown_price_keeps_candidate_and_allows_reaction(monkeypatch: pytest.M
         assert reacted["candidates"][0]["my_reaction"] == "WOULD_GO"
 
 
+def test_friend_can_review_remaining_places_after_first_match(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        users, _, item, payload = fixture(session)
+        second = replace(item, provider_id="quest-2", title="Другой квест")
+        monkeypatch.setattr(
+            routes,
+            "fetch_items",
+            lambda query: ProviderResult(
+                [item, second], cached=False, fetched_at=datetime.now(UTC)
+            ),
+        )
+        created = routes.create_signal(
+            payload.model_copy(update={"min_people": 2}), session, users[0], "multi-place-review"
+        )
+        dvizh = created["dvizhi"][0]
+        first_id, second_id = [candidate["id"] for candidate in dvizh["candidates"]]
+        for candidate_id in (first_id, second_id):
+            routes.react(
+                dvizh["id"], candidate_id, routes.ReactionIn(value="WOULD_GO"), session, users[0]
+            )
+        assert routes.launch(dvizh["id"], session, users[0])["status"] == "COLLECTING_REACTIONS"
+        first = routes.react(
+            dvizh["id"], first_id, routes.ReactionIn(value="WOULD_GO"), session, users[1]
+        )
+        assert first["status"] == "AWAITING_CONFIRMATION"
+        assert first["active_candidate_id"] == first_id
+        assert (
+            next(candidate for candidate in first["candidates"] if candidate["id"] == second_id)[
+                "my_reaction"
+            ]
+            is None
+        )
+
+        reviewed = routes.react(
+            dvizh["id"], second_id, routes.ReactionIn(value="WOULD_GO"), session, users[1]
+        )
+        assert reviewed["status"] == "AWAITING_CONFIRMATION"
+        assert (
+            next(candidate for candidate in reviewed["candidates"] if candidate["id"] == second_id)[
+                "my_reaction"
+            ]
+            == "WOULD_GO"
+        )
+
+
 def test_unknown_hours_are_not_treated_as_explicitly_closed() -> None:
     start = datetime.now(UTC) + timedelta(hours=2)
     assert _daily_hours_fit(None, start, start + timedelta(hours=1), "Europe/Moscow")

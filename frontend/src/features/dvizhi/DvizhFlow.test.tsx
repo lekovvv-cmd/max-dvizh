@@ -110,6 +110,53 @@ describe('finite candidate round', () => {
     expect(signal).not.toHaveTextContent('Твой сигнал')
   })
 
+  it('continues showing the remaining places when the first reaction creates a match', async () => {
+    const item = sample()
+    item.is_initiator = false
+    item.status = 'COLLECTING_REACTIONS'
+    item.candidates.push({
+      ...item.candidates[0],
+      id: 'c2',
+      title: 'Другой квест',
+      position: 1,
+    })
+    const matched: Dvizh = {
+      ...item,
+      status: 'AWAITING_CONFIRMATION',
+      active_candidate_id: 'c1',
+      candidates: [{ ...item.candidates[0], my_reaction: 'WOULD_GO' }, item.candidates[1]],
+    }
+    const complete: Dvizh = {
+      ...matched,
+      candidates: [matched.candidates[0], { ...matched.candidates[1], my_reaction: 'WOULD_GO' }],
+    }
+    const save = vi
+      .spyOn(api, 'react')
+      .mockResolvedValueOnce(matched)
+      .mockResolvedValueOnce(complete)
+    const update = vi.fn()
+    const view = render(
+      <DvizhFlow dvizh={item} onUpdate={update} onEdit={vi.fn()} onNew={vi.fn()} />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Пойду' }))
+    await waitFor(() => expect(update).toHaveBeenCalledWith(matched))
+    view.rerender(<DvizhFlow dvizh={matched} onUpdate={update} onEdit={vi.fn()} onNew={vi.fn()} />)
+    expect(screen.getByText('Другой квест')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Похоже, совпало' })).not.toBeInTheDocument()
+
+    expect(screen.getByText(/Есть совпадение. Посмотри остальные места/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Перейти к совпадению' }))
+    expect(screen.getByRole('heading', { name: 'Похоже, совпало' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Вернуться к выбору мест' }))
+    expect(screen.getByText('Другой квест')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Пойду' }))
+    await waitFor(() => expect(save).toHaveBeenCalledWith('d1', 'c2', 'WOULD_GO', false))
+    view.rerender(<DvizhFlow dvizh={complete} onUpdate={update} onEdit={vi.fn()} onNew={vi.fn()} />)
+    expect(screen.getByRole('heading', { name: 'Похоже, совпало' })).toBeInTheDocument()
+  })
+
   it('uses right and left pointer gestures with a meaningful threshold', async () => {
     const item = sample()
     const save = vi.spyOn(api, 'react').mockResolvedValue(item)
