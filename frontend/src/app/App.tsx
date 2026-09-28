@@ -318,7 +318,7 @@ export function App() {
         </section>
       </main>
     )
-  if (!group || creatingGroup)
+  if (!group)
     return (
       <CreateCompany
         chatAvailable={chatAvailable}
@@ -430,6 +430,14 @@ export function App() {
           setLocations(await api.locations())
         }}
         onNew={() => setCreatingGroup(true)}
+        createOpen={creatingGroup}
+        chatAvailable={chatAvailable}
+        onCreateClose={() => setCreatingGroup(false)}
+        onCreated={(created) => {
+          setGroupId(created.id)
+          setCreatingGroup(false)
+          void load()
+        }}
         onSelect={(value) => {
           setGroupId(value.id)
           setTargetId(null)

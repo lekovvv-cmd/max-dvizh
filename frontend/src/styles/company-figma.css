@@ -11,10 +11,6 @@
   background: #f6f7fb;
 }
 
-.app-shell:has(.company-group-card.is-expanded) {
-  padding-top: max(14px, env(safe-area-inset-top));
-}
-
 .company-page {
   gap: 20px;
   font-family: Inter, sans-serif;
@@ -115,8 +111,7 @@
 }
 
 .company-group-card__name,
-.company-group-card__count,
-.company-group-card__city {
+.company-group-card__count {
   position: absolute;
   left: 52px;
   font-size: 12px;
@@ -139,27 +134,6 @@
   font-weight: 500;
 }
 
-.company-group-card__city {
-  z-index: 2;
-  top: 24px;
-  display: inline-flex;
-  max-width: calc(100% - 80px);
-  align-items: center;
-  gap: 6px;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: #0d001a;
-  font-weight: 500;
-  opacity: 0.5;
-}
-
-.company-group-card__city img {
-  width: 14px;
-  height: 15px;
-  flex: 0 0 auto;
-}
-
 .company-group-card__toggle {
   position: absolute;
   z-index: 1;
@@ -178,19 +152,6 @@
   height: 15px;
   margin-right: 4px;
   opacity: 0.8;
-}
-
-.company-group-card.is-expanded .company-group-card__toggle img {
-  width: 24px;
-  height: 24px;
-  margin-right: 0;
-  transform: rotate(90deg);
-}
-
-.company-group-card__details {
-  display: grid;
-  gap: 16px;
-  margin-top: 16px;
 }
 
 .company-group-card__members > p {
@@ -413,26 +374,82 @@
 
 .company-place-overlay {
   position: fixed;
-  z-index: 9;
-  inset: 0 0 66px;
+  z-index: 30;
+  inset: 0;
   display: grid;
   place-items: center;
   padding: 16px;
   background: rgb(13 0 26 / 40%);
+  animation: company-overlay-in 220ms ease-out both;
+}
+
+.company-place-overlay[data-state='closing'] {
+  pointer-events: none;
+  animation: company-overlay-out 190ms ease-in both;
+}
+
+body:has(.company-place-overlay[data-open='true']) {
+  overflow: hidden;
 }
 
 .company-place-dialog {
   display: flex;
   width: min(343px, 100%);
+  max-height: calc(100dvh - 32px);
   flex-direction: column;
   align-items: flex-end;
   gap: 7px;
+  overflow-y: auto;
   border-radius: 20px;
   padding: 16px 16px 30px;
   background: #fff;
   color: #0d001a;
   font-family: Inter, sans-serif;
-  transform: translateY(-3px);
+  animation: company-dialog-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.company-place-overlay[data-state='closing'] .company-place-dialog {
+  animation: company-dialog-out 190ms ease-in both;
+}
+
+@keyframes company-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes company-overlay-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes company-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes company-dialog-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
 }
 
 .company-place-dialog:focus {
@@ -458,6 +475,80 @@
   display: grid;
   width: 100%;
   gap: 12px;
+}
+
+.company-place-dialog__description {
+  margin: 0;
+  color: rgb(13 0 26 / 60%);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.company-popup__city {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 32px;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #68647a;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.company-popup__city img {
+  width: 14px;
+  height: 15px;
+}
+
+.company-create-form form {
+  display: grid;
+  gap: 12px;
+}
+
+.company-create-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.company-create-form input {
+  width: 100%;
+  min-height: 51px;
+  border: 1px solid rgb(13 0 26 / 10%);
+  border-radius: 10px;
+  padding: 0 10px;
+  background: #fff;
+  color: #0d001a;
+}
+
+.company-create-popup .create-company__submit,
+.company-create-popup .create-company__chat,
+.company-create-popup .create-company__back {
+  width: 100%;
+  min-height: 51px;
+  border-radius: 10px;
+}
+
+.company-create-popup .create-company__submit,
+.company-create-popup .create-company__chat {
+  background: #471aff;
+  color: #fff;
+}
+
+.company-create-popup:has(.create-company__chat) .create-company__submit {
+  border: 1px solid rgb(13 0 26 / 10%);
+  background: #fff;
+  color: #0d001a;
+}
+
+.company-create-popup .create-company__back {
+  border: 1px solid rgb(13 0 26 / 10%);
+  background: #fff;
+  color: #0d001a;
 }
 
 .company-place-dialog__name {
@@ -578,6 +669,10 @@
   animation: company-toast-in 180ms ease-out;
 }
 
+.company-toast[data-state='closing'] {
+  animation: company-toast-out 250ms ease-in both;
+}
+
 @keyframes company-toast-in {
   from {
     opacity: 0;
@@ -590,6 +685,13 @@
   }
 }
 
+@keyframes company-toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -597,14 +699,6 @@
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
-}
-
-@media (min-width: 480px) {
-  .company-place-overlay {
-    left: 50%;
-    width: 480px;
-    transform: translateX(-50%);
-  }
 }
 
 @media (max-width: 350px) {
@@ -640,15 +734,10 @@
   color: var(--dvizh-ink);
 }
 
-:root[data-theme='dark'] .company-group-card__city {
-  color: var(--dvizh-ink);
-  opacity: 0.8;
-}
-
-:root[data-theme='dark'] .company-group-card__city img,
 :root[data-theme='dark'] .company-group-card__toggle img,
 :root[data-theme='dark'] .company-place > button img,
-:root[data-theme='dark'] .company-place-dialog__close img {
+:root[data-theme='dark'] .company-place-dialog__close img,
+:root[data-theme='dark'] .company-popup__city img {
   filter: brightness(0) invert(1);
 }
 
@@ -663,6 +752,25 @@
 
 :root[data-theme='dark'] .company-group-card__members li small {
   color: var(--dvizh-muted);
+}
+
+:root[data-theme='dark'] .company-place-dialog__description,
+:root[data-theme='dark'] .company-popup__city {
+  color: var(--dvizh-muted);
+}
+
+:root[data-theme='dark'] .company-create-form input,
+:root[data-theme='dark'] .company-create-popup .create-company__back,
+:root[data-theme='dark'] .company-create-popup:has(.create-company__chat) .create-company__submit {
+  border-color: var(--dvizh-line);
+  background: var(--dvizh-surface);
+  color: var(--dvizh-ink);
+}
+
+:root[data-theme='dark'] .company-create-popup .create-company__submit,
+:root[data-theme='dark'] .company-create-popup .create-company__chat {
+  background: #7860df;
+  color: #fff;
 }
 
 :root[data-theme='dark'] .company-group-card__icon,

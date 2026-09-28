@@ -4,15 +4,14 @@ import { api, setDemoUser } from '../../app/api'
 import type { Group, GroupCityUpdateResult, GroupMember, Location } from '../../app/api'
 import groupIcon from '../../assets/figma-company/8deaf.svg'
 import arrowIcon from '../../assets/figma-company/18d2d.svg'
-import downIcon from '../../assets/figma-company/4ce99.svg'
 import editIcon from '../../assets/figma-company/188ab.svg'
 import avatarCircle from '../../assets/figma-company/5a81c.svg'
-import closeIcon from '../../assets/figma-company/5aeef.svg'
-import { ConfirmDialog } from '../../shared/ui/ConfirmDialog'
 import { PlacePicker, type SelectedPlace } from '../../shared/ui/PlacePicker'
 import { SectionHeader } from '../../shared/ui/SectionHeader'
 import { CityPicker } from '../../shared/ui/CityPicker'
 import { formatPeople } from '../../shared/lib/format'
+import { CompanyPopup } from './CompanyPopup'
+import { CreateCompany } from './CreateCompany'
 
 function formatFriends(count: number) {
   const lastTwo = count % 100
@@ -35,6 +34,10 @@ export function Company({
   mode,
   onSelect,
   onNew,
+  createOpen,
+  chatAvailable,
+  onCreateClose,
+  onCreated,
   onChangeCity,
   onAddPlace,
   onRenamePlace,
@@ -47,6 +50,10 @@ export function Company({
   mode: string
   onSelect: (group: Group) => void
   onNew: () => void
+  createOpen: boolean
+  chatAvailable: boolean
+  onCreateClose: () => void
+  onCreated: (group: Group) => void
   onChangeCity: (groupId: string, city: string) => Promise<GroupCityUpdateResult>
   onAddPlace: (
     label: string,
@@ -59,6 +66,7 @@ export function Company({
   onDeletePlace: (id: string) => Promise<void>
 }) {
   const [openGroupId, setOpenGroupId] = useState<string | null>(null)
+  const [groupOpen, setGroupOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [person, setPerson] = useState('anton')
@@ -68,12 +76,15 @@ export function Company({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [placeError, setPlaceError] = useState('')
-  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingPlace, setEditingPlace] = useState<Location | null>(null)
+  const [editPlaceOpen, setEditPlaceOpen] = useState(false)
   const [editingLabel, setEditingLabel] = useState('')
   const [cities, setCities] = useState<{ slug: string; name: string }[]>([])
   const [changeCityOpen, setChangeCityOpen] = useState(false)
   const [nextCity, setNextCity] = useState(active.city_slug)
   const [cityResult, setCityResult] = useState('')
+  const [cityResultLeaving, setCityResultLeaving] = useState(false)
+  const [createBusy, setCreateBusy] = useState(false)
   const [members, setMembers] = useState<GroupMember[]>([])
   const [membersStatus, setMembersStatus] = useState<'loading' | 'ready' | 'error'>('loading')
 
@@ -87,8 +98,12 @@ export function Company({
   useEffect(() => setCityResult(''), [active.id])
   useEffect(() => {
     if (!cityResult) return
-    const timer = window.setTimeout(() => setCityResult(''), 3000)
-    return () => window.clearTimeout(timer)
+    const leavingTimer = window.setTimeout(() => setCityResultLeaving(true), 2750)
+    const removeTimer = window.setTimeout(() => setCityResult(''), 3000)
+    return () => {
+      window.clearTimeout(leavingTimer)
+      window.clearTimeout(removeTimer)
+    }
   }, [cityResult])
   useEffect(() => {
     let current = true
@@ -109,46 +124,6 @@ export function Company({
       current = false
     }
   }, [active.id])
-  useEffect(() => {
-    if (!placeOpen && !editingId) return
-    const dialog = document.querySelector<HTMLElement>('.company-place-dialog')
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    dialog?.focus()
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !busy) {
-        event.preventDefault()
-        setPlaceOpen(false)
-        setEditingId(null)
-      }
-      if (event.key !== 'Tab' || !dialog) return
-      const controls = [
-        ...dialog.querySelectorAll<HTMLElement>(
-          'button:not(:disabled), input:not(:disabled), a[href]',
-        ),
-      ]
-      const first = controls[0]
-      const last = controls[controls.length - 1]
-      if (
-        event.shiftKey &&
-        (document.activeElement === first || document.activeElement === dialog)
-      ) {
-        event.preventDefault()
-        last.focus()
-      } else if (
-        !event.shiftKey &&
-        (document.activeElement === last || document.activeElement === dialog)
-      ) {
-        event.preventDefault()
-        first.focus()
-      }
-    }
-    document.addEventListener('keydown', handleKey)
-    return () => {
-      document.removeEventListener('keydown', handleKey)
-      if (opener?.isConnected) opener.focus()
-    }
-  }, [placeOpen, editingId, busy])
-
   const invite =
     active.invite_url ||
     (mode === 'development' && active.invite_token
@@ -227,6 +202,7 @@ export function Company({
     try {
       await onChangeCity(active.id, nextCity)
       setChangeCityOpen(false)
+      setCityResultLeaving(false)
       setCityResult('Город изменён.')
     } catch {
       setError('Не удалось изменить город. Попробуй ещё раз.')
@@ -244,7 +220,7 @@ export function Company({
   const cityLocations = locations.filter(
     (item) => item.city_slug === active.city_slug && item.kind !== 'CURRENT',
   )
-  const editingPlace = cityLocations.find((place) => place.id === editingId)
+  const selectedGroup = groups.find((group) => group.id === openGroupId)
 
   return (
     <section className="page-stack company-page">
@@ -268,92 +244,31 @@ export function Company({
       <section className="company-panel" aria-labelledby="company-list-title">
         <h2 id="company-list-title">Мои компании</h2>
         <div className="company-group-list">
-          {groups.map((group) => {
-            const expanded = group.id === openGroupId && group.id === active.id
-            return (
-              <div className={`company-group-card${expanded ? ' is-expanded' : ''}`} key={group.id}>
-                <div className="company-group-card__header">
-                  <span className="company-group-card__icon" aria-hidden="true">
-                    <img src={groupIcon} alt="" />
-                  </span>
-                  <span className="company-group-card__name">{group.name}</span>
-                  {expanded ? (
-                    <button
-                      type="button"
-                      className="company-group-card__city"
-                      onClick={() => {
-                        setNextCity(active.city_slug)
-                        setChangeCityOpen(true)
-                      }}
-                      aria-label={`Изменить город компании ${group.name}`}
-                    >
-                      {cityName}
-                      <img src={editIcon} alt="" />
-                    </button>
-                  ) : (
-                    <span className="company-group-card__count">
-                      {formatPeople(group.member_count)}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    className="company-group-card__toggle"
-                    aria-label={`${expanded ? 'Свернуть' : 'Открыть'} компанию ${group.name}`}
-                    aria-expanded={expanded}
-                    onClick={() => {
-                      if (expanded) setOpenGroupId(null)
-                      else {
-                        setOpenGroupId(group.id)
-                        onSelect(group)
-                      }
-                    }}
-                  >
-                    <img src={expanded ? downIcon : arrowIcon} alt="" />
-                  </button>
-                </div>
-                {expanded ? (
-                  <div className="company-group-card__details">
-                    <div className="company-group-card__members">
-                      <p>{formatFriends(group.member_count)}</p>
-                      {membersStatus === 'loading' ? (
-                        <p role="status">Загружаем участников…</p>
-                      ) : null}
-                      {membersStatus === 'error' ? (
-                        <p className="form-error" role="alert">
-                          Не удалось загрузить участников.
-                        </p>
-                      ) : null}
-                      {membersStatus === 'ready' ? (
-                        <ul>
-                          {members.map((member) => (
-                            <li key={member.id}>
-                              <span className="company-group-card__person">
-                                <span className="company-group-card__avatar" aria-hidden="true">
-                                  <img src={avatarCircle} alt="" />
-                                  <span>
-                                    {member.display_name.trim().slice(0, 1).toUpperCase()}
-                                  </span>
-                                </span>
-                                <span>{member.display_name}</span>
-                              </span>
-                              {member.is_me ? <small>Ты</small> : null}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
-                    </div>
-                    <button
-                      type="button"
-                      className="company-primary-button"
-                      onClick={() => setInviteOpen(true)}
-                    >
-                      Пригласить друзей
-                    </button>
-                  </div>
-                ) : null}
+          {groups.map((group) => (
+            <div className="company-group-card" key={group.id}>
+              <div className="company-group-card__header">
+                <span className="company-group-card__icon" aria-hidden="true">
+                  <img src={groupIcon} alt="" />
+                </span>
+                <span className="company-group-card__name">{group.name}</span>
+                <span className="company-group-card__count">
+                  {formatPeople(group.member_count)}
+                </span>
+                <button
+                  type="button"
+                  className="company-group-card__toggle"
+                  aria-label={`Открыть компанию ${group.name}`}
+                  onClick={() => {
+                    setOpenGroupId(group.id)
+                    onSelect(group)
+                    setGroupOpen(true)
+                  }}
+                >
+                  <img src={arrowIcon} alt="" />
+                </button>
               </div>
-            )
-          })}
+            </div>
+          ))}
         </div>
       </section>
 
@@ -381,8 +296,10 @@ export function Company({
                   type="button"
                   aria-label={`Изменить место ${place.label}`}
                   onClick={() => {
-                    setEditingId(place.id)
+                    setEditingPlace(place)
                     setEditingLabel(place.label)
+                    setError('')
+                    setEditPlaceOpen(true)
                   }}
                 >
                   <img src={editIcon} alt="" />
@@ -404,7 +321,11 @@ export function Company({
       </section>
 
       {cityResult ? (
-        <div className="company-toast" role="status">
+        <div
+          className="company-toast"
+          data-state={cityResultLeaving ? 'closing' : 'open'}
+          role="status"
+        >
           {cityResult}
         </div>
       ) : null}
@@ -433,186 +354,264 @@ export function Company({
         </section>
       ) : null}
 
-      {placeOpen ? (
-        <div
-          className="company-place-overlay"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setPlaceOpen(false)
-          }}
-        >
-          <div
-            className="company-place-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="company-add-place-title"
-            tabIndex={-1}
-          >
+      <CompanyPopup
+        open={groupOpen}
+        title={selectedGroup?.name || active.name}
+        onClose={() => setGroupOpen(false)}
+      >
+        {selectedGroup ? (
+          <>
             <button
               type="button"
-              className="company-place-dialog__close"
-              aria-label="Закрыть"
-              onClick={() => setPlaceOpen(false)}
+              className="company-popup__city"
+              aria-label={`Изменить город компании ${selectedGroup.name}`}
+              onClick={() => {
+                setGroupOpen(false)
+                setError('')
+                setNextCity(selectedGroup.city_slug)
+                setChangeCityOpen(true)
+              }}
             >
-              <img src={closeIcon} alt="" />
+              <span>{cityName}</span>
+              <img src={editIcon} alt="" />
             </button>
-            <div className="company-place-dialog__body">
-              <h2 id="company-add-place-title">Добавить место?</h2>
-              <label className="company-place-dialog__name">
-                <span className="visually-hidden">Название</span>
-                <input
-                  value={label}
-                  maxLength={80}
-                  placeholder="Название"
-                  onChange={(event) => setLabel(event.target.value)}
-                />
-              </label>
-              <PlacePicker
-                city={active.city_slug}
-                value={selectedPlace}
-                onSelect={setSelectedPlace}
-                compact
-              />
-              {placeError ? (
+            <div className="company-group-card__members">
+              <p>{formatFriends(selectedGroup.member_count)}</p>
+              {active.id !== selectedGroup.id || membersStatus === 'loading' ? (
+                <p role="status">Загружаем участников…</p>
+              ) : null}
+              {active.id === selectedGroup.id && membersStatus === 'error' ? (
                 <p className="form-error" role="alert">
-                  {placeError}
+                  Не удалось загрузить участников.
                 </p>
               ) : null}
-              <button
-                type="button"
-                className="company-primary-button"
-                disabled={busy || !selectedPlace}
-                onClick={() => void addPlace()}
-              >
-                {busy ? 'Сохраняем…' : 'Сохранить'}
-              </button>
+              {active.id === selectedGroup.id && membersStatus === 'ready' ? (
+                <ul>
+                  {members.map((member) => (
+                    <li key={member.id}>
+                      <span className="company-group-card__person">
+                        <span className="company-group-card__avatar" aria-hidden="true">
+                          <img src={avatarCircle} alt="" />
+                          <span>{member.display_name.trim().slice(0, 1).toUpperCase()}</span>
+                        </span>
+                        <span>{member.display_name}</span>
+                      </span>
+                      {member.is_me ? <small>Ты</small> : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </div>
-          </div>
-        </div>
-      ) : null}
-
-      {editingPlace ? (
-        <div
-          className="company-place-overlay"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setEditingId(null)
-          }}
-        >
-          <div
-            className="company-place-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="company-edit-place-title"
-            tabIndex={-1}
-          >
             <button
               type="button"
-              className="company-place-dialog__close"
-              aria-label="Закрыть"
-              onClick={() => setEditingId(null)}
+              className="company-primary-button"
+              onClick={() => {
+                setGroupOpen(false)
+                setError('')
+                setCopied(false)
+                setInviteOpen(true)
+              }}
             >
-              <img src={closeIcon} alt="" />
+              Пригласить друзей
             </button>
-            <div className="company-place-dialog__body">
-              <h2 id="company-edit-place-title">Изменить место</h2>
-              <label className="company-place-dialog__name">
-                Название
-                <input
-                  value={editingLabel}
-                  maxLength={80}
-                  onChange={(event) => setEditingLabel(event.target.value)}
-                />
-              </label>
-              {editingPlace.address_text ? (
-                <p className="company-place-dialog__address">{editingPlace.address_text}</p>
-              ) : null}
-              {editingPlace.is_default ? (
-                <p className="company-place-dialog__address">По умолчанию</p>
-              ) : null}
+          </>
+        ) : null}
+      </CompanyPopup>
+
+      <CompanyPopup
+        open={createOpen}
+        title="Создать компанию"
+        description="Позови друзей, и ДВИЖ подберёт план, который подходит всем."
+        className="company-create-popup"
+        busy={createBusy}
+        onClose={onCreateClose}
+      >
+        <CreateCompany
+          inline
+          chatAvailable={chatAvailable}
+          onCreated={onCreated}
+          onCancel={onCreateClose}
+          onBusyChange={setCreateBusy}
+        />
+      </CompanyPopup>
+
+      <CompanyPopup
+        open={placeOpen}
+        title="Добавить место?"
+        busy={busy}
+        onClose={() => setPlaceOpen(false)}
+      >
+        <label className="company-place-dialog__name">
+          <span className="visually-hidden">Название</span>
+          <input
+            value={label}
+            maxLength={80}
+            placeholder="Название"
+            onChange={(event) => setLabel(event.target.value)}
+          />
+        </label>
+        <PlacePicker
+          city={active.city_slug}
+          value={selectedPlace}
+          onSelect={setSelectedPlace}
+          compact
+        />
+        {placeError ? (
+          <p className="form-error" role="alert">
+            {placeError}
+          </p>
+        ) : null}
+        <button
+          type="button"
+          className="company-primary-button"
+          disabled={busy || !selectedPlace}
+          onClick={() => void addPlace()}
+        >
+          {busy ? 'Сохраняем…' : 'Сохранить'}
+        </button>
+      </CompanyPopup>
+
+      <CompanyPopup
+        open={editPlaceOpen}
+        title="Изменить место"
+        busy={busy}
+        onClose={() => setEditPlaceOpen(false)}
+      >
+        {editingPlace ? (
+          <>
+            <label className="company-place-dialog__name">
+              Название
+              <input
+                value={editingLabel}
+                maxLength={80}
+                onChange={(event) => setEditingLabel(event.target.value)}
+              />
+            </label>
+            {editingPlace.address_text ? (
+              <p className="company-place-dialog__address">{editingPlace.address_text}</p>
+            ) : null}
+            {editingPlace.is_default ? (
+              <p className="company-place-dialog__address">По умолчанию</p>
+            ) : null}
+            {error ? (
+              <p className="form-error" role="alert">
+                {error}
+              </p>
+            ) : null}
+            <button
+              type="button"
+              className="company-primary-button"
+              disabled={busy || !editingLabel.trim()}
+              onClick={() =>
+                void changePlace(async () => {
+                  await onRenamePlace(editingPlace.id, editingLabel.trim())
+                  setEditPlaceOpen(false)
+                })
+              }
+            >
+              Сохранить
+            </button>
+            {!editingPlace.is_default ? (
               <button
                 type="button"
-                className="company-primary-button"
-                disabled={busy || !editingLabel.trim()}
-                onClick={() =>
-                  void changePlace(async () => {
-                    await onRenamePlace(editingPlace.id, editingLabel.trim())
-                    setEditingId(null)
-                  })
-                }
-              >
-                Сохранить
-              </button>
-              {!editingPlace.is_default ? (
-                <button
-                  type="button"
-                  className="company-place-dialog__secondary"
-                  disabled={busy}
-                  onClick={() =>
-                    void changePlace(async () => {
-                      await onDefaultPlace(editingPlace.id)
-                      setEditingId(null)
-                    })
-                  }
-                >
-                  Сделать основным
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className="company-place-dialog__danger"
+                className="company-place-dialog__secondary"
                 disabled={busy}
                 onClick={() =>
                   void changePlace(async () => {
-                    await onDeletePlace(editingPlace.id)
-                    setEditingId(null)
+                    await onDefaultPlace(editingPlace.id)
+                    setEditPlaceOpen(false)
                   })
                 }
               >
-                Удалить место
+                Сделать основным
               </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {changeCityOpen ? (
-        <ConfirmDialog
-          title="Сменить город компании?"
-          description="Активные сигналы отменятся, а автосигналы этой компании будут поставлены на паузу."
-          confirmLabel="Сменить город"
-          cancelLabel="Отмена"
-          busy={busy}
-          confirmDisabled={nextCity === active.city_slug}
-          onConfirm={() => void changeCity()}
-          onCancel={() => setChangeCityOpen(false)}
-        >
-          <CityPicker cities={cities} value={nextCity} onChange={setNextCity} />
-        </ConfirmDialog>
-      ) : null}
-
-      {inviteOpen ? (
-        <ConfirmDialog
-          title="Позвать друзей"
-          description={'Приглашение в «' + active.name + '»'}
-          confirmLabel={window.WebApp?.shareMaxContent ? 'Поделиться в MAX' : 'Скопировать ссылку'}
-          confirmDisabled={!invite}
-          cancelLabel="Закрыть"
-          onConfirm={() => void shareInvite()}
-          onCancel={() => setInviteOpen(false)}
-        >
-          {!invite ? (
-            <p className="form-error" role="alert">
-              Приглашение станет доступно после настройки адреса MAX-бота.
-            </p>
-          ) : null}
-          {window.WebApp?.shareMaxContent ? (
-            <button type="button" className="secondary-button" onClick={() => void copyInvite()}>
-              {copied ? 'Скопировано' : 'Скопировать ссылку'}
+            ) : null}
+            <button
+              type="button"
+              className="company-place-dialog__danger"
+              disabled={busy}
+              onClick={() =>
+                void changePlace(async () => {
+                  await onDeletePlace(editingPlace.id)
+                  setEditPlaceOpen(false)
+                })
+              }
+            >
+              Удалить место
             </button>
-          ) : null}
-        </ConfirmDialog>
-      ) : null}
+          </>
+        ) : null}
+      </CompanyPopup>
+
+      <CompanyPopup
+        open={changeCityOpen}
+        title="Сменить город компании?"
+        description="Активные сигналы отменятся, а автосигналы этой компании будут поставлены на паузу."
+        busy={busy}
+        onClose={() => setChangeCityOpen(false)}
+      >
+        <CityPicker cities={cities} value={nextCity} onChange={setNextCity} />
+        {error ? (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <button
+          type="button"
+          className="company-primary-button"
+          disabled={busy || nextCity === active.city_slug}
+          onClick={() => void changeCity()}
+        >
+          {busy ? 'Меняем…' : 'Сменить город'}
+        </button>
+        <button
+          type="button"
+          className="company-place-dialog__secondary"
+          disabled={busy}
+          onClick={() => setChangeCityOpen(false)}
+        >
+          Отмена
+        </button>
+      </CompanyPopup>
+
+      <CompanyPopup
+        open={inviteOpen}
+        title="Позвать друзей"
+        description={`Приглашение в «${active.name}»`}
+        onClose={() => setInviteOpen(false)}
+      >
+        {!invite ? (
+          <p className="form-error" role="alert">
+            Приглашение станет доступно после настройки адреса MAX-бота.
+          </p>
+        ) : null}
+        {error ? (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <button
+          type="button"
+          className="company-primary-button"
+          disabled={!invite}
+          onClick={() => void shareInvite()}
+        >
+          {window.WebApp?.shareMaxContent
+            ? 'Поделиться в MAX'
+            : copied
+              ? 'Скопировано'
+              : 'Скопировать ссылку'}
+        </button>
+        {window.WebApp?.shareMaxContent ? (
+          <button
+            type="button"
+            className="company-place-dialog__secondary"
+            onClick={() => void copyInvite()}
+          >
+            {copied ? 'Скопировано' : 'Скопировать ссылку'}
+          </button>
+        ) : null}
+      </CompanyPopup>
     </section>
   )
 }
