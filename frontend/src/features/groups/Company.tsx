@@ -9,21 +9,20 @@ import avatarCircle from '../../assets/figma-company/5a81c.svg'
 import { PlacePicker, type SelectedPlace } from '../../shared/ui/PlacePicker'
 import { SectionHeader } from '../../shared/ui/SectionHeader'
 import { CityPicker } from '../../shared/ui/CityPicker'
-import { formatPeople } from '../../shared/lib/format'
 import { CompanyPopup } from './CompanyPopup'
 import { CreateCompany } from './CreateCompany'
 
-function formatFriends(count: number) {
+function formatMembers(count: number) {
   const lastTwo = count % 100
   const last = count % 10
   const word =
     lastTwo >= 11 && lastTwo <= 14
-      ? 'друзей'
+      ? 'участников'
       : last === 1
-        ? 'друг'
+        ? 'участник'
         : last >= 2 && last <= 4
-          ? 'друга'
-          : 'друзей'
+          ? 'участника'
+          : 'участников'
   return `${count} ${word}`
 }
 
@@ -245,19 +244,25 @@ export function Company({
         <h2 id="company-list-title">Мои компании</h2>
         <div className="company-group-list">
           {groups.map((group) => (
-            <div className="company-group-card" key={group.id}>
+            <div
+              className={'company-group-card' + (active.id === group.id ? ' is-active' : '')}
+              key={group.id}
+            >
               <div className="company-group-card__header">
                 <span className="company-group-card__icon" aria-hidden="true">
                   <img src={groupIcon} alt="" />
                 </span>
                 <span className="company-group-card__name">{group.name}</span>
                 <span className="company-group-card__count">
-                  {formatPeople(group.member_count)}
+                  {formatMembers(group.member_count)}
                 </span>
+                {active.id === group.id ? (
+                  <span className="company-group-card__current">Текущая</span>
+                ) : null}
                 <button
                   type="button"
                   className="company-group-card__toggle"
-                  aria-label={`Открыть компанию ${group.name}`}
+                  aria-label={`Открыть компанию ${group.name}${active.id === group.id ? ', текущая' : ''}`}
                   onClick={() => {
                     setOpenGroupId(group.id)
                     onSelect(group)
@@ -278,10 +283,13 @@ export function Company({
       >
         <div className="company-panel__heading">
           <h2 id="company-places-title">Мои места</h2>
+          <span className="company-panel__city">
+            {cityName} · {active.name}
+          </span>
           <p>
             {cityLocations.length
               ? 'Адрес виден только тебе'
-              : 'Сохранённых мест пока нет. Добавь дом и работу, чтобы выбирать радиус поиска от них'}
+              : 'Сохрани удобные точки — например, дом или работу — чтобы выбирать радиус поиска от них.'}
           </p>
         </div>
         {cityLocations.length ? (
@@ -376,7 +384,7 @@ export function Company({
               <img src={editIcon} alt="" />
             </button>
             <div className="company-group-card__members">
-              <p>{formatFriends(selectedGroup.member_count)}</p>
+              <p>{formatMembers(selectedGroup.member_count)}</p>
               {active.id !== selectedGroup.id || membersStatus === 'loading' ? (
                 <p role="status">Загружаем участников…</p>
               ) : null}

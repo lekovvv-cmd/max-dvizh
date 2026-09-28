@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiTimeoutError, api } from '../../app/api'
 import type { Dvizh, Group, Intent, Location } from '../../app/api'
-import { getActivityTaxonomy, searchActivities } from '../../shared/lib/activityCatalog'
+import {
+  getActivityTaxonomy,
+  normalizeCategorySelection,
+  searchActivities,
+} from '../../shared/lib/activityCatalog'
 import { activityLabel, formatPeople, formatSignalWindow, weekDays } from '../../shared/lib/format'
 import { currentCoordinates, geolocationError } from '../../shared/lib/geolocation'
 import {
@@ -79,7 +83,7 @@ function initialForm(groups: Group[], group: Group, existing?: Intent): Form {
     start: formatLocalDateTimeInput(start),
     end: formatLocalDateTimeInput(end),
     categories: existing?.activity_categories?.length
-      ? existing.activity_categories
+      ? normalizeCategorySelection(existing.activity_categories)
       : existing
         ? []
         : getActivityTaxonomy()
@@ -122,13 +126,11 @@ function readDraft(key: string, fallback: Form): Form {
         typeof saved.budgetCustom === 'boolean'
           ? saved.budgetCustom
           : !budgetOptions.includes(saved.budget ?? fallback.budget),
-      categories: [
-        ...new Set(
-          saved.categories.filter(
-            (category): category is string => typeof category === 'string' && valid.has(category),
-          ),
+      categories: normalizeCategorySelection(
+        saved.categories.filter(
+          (category): category is string => typeof category === 'string' && valid.has(category),
         ),
-      ],
+      ),
     }
   } catch {
     return fallback
@@ -220,7 +222,20 @@ export function SignalComposer({
   const [categorySearch, setCategorySearch] = useState('')
   const taxonomy = getActivityTaxonomy()
   const allDirections = taxonomy.directions.map((item) => `${item.id}/*`)
-  const [direction, setDirection] = useState(taxonomy.directions[0]?.id || '')
+  const [direction, setDirection] = useState(() => {
+    const selected = form.categories[0]
+    return (
+      taxonomy.directions.find(
+        (item) =>
+          selected === `${item.id}/*` ||
+          taxonomy.activities
+            .find((activity) => activity.id === selected)
+            ?.directions.includes(item.id),
+      )?.id ??
+      taxonomy.directions[0]?.id ??
+      ''
+    )
+  })
   const visibleActivities = searchActivities(categorySearch)
 
   useEffect(() => {
@@ -326,19 +341,6 @@ export function SignalComposer({
 
   function selectDirection(value: string) {
     setDirection(value)
-    setForm((current) => {
-      const alreadyLimitedToDirection =
-        direction === value &&
-        current.categories.length > 0 &&
-        current.categories.every(
-          (category) =>
-            category === `${value}/*` ||
-            taxonomy.activities
-              .find((activity) => activity.id === category)
-              ?.directions.includes(value),
-        )
-      return alreadyLimitedToDirection ? current : { ...current, categories: [`${value}/*`] }
-    })
   }
 
   function leave() {
@@ -716,7 +718,7 @@ export function SignalComposer({
               active={form.categories.includes(`${direction}/*`)}
               onClick={() => toggleCategory(`${direction}/*`)}
             >
-              За любой движ
+              Любое в разделе «{taxonomy.directions.find((item) => item.id === direction)?.label}»
             </Choice>
             {taxonomy.activities
               .filter((item) => item.directions.includes(direction))
@@ -730,7 +732,7 @@ export function SignalComposer({
                 </Choice>
               ))}
           </div>
-          {form.categories.length > 1 ? (
+          {form.categories.length > 0 ? (
             <p className="activity-selection">
               Выбрано:{' '}
               {anyActivitySelected

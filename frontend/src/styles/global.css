@@ -13,6 +13,7 @@
 @import './signal-figma.css';
 @import './dvizh-figma.css';
 @import './app-figma.css';
+@import './hardening.css';
 
 @keyframes spin {
   to {

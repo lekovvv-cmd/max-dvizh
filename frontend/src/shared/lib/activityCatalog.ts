@@ -11,6 +11,16 @@ export function getActivityTaxonomy() {
   return taxonomy
 }
 
+export function normalizeCategorySelection(categories: string[]) {
+  const unique = [...new Set(categories)]
+  const wildcards = new Set(unique.filter((category) => category.endsWith('/*')))
+  return unique.filter((category) => {
+    if (category.endsWith('/*')) return true
+    const activity = taxonomy.activities.find((item) => item.id === category)
+    return !activity?.directions.some((direction) => wildcards.has(`${direction}/*`))
+  })
+}
+
 export function activityCategoryLabel(id: string) {
   if (id.endsWith('/*'))
     return taxonomy.directions.find((item) => item.id === id.slice(0, -2))?.label ?? 'Досуг'
