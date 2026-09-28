@@ -1,0 +1,657 @@
+.app-shell:has(.signal-composer) {
+  padding: max(60px, env(safe-area-inset-top)) 16px 40px;
+  background: #f6f7fb;
+}
+
+.signal-composer {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: 430px;
+  margin: 0 auto;
+  font-family: Inter, sans-serif;
+  color: #0d001a;
+}
+
+.signal-composer__close {
+  position: absolute;
+  top: -40px;
+  right: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #e9e9ef;
+  color: #4c4a53;
+}
+
+.signal-composer__close svg {
+  width: 15px;
+  height: 15px;
+}
+
+.signal-composer > h1 {
+  margin: 0 0 24px;
+  background: linear-gradient(90deg, #0d001a, #666);
+  background-clip: text;
+  color: transparent;
+  font-family: Bounded, Inter, sans-serif;
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 22px;
+  letter-spacing: 0.18px;
+}
+
+.signal-composer form {
+  gap: 20px;
+}
+
+.signal-composer .form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  border: 0;
+  border-radius: 20px;
+  padding: 16px;
+  background: #fff;
+}
+
+.signal-composer .form-section h2 {
+  margin: 0;
+  color: #000;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 19px;
+  letter-spacing: 0;
+}
+
+.signal-composer__when-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.signal-composer .signal-composer__today.choice,
+.signal-composer .signal-composer__today.choice.choice--selected {
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  color: #471aff;
+  font-size: 11px;
+  line-height: 15px;
+  box-shadow: none;
+}
+
+.signal-composer .signal-composer__today.choice.choice--selected {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.signal-composer .choices--when {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.signal-composer .choices--when .choice {
+  display: flex;
+  min-height: 60px;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid rgba(13, 0, 26, 0.1);
+  border-radius: 10px;
+  padding: 11px 14px;
+  background: #fff;
+  box-shadow: none;
+  color: #0d001a;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 15px;
+  letter-spacing: 0.12px;
+}
+
+.signal-composer .choices--when .choice:last-child {
+  grid-column: 1 / -1;
+}
+
+.signal-composer .choices--when .choice small {
+  color: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 15px;
+  opacity: 0.5;
+}
+
+.signal-composer .choices--when .choice.choice--selected {
+  border-color: #471aff;
+  background: #471aff;
+  box-shadow: none;
+  color: #fff;
+}
+
+.signal-composer .choices--when .choice.choice--selected small {
+  opacity: 0.8;
+}
+
+.signal-composer .form-row--time {
+  gap: 8px;
+}
+
+.signal-composer .form-row--time label,
+.signal-composer .subsection label {
+  color: #0d001a;
+  font-size: 12px;
+}
+
+.signal-composer .form-row--time input,
+.signal-composer .subsection input {
+  min-height: 40px;
+  border: 1px solid rgba(13, 0, 26, 0.1);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #fff;
+  color: #0d001a;
+}
+
+.signal-composer__activity-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.signal-composer .activity-any.choice {
+  width: auto;
+  min-height: 0 !important;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 0;
+  padding: 2px 0;
+  background: transparent;
+  color: #471aff;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.signal-composer .activity-any.choice.choice--selected {
+  color: #471aff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.signal-composer .activity-catalog__search--inline {
+  min-height: 40px;
+  gap: 8px;
+  border: 0;
+  border-radius: 10px;
+  padding: 0 12px;
+  background: #f6f7fb;
+}
+
+.signal-composer .activity-catalog__search--inline img {
+  display: block;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+}
+
+.signal-composer .activity-catalog__search--inline input {
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+}
+
+.signal-composer .activity-catalog__search--inline input::placeholder {
+  color: rgba(13, 0, 26, 0.5);
+}
+
+.signal-composer .activity-section-label {
+  margin: 0;
+  color: rgba(13, 0, 26, 0.5);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 15px;
+}
+
+.signal-composer .choices.activity-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  overflow: visible;
+  border: 0;
+  padding: 0;
+}
+
+.signal-composer .activity-section-label + .activity-quick {
+  margin-top: -6px;
+}
+
+.signal-composer .choices.activity-quick .direction-tab,
+.signal-composer .choices.activity-quick .choice.choice {
+  display: inline-flex;
+  min-height: 41px;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 1px solid rgba(13, 0, 26, 0.1);
+  border-radius: 999px;
+  padding: 12px 20px;
+  background: #fff;
+  color: rgba(13, 0, 26, 0.5);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 15px;
+  letter-spacing: 0.12px;
+  white-space: nowrap;
+}
+
+.signal-composer .choices.activity-quick .direction-tab.is-current,
+.signal-composer .choices.activity-quick .choice.choice.choice--selected {
+  border-color: #471aff;
+  background: #471aff;
+  color: #fff;
+  font-weight: 600;
+}
+
+.signal-composer .activity-selection {
+  font-size: 12px;
+}
+
+.signal-composer .company-options {
+  gap: 6px;
+}
+
+.signal-composer .company-option,
+.signal-composer .company-option.is-selected {
+  display: flex;
+  min-height: 70px;
+  align-items: center;
+  justify-content: flex-start;
+  border: 1px solid rgba(13, 0, 26, 0.1);
+  border-radius: 10px;
+  padding: 12px 20px;
+  background: #fff;
+  box-shadow: none;
+  color: #0d001a;
+}
+
+.signal-composer .company-option.is-selected {
+  border-color: #471aff;
+  background: #471aff;
+  color: #fff;
+}
+
+.signal-composer .company-option__identity {
+  gap: 8px;
+}
+
+.signal-composer .company-option__icon {
+  width: 44px;
+  height: 44px;
+  background: #471aff;
+}
+
+.signal-composer .company-option.is-selected .company-option__icon {
+  background: #fff;
+}
+
+.signal-composer .company-option__icon img {
+  width: 24px;
+  height: 24px;
+}
+
+.signal-composer .company-option__text {
+  gap: 4px;
+}
+
+.signal-composer .company-option strong {
+  color: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 15px;
+}
+
+.signal-composer .company-option small {
+  color: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 15px;
+  opacity: 0.5;
+}
+
+.signal-composer .company-option.is-selected small {
+  opacity: 0.8;
+}
+
+.signal-composer .conditions {
+  border: 0;
+  border-radius: 20px;
+  padding: 0 16px;
+  background: #fff;
+  box-shadow: none;
+}
+
+.signal-composer .conditions summary {
+  display: flex;
+  flex-direction: row;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 4px;
+}
+
+.signal-composer .conditions__heading {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.signal-composer .conditions summary strong,
+.signal-composer .conditions summary span {
+  display: block;
+  font-size: 12px;
+  line-height: 15px;
+}
+
+.signal-composer .conditions summary strong {
+  font-weight: 600;
+}
+
+.signal-composer .conditions summary span {
+  margin-top: 0;
+  color: rgba(13, 0, 26, 0.5);
+  font-weight: 500;
+}
+
+.signal-composer .conditions summary .conditions__heading {
+  display: flex;
+  flex-direction: column;
+  color: #0d001a;
+}
+
+.signal-composer .conditions summary::after {
+  display: none;
+}
+
+.signal-composer .conditions summary img {
+  display: block;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  transition: transform 180ms ease;
+}
+
+.signal-composer .conditions[open] summary img {
+  transform: rotate(90deg);
+}
+
+.signal-composer .conditions__content {
+  gap: 16px;
+  padding: 0 0 16px;
+}
+
+.signal-composer .conditions:not([open]) .conditions__content {
+  display: none;
+}
+
+.signal-composer .subsection {
+  gap: 12px;
+}
+
+.signal-composer .subsection h3 {
+  margin: 0;
+  color: rgba(13, 0, 26, 0.5);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 15px;
+}
+
+.signal-composer .subsection .choices {
+  gap: 6px;
+}
+
+.signal-composer .subsection .choices .choice.choice {
+  min-height: 41px;
+  border: 1px solid rgba(13, 0, 26, 0.1);
+  border-radius: 999px;
+  padding: 12px 20px;
+  background: #fff;
+  color: rgba(13, 0, 26, 0.5);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 15px;
+}
+
+.signal-composer .subsection .choices .choice.choice--selected {
+  border-color: #471aff;
+  background: #471aff;
+  color: #fff;
+}
+
+.signal-composer .subsection .form-hint {
+  margin: 0;
+  color: rgba(13, 0, 26, 0.5);
+  font-size: 12px;
+}
+
+.signal-composer .repeat-control {
+  min-height: 56px;
+  border: 0;
+  border-radius: 10px;
+  padding: 16px 20px;
+  background: #fff;
+  box-shadow: none;
+  color: #0d001a;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 15px;
+}
+
+.signal-composer .conditions + .repeat-control {
+  margin-top: -4px;
+}
+
+.signal-composer .repeat-control input[type='checkbox'] {
+  appearance: none;
+  width: 43px;
+  height: 24px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 999px;
+  margin: 0;
+  padding: 2px;
+  background: #d9d9d9;
+  cursor: pointer;
+  transition: background 180ms ease;
+}
+
+.signal-composer .repeat-control input[type='checkbox']::before {
+  display: block;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 12%);
+  content: '';
+  transition: transform 180ms ease;
+}
+
+.signal-composer .repeat-control input[type='checkbox']:checked {
+  background: #471aff;
+}
+
+.signal-composer .repeat-control input[type='checkbox']:checked::before {
+  transform: translateX(19px);
+}
+
+.signal-composer .wizard__footer {
+  position: static;
+  display: block;
+  border: 0;
+  margin: 4px 0 0;
+  padding: 0;
+  background: transparent;
+}
+
+.signal-composer .wizard__footer .primary-button {
+  min-height: 51px;
+  border: 0;
+  border-radius: 10px;
+  background: #471aff;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.16px;
+}
+
+:root[data-theme='dark'] .app-shell:has(.signal-composer) {
+  background: var(--dvizh-bg);
+}
+
+:root[data-theme='dark'] .signal-composer,
+:root[data-theme='dark'] .signal-composer .form-section h2,
+:root[data-theme='dark'] .signal-composer .repeat-control,
+:root[data-theme='dark'] .signal-composer .subsection label {
+  color: var(--dvizh-ink);
+}
+
+:root[data-theme='dark'] .signal-composer > h1 {
+  background-image: linear-gradient(90deg, #fff, #b9b1ce);
+}
+
+:root[data-theme='dark'] .signal-composer__close {
+  background: var(--dvizh-surface-muted);
+  color: var(--dvizh-ink);
+}
+
+:root[data-theme='dark'] .signal-composer .form-section,
+:root[data-theme='dark'] .signal-composer .conditions,
+:root[data-theme='dark'] .signal-composer .repeat-control,
+:root[data-theme='dark'] .signal-composer .company-option,
+:root[data-theme='dark'] .signal-composer .choices--when .choice,
+:root[data-theme='dark'] .signal-composer .choices.activity-quick .direction-tab,
+:root[data-theme='dark'] .signal-composer .choices.activity-quick .choice.choice,
+:root[data-theme='dark'] .signal-composer .subsection .choices .choice.choice,
+:root[data-theme='dark'] .signal-composer .form-row--time input,
+:root[data-theme='dark'] .signal-composer .subsection input {
+  border-color: var(--dvizh-line);
+  background: var(--dvizh-surface);
+  color: var(--dvizh-ink);
+}
+
+:root[data-theme='dark'] .signal-composer .activity-catalog__search--inline {
+  background: var(--dvizh-surface-muted);
+}
+
+:root[data-theme='dark'] .signal-composer .activity-catalog__search--inline input {
+  background: transparent;
+  color: var(--dvizh-ink);
+}
+
+:root[data-theme='dark'] .signal-composer .activity-catalog__search--inline input::placeholder {
+  color: var(--dvizh-muted);
+  opacity: 1;
+}
+
+:root[data-theme='dark'] .signal-composer .activity-catalog__search--inline img,
+:root[data-theme='dark'] .signal-composer .conditions summary img {
+  filter: brightness(0) invert(1);
+}
+
+:root[data-theme='dark'] .signal-composer .activity-section-label,
+:root[data-theme='dark'] .signal-composer .subsection h3,
+:root[data-theme='dark'] .signal-composer .conditions summary span,
+:root[data-theme='dark'] .signal-composer .subsection .form-hint {
+  color: var(--dvizh-muted);
+}
+
+:root[data-theme='dark'] .signal-composer .conditions summary .conditions__heading {
+  color: var(--dvizh-ink);
+}
+
+:root[data-theme='dark'] .signal-composer .signal-composer__today.choice,
+:root[data-theme='dark'] .signal-composer .signal-composer__today.choice.choice--selected {
+  background: transparent;
+  color: #b7a2ff;
+}
+
+:root[data-theme='dark'] .signal-composer .choices.activity-quick .direction-tab:not(.is-current),
+:root[data-theme='dark']
+  .signal-composer
+  .choices.activity-quick
+  .choice.choice:not(.choice--selected),
+:root[data-theme='dark']
+  .signal-composer
+  .subsection
+  .choices
+  .choice.choice:not(.choice--selected) {
+  color: var(--dvizh-muted);
+}
+
+:root[data-theme='dark'] .signal-composer .choices--when .choice.choice--selected,
+:root[data-theme='dark'] .signal-composer .choices.activity-quick .direction-tab.is-current,
+:root[data-theme='dark'] .signal-composer .choices.activity-quick .choice.choice.choice--selected,
+:root[data-theme='dark'] .signal-composer .subsection .choices .choice.choice--selected,
+:root[data-theme='dark'] .signal-composer .company-option.is-selected {
+  border-color: #7860df;
+  background: #7860df;
+  color: #fff;
+}
+
+:root[data-theme='dark'] .signal-composer .company-option__icon {
+  background: #7860df;
+}
+
+:root[data-theme='dark'] .signal-composer .company-option.is-selected .company-option__icon {
+  background: #fff;
+}
+
+:root[data-theme='dark'] .signal-composer .company-option.is-selected .company-option__icon img {
+  filter: none;
+}
+
+:root[data-theme='dark']
+  .signal-composer
+  .company-option:not(.is-selected)
+  .company-option__icon
+  img {
+  filter: brightness(0) invert(1);
+}
+
+:root[data-theme='dark'] .signal-composer .company-option small,
+:root[data-theme='dark'] .signal-composer .choices--when .choice small {
+  opacity: 0.8;
+}
+
+:root[data-theme='dark'] .signal-composer .activity-any.choice,
+:root[data-theme='dark'] .signal-composer .activity-any.choice.choice--selected {
+  color: #b7a2ff;
+}
+
+:root[data-theme='dark'] .signal-composer .repeat-control input[type='checkbox'] {
+  background: #514a66;
+}
+
+:root[data-theme='dark'] .signal-composer .repeat-control input[type='checkbox']:checked,
+:root[data-theme='dark'] .signal-composer .wizard__footer .primary-button {
+  background: #7860df;
+}
+
+@media (max-width: 360px) {
+  .signal-composer .choices.activity-quick .direction-tab,
+  .signal-composer .choices.activity-quick .choice.choice,
+  .signal-composer .subsection .choices .choice.choice {
+    padding-right: 15px;
+    padding-left: 15px;
+  }
+}

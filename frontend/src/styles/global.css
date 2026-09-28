@@ -10,6 +10,7 @@
 @import './ux-polish.css';
 @import './ux-followup.css';
 @import './company-figma.css';
+@import './signal-figma.css';
 
 @keyframes spin {
   to {

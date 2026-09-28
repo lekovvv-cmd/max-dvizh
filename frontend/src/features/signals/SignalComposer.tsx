@@ -17,6 +17,10 @@ import { ConfirmDialog } from '../../shared/ui/ConfirmDialog'
 import { Icon } from '../../shared/ui/Icon'
 import { PulseMark } from '../../shared/ui/PulseMark'
 import { PlacePicker, type SelectedPlace } from '../../shared/ui/PlacePicker'
+import signalSearchIcon from '../../assets/figma-company/12869.svg'
+import groupIconOnLight from '../../assets/figma-company/690e2.svg'
+import groupIconOnPurple from '../../assets/figma-company/8deaf.svg'
+import settingsArrowIcon from '../../assets/figma-company/18d2d.svg'
 
 type When = 'today' | 'tomorrow' | 'weekend' | 'custom'
 export type SignalAdjustment = 'tomorrow' | 'any' | 'radius' | 'budget' | 'repeat' | null
@@ -61,7 +65,7 @@ function weekdayFrom(date: Date) {
 
 function initialForm(groups: Group[], group: Group, existing?: Intent): Form {
   const size = initialGroupSize(existing?.min_people, existing?.max_people)
-  const [defaultStart, defaultEnd] = rangeFor(new Date().getHours() < 20 ? 'today' : 'tomorrow')
+  const [defaultStart, defaultEnd] = rangeFor('tomorrow')
   const start = existing?.available_from ? new Date(existing.available_from) : defaultStart
   const end = existing?.available_to ? new Date(existing.available_to) : defaultEnd
   const repeat = existing?.type === 'RECURRING'
@@ -70,10 +74,16 @@ function initialForm(groups: Group[], group: Group, existing?: Intent): Form {
       ? existing.group_id
       : group.id
   return {
-    when: existing?.available_from ? 'custom' : new Date().getHours() < 20 ? 'today' : 'tomorrow',
+    when: existing?.available_from ? 'custom' : 'tomorrow',
     start: formatLocalDateTimeInput(start),
     end: formatLocalDateTimeInput(end),
-    categories: existing?.activity_categories?.length ? existing.activity_categories : [],
+    categories: existing?.activity_categories?.length
+      ? existing.activity_categories
+      : existing
+        ? []
+        : getActivityTaxonomy()
+            .directions.slice(0, 1)
+            .map((item) => `${item.id}/*`),
     groupIds: [selected],
     budget: existing?.budget_max?.toString() ?? '',
     radius: existing?.radius_km?.toString() ?? '',
@@ -116,7 +126,11 @@ function readDraft(key: string, fallback: Form): Form {
 
 function adjusted(form: Form, adjustment: SignalAdjustment): Form {
   if (adjustment === 'repeat') return { ...form, repeat: true }
-  if (adjustment === 'any') return { ...form, categories: ['games/*'] }
+  if (adjustment === 'any')
+    return {
+      ...form,
+      categories: getActivityTaxonomy().directions.map((item) => `${item.id}/*`),
+    }
   if (adjustment === 'radius') return { ...form, radius: '10' }
   if (adjustment === 'budget') return { ...form, budget: String((Number(form.budget) || 0) + 200) }
   if (adjustment === 'tomorrow') {
@@ -316,6 +330,23 @@ export function SignalComposer({
             value,
           ]
       return { ...current, categories: next }
+    })
+  }
+
+  function selectDirection(value: string) {
+    setDirection(value)
+    setForm((current) => {
+      const alreadyLimitedToDirection =
+        direction === value &&
+        current.categories.length > 0 &&
+        current.categories.every(
+          (category) =>
+            category === `${value}/*` ||
+            taxonomy.activities
+              .find((activity) => activity.id === category)
+              ?.directions.includes(value),
+        )
+      return alreadyLimitedToDirection ? current : { ...current, categories: [`${value}/*`] }
     })
   }
 
@@ -532,10 +563,21 @@ export function SignalComposer({
       >
         <Icon name="close" size={22} />
       </button>
-      <h1 id="signal-title">{existing ? 'Изменить условия' : 'Когда двигаемся?'}</h1>
+      <h1 id="signal-title">{existing ? 'Изменить условия' : 'Движ?'}</h1>
       <form onSubmit={(event) => void submit(event)}>
         <section className="form-section" aria-labelledby="when-title">
-          <h2 id="when-title">Когда</h2>
+          <div className="signal-composer__when-heading">
+            <h2 id="when-title">Когда?</h2>
+            {new Date().getHours() < 20 && !form.repeat ? (
+              <Choice
+                active={form.when === 'today'}
+                className="signal-composer__today"
+                onClick={() => chooseWhen('today')}
+              >
+                Сегодня после 20:00
+              </Choice>
+            ) : null}
+          </div>
           {form.repeat ? (
             <>
               <div className="choices choices--weekdays" role="group" aria-label="Дни недели">
@@ -576,21 +618,21 @@ export function SignalComposer({
           ) : (
             <>
               <div className="choices choices--when" role="group" aria-label="Когда удобно">
-                {new Date().getHours() < 20 ? (
-                  <Choice active={form.when === 'today'} onClick={() => chooseWhen('today')}>
-                    Сегодня после 20:00
-                  </Choice>
-                ) : null}
                 <Choice active={form.when === 'tomorrow'} onClick={() => chooseWhen('tomorrow')}>
                   <span>Завтра вечером</span>
                   <small>18:00–23:00</small>
                 </Choice>
                 <Choice active={form.when === 'weekend'} onClick={() => chooseWhen('weekend')}>
                   <span>На выходных</span>
-                  <small>Сб · 18:00–23:00</small>
+                  <small>18:00–23:00</small>
                 </Choice>
                 <Choice active={form.when === 'custom'} onClick={() => chooseWhen('custom')}>
-                  Выбрать время
+                  <span>Свое время</span>
+                  <small>
+                    {form.when === 'custom'
+                      ? `${new Date(form.start).toLocaleDateString('ru-RU')} с ${form.start.slice(11)} до ${form.end.slice(11)}`
+                      : `__.__.${new Date().getFullYear()} с __:__ до __:__`}
+                  </small>
                 </Choice>
               </div>
               {form.when === 'custom' ? (
@@ -622,9 +664,18 @@ export function SignalComposer({
           ) : null}
         </section>
         <section className="form-section" aria-labelledby="category-title">
-          <h2 id="category-title">Что хочется?</h2>
+          <div className="signal-composer__activity-heading">
+            <h2 id="category-title">Чем хочешь заняться?</h2>
+            <Choice
+              active={anyActivitySelected}
+              className="activity-any"
+              onClick={() => update({ categories: anyActivitySelected ? [] : allDirections })}
+            >
+              Любое занятие
+            </Choice>
+          </div>
           <label className="activity-catalog__search activity-catalog__search--inline">
-            <Icon name="search" size={20} />
+            <img src={signalSearchIcon} alt="" />
             <span className="sr-only">Поиск занятия</span>
             <input
               type="search"
@@ -673,20 +724,8 @@ export function SignalComposer({
               </div>
             </div>
           ) : null}
-          <Choice
-            active={anyActivitySelected}
-            className="activity-any"
-            onClick={() => update({ categories: anyActivitySelected ? [] : allDirections })}
-          >
-            <strong>Любое занятие</strong>
-            <small>Покажем все варианты</small>
-          </Choice>
-          <p className="activity-section-label">Посмотреть занятия по теме</p>
-          <div
-            className="choices activity-quick"
-            role="tablist"
-            aria-label="Направление для просмотра"
-          >
+          <p className="activity-section-label">Выбери направление, а затем конкретные варианты</p>
+          <div className="choices activity-quick" role="tablist" aria-label="Направление поиска">
             {taxonomy.directions.map((item) => (
               <button
                 type="button"
@@ -694,19 +733,19 @@ export function SignalComposer({
                 className={'direction-tab' + (direction === item.id ? ' is-current' : '')}
                 role="tab"
                 aria-selected={direction === item.id}
-                onClick={() => setDirection(item.id)}
+                onClick={() => selectDirection(item.id)}
               >
                 {item.label}
               </button>
             ))}
           </div>
-          <p className="activity-section-label">Выбери занятия</p>
+          <p className="activity-section-label">Какой лучший вариант?</p>
           <div className="choices activity-quick" role="group" aria-label="Занятие">
             <Choice
               active={form.categories.includes(`${direction}/*`)}
               onClick={() => toggleCategory(`${direction}/*`)}
             >
-              Любое в теме «{taxonomy.directions.find((item) => item.id === direction)?.label}»
+              За любой движ
             </Choice>
             {taxonomy.activities
               .filter((item) => item.directions.includes(direction))
@@ -720,7 +759,7 @@ export function SignalComposer({
                 </Choice>
               ))}
           </div>
-          {form.categories.length ? (
+          {form.categories.length > 1 ? (
             <p className="activity-selection">
               Выбрано:{' '}
               {anyActivitySelected
@@ -730,7 +769,7 @@ export function SignalComposer({
           ) : null}
         </section>
         <section className="form-section" aria-labelledby="company-title">
-          <h2 id="company-title">С кем</h2>
+          <h2 id="company-title">С кем?</h2>
           <div className="company-options">
             {groups.map((item) => {
               const selected = form.groupIds.includes(item.id)
@@ -749,7 +788,7 @@ export function SignalComposer({
                 >
                   <span className="company-option__identity">
                     <span className="company-option__icon" aria-hidden="true">
-                      <Icon name="users" size={23} />
+                      <img src={selected ? groupIconOnLight : groupIconOnPurple} alt="" />
                     </span>
                     <span className="company-option__text">
                       <strong>{item.name}</strong>
@@ -760,7 +799,7 @@ export function SignalComposer({
                       </small>
                     </span>
                   </span>
-                  <span className="company-option__state" aria-hidden="true">
+                  <span className="company-option__state sr-only" aria-hidden="true">
                     {selected ? 'Выбрана' : 'Выбрать'}
                   </span>
                 </button>
@@ -775,8 +814,11 @@ export function SignalComposer({
           onToggle={(event) => setConditionsOpen(event.currentTarget.open)}
         >
           <summary>
-            <strong>Дополнительные условия</strong>
-            <span>Необязательно</span>
+            <span className="conditions__heading">
+              <strong>Бюджет, расстояние и количество друзей</strong>
+              <span>Необязательно</span>
+            </span>
+            <img src={settingsArrowIcon} alt="" aria-hidden="true" />
           </summary>
           <div className="conditions__content">
             <section className="subsection">
@@ -823,7 +865,7 @@ export function SignalComposer({
             </section>
             <section className="subsection">
               <h3>Расстояние</h3>
-              <p className="form-hint">Ограничь поиск по расстоянию от выбранной точки.</p>
+              <p className="form-hint sr-only">Ограничь поиск по расстоянию от выбранной точки.</p>
               <div className="choices" role="group" aria-label="Радиус">
                 {radiusOptions.map((option) => (
                   <Choice
@@ -887,10 +929,10 @@ export function SignalComposer({
                     {option === 'any'
                       ? 'Неважно'
                       : option === '3+'
-                        ? 'Хотя бы 3'
+                        ? 'от 3'
                         : option === '5+'
-                          ? 'Хотя бы 5'
-                          : 'Ровно…'}
+                          ? 'от 5'
+                          : 'Свой вариант'}
                   </Choice>
                 ))}
               </div>
@@ -929,7 +971,7 @@ export function SignalComposer({
           </p>
         ) : null}
         <div className="wizard__footer">
-          <p className="wizard__summary">{summary}</p>
+          <p className="wizard__summary sr-only">{summary}</p>
           <button className="primary-button" type="submit" disabled={!valid || busy}>
             {existing ? 'Сохранить условия' : 'Начать поиск'}
           </button>
