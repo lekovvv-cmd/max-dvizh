@@ -83,6 +83,20 @@
   height: 220px;
   object-fit: cover;
 }
+.activity-card__visual {
+  position: relative;
+}
+.activity-card__map-label {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: rgb(255 255 255 / 94%);
+  color: #30264d;
+  font-size: 12px;
+  font-weight: 600;
+}
 .activity-card__art {
   display: grid;
   place-items: center;

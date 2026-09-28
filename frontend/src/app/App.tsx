@@ -486,25 +486,32 @@ export function App() {
       />
     ) : screen === 'dvizhi' && focused ? (
       <div className="page-stack home-page">
-        <button
-          type="button"
-          className="dvizh-back"
-          aria-label={
-            detailReturn === 'home' ? 'Вернуться на главную' : 'Вернуться к списку движей'
-          }
-          onClick={() => {
-            setTargetId(null)
-            setScreen(detailReturn)
-          }}
-        >
-          {detailReturn === 'home' ? 'Главная' : 'Все движи'}
-        </button>
+        {!['CHOOSING_CANDIDATES', 'AWAITING_CONFIRMATION'].includes(focused.status) ? (
+          <button
+            type="button"
+            className="dvizh-back"
+            aria-label={
+              detailReturn === 'home' ? 'Вернуться на главную' : 'Вернуться к списку движей'
+            }
+            onClick={() => {
+              setTargetId(null)
+              setScreen(detailReturn)
+            }}
+          >
+            {detailReturn === 'home' ? 'Главная' : 'Все движи'}
+          </button>
+        ) : null}
         <DvizhFlow
           key={focused.id}
           dvizh={focused}
           onUpdate={updateDvizh}
           onEdit={() => editDvizh(focused)}
           onNew={() => openSignal()}
+          onBack={() => {
+            setTargetId(null)
+            setScreen(detailReturn)
+          }}
+          backLabel={detailReturn === 'home' ? 'Вернуться на главную' : 'Вернуться к списку движей'}
         />
       </div>
     ) : (

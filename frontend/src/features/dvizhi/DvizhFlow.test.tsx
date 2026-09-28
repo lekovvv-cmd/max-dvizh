@@ -70,6 +70,18 @@ setActivityTaxonomy({
 })
 
 describe('finite candidate round', () => {
+  it('shows a Geoapify map preview and falls back when the image fails', () => {
+    const item = sample()
+    item.candidates[0].image_url = '/api/v1/place-map/59.934300/30.335100/signed'
+    render(<DvizhFlow dvizh={item} onUpdate={vi.fn()} onEdit={vi.fn()} onNew={vi.fn()} />)
+    const image = screen.getByRole('img', { name: /на карте/ })
+    expect(image).toHaveAttribute('src', item.candidates[0].image_url)
+    expect(screen.getByText('На карте')).toBeInTheDocument()
+    fireEvent.error(image)
+    expect(screen.getByText('ДВИЖ')).toBeInTheDocument()
+    expect(screen.queryByText('На карте')).not.toBeInTheDocument()
+  })
+
   it('uses the same reaction endpoint for the calm buttons', async () => {
     const item = sample()
     const save = vi.spyOn(api, 'react').mockResolvedValue(item)
@@ -79,8 +91,11 @@ describe('finite candidate round', () => {
     expect(signal).toHaveTextContent('Твой сигнал')
     expect(signal).toHaveTextContent('Квест')
     expect(signal).toHaveTextContent('Друзья')
-    expect(screen.getByText('1 / 1')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Пошёл бы' }))
+    expect(screen.getByRole('progressbar', { name: 'Выбор мест' })).toHaveAttribute(
+      'aria-valuenow',
+      '1',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Пойду' }))
     await waitFor(() => expect(save).toHaveBeenCalledWith('d1', 'c1', 'WOULD_GO', false))
     expect(update).toHaveBeenCalled()
   })
@@ -134,7 +149,10 @@ describe('finite candidate round', () => {
     item.chosen_count = 1
     const launch = vi.spyOn(api, 'launch')
     render(<DvizhFlow dvizh={item} onUpdate={vi.fn()} onEdit={vi.fn()} onNew={vi.fn()} />)
-    expect(screen.getByText('1 / 1')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: 'Выбор мест' })).toHaveAttribute(
+      'aria-valuenow',
+      '1',
+    )
     expect(screen.queryByText('Свайп влево или вправо тоже работает')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Закончить выбор' }))
     expect(screen.getByRole('heading', { name: '1 место на примете' })).toBeInTheDocument()
@@ -148,12 +166,12 @@ describe('finite candidate round', () => {
     item.candidates[0].budget_delta = 200
     const save = vi.spyOn(api, 'react').mockResolvedValue(item)
     render(<DvizhFlow dvizh={item} onUpdate={vi.fn()} onEdit={vi.fn()} onNew={vi.fn()} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Пошёл бы' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Пойду' }))
     expect(screen.getByRole('dialog', { name: 'Чуть дороже' })).toBeInTheDocument()
     expect(save).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Отмена' }))
     expect(save).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Пошёл бы' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Пойду' }))
     fireEvent.click(screen.getByRole('button', { name: 'Всё равно пойду' }))
     await waitFor(() => expect(save).toHaveBeenCalledWith('d1', 'c1', 'WOULD_GO', true))
   })
@@ -167,7 +185,7 @@ describe('finite candidate round', () => {
     item.candidates[0].budget_delta = 200
     const confirm = vi.spyOn(api, 'confirmDvizh').mockResolvedValue(item)
     render(<DvizhFlow dvizh={item} onUpdate={vi.fn()} onEdit={vi.fn()} onNew={vi.fn()} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Я в деле' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Пойду' }))
     expect(screen.getByRole('dialog', { name: 'Чуть дороже' })).toBeInTheDocument()
     expect(confirm).not.toHaveBeenCalled()
     fireEvent.click(
@@ -191,8 +209,8 @@ describe('finite candidate round', () => {
     const item = sample()
     item.candidates[0].compatibility = 'UNVERIFIED'
     render(<DvizhFlow dvizh={item} onUpdate={vi.fn()} onEdit={vi.fn()} onNew={vi.fn()} />)
-    expect(screen.getByRole('button', { name: 'Пошёл бы' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Не моё' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Пойду' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Не пойду' })).toBeInTheDocument()
   })
 
   it('keeps a larger internal pool in the existing eight-card round', () => {
@@ -203,7 +221,11 @@ describe('finite candidate round', () => {
       position: index,
     }))
     render(<DvizhFlow dvizh={item} onUpdate={vi.fn()} onEdit={vi.fn()} onNew={vi.fn()} />)
-    expect(screen.getByText('1 / 8')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: 'Выбор мест' })).toHaveAttribute(
+      'aria-valuemax',
+      '8',
+    )
+    expect(screen.queryByText('1 из 8')).not.toBeInTheDocument()
   })
 
   it('lets a waitlisted member check for an open place after gathering', async () => {

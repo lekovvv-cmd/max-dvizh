@@ -11,6 +11,7 @@
 @import './ux-followup.css';
 @import './company-figma.css';
 @import './signal-figma.css';
+@import './dvizh-figma.css';
 
 @keyframes spin {
   to {

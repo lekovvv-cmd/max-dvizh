@@ -2,9 +2,10 @@ import { useRef, useState } from 'react'
 
 import { api, type Dvizh, type DvizhCandidate } from '../../app/api'
 import { activityLabel, formatPeople, formatSignalWindow } from '../../shared/lib/format'
-import { dvizhStatusLabel } from '../../shared/lib/dvizhStatus'
 import { ActivityCard } from '../../shared/ui/ActivityCard'
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog'
+import { Icon } from '../../shared/ui/Icon'
+import companyUsersIcon from '../../assets/figma-company/690e2.svg'
 
 const ROUND_SIZE = 8
 
@@ -13,11 +14,15 @@ export function DvizhFlow({
   onUpdate,
   onEdit,
   onNew,
+  onBack,
+  backLabel = 'Закрыть выбор мест',
 }: {
   dvizh: Dvizh
   onUpdate: (value: Dvizh) => void
   onEdit: () => void
   onNew: () => void
+  onBack?: () => void
+  backLabel?: string
 }) {
   const [limit, setLimit] = useState(ROUND_SIZE)
   const [drag, setDrag] = useState(0)
@@ -46,9 +51,12 @@ export function DvizhFlow({
   const current =
     dvizh.status === 'AWAITING_CONFIRMATION' || selectionFinished ? undefined : pending[0]
   const actionableCount = stack.length
-  const answered = actionableCount - pending.length
   const match = dvizh.candidates.find((candidate) => candidate.id === dvizh.active_candidate_id)
   const chosenPlaces = dvizh.candidates.filter((candidate) => candidate.my_reaction === 'WOULD_GO')
+  const currentIndex = current ? stack.indexOf(current) : -1
+  const roundStart = currentIndex >= 0 ? Math.floor(currentIndex / ROUND_SIZE) * ROUND_SIZE : 0
+  const roundCount = Math.min(ROUND_SIZE, actionableCount - roundStart)
+  const roundPosition = currentIndex - roundStart + 1
 
   async function act(
     action: () => Promise<Dvizh>,
@@ -114,16 +122,23 @@ export function DvizhFlow({
   const placeSearch =
     dvizh.is_initiator &&
     (choosing || ['NO_SOURCE', 'PROVIDER_UNAVAILABLE'].includes(dvizh.status)) ? (
-      <div className="place-search">
-        <button
-          type="button"
-          className="text-action"
-          aria-expanded={placeOpen}
-          onClick={() => setPlaceOpen((value) => !value)}
-        >
-          Знаешь конкретное место?
-        </button>
-        {placeOpen ? (
+      <div className={choosing ? 'place-search place-search--figma' : 'place-search'}>
+        {choosing ? (
+          <div className="place-search__heading">
+            <strong>Знаешь место?</strong>
+            <p>Введи название или адрес</p>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="text-action"
+            aria-expanded={placeOpen}
+            onClick={() => setPlaceOpen((value) => !value)}
+          >
+            Знаешь конкретное место?
+          </button>
+        )}
+        {choosing || placeOpen ? (
           <form
             onSubmit={(event) => {
               event.preventDefault()
@@ -145,17 +160,21 @@ export function DvizhFlow({
             }}
           >
             <label>
-              Название или ссылка
+              <span className={choosing ? 'visually-hidden' : undefined}>Название или адрес</span>
               <input
                 value={placeQuery}
                 onChange={(event) => setPlaceQuery(event.target.value)}
                 minLength={2}
                 maxLength={300}
-                placeholder="Например, название места"
+                placeholder={choosing ? 'Найти место' : 'Например, название места'}
               />
             </label>
-            <button type="submit" disabled={busy || placeQuery.trim().length < 2}>
-              Найти
+            <button
+              type="submit"
+              disabled={busy || placeQuery.trim().length < 2}
+              aria-label="Найти место"
+            >
+              {choosing ? <Icon name="search" size={18} /> : 'Найти'}
             </button>
           </form>
         ) : null}
@@ -163,7 +182,10 @@ export function DvizhFlow({
     ) : null
 
   return (
-    <section className="dvizh-flow" aria-live="polite">
+    <section
+      className={`dvizh-flow${current ? ' dvizh-flow--tinder' : needsConfirm ? ' dvizh-flow--match' : ''}`}
+      aria-live="polite"
+    >
       <div className="dvizh-flow__context" role="region" aria-label="Сигнал">
         <span>{dvizh.is_initiator ? 'Твой сигнал' : 'Сигнал компании'}</span>
         <strong>{dvizh.activity_ids.map(activityLabel).join(' или ')}</strong>
@@ -178,22 +200,41 @@ export function DvizhFlow({
       ) : null}
       {current ? (
         <>
+          {onBack ? (
+            <button
+              type="button"
+              className="dvizh-flow__close"
+              onClick={onBack}
+              aria-label={backLabel}
+            >
+              <Icon name="close" size={24} />
+            </button>
+          ) : null}
           <header className="dvizh-flow__heading">
             <div>
               <h1>Куда пошёл бы?</h1>
-              <p>Выбери места, которые тебе нравятся</p>
+              <p>Выбери места, куда ты реально готов пойти</p>
             </div>
-            <span>
-              {answered + 1} / {actionableCount}
-            </span>
           </header>
-          <div className="dvizh-flow__progress-track" aria-hidden="true">
-            <span style={{ width: `${((answered + 1) / Math.max(actionableCount, 1)) * 100}%` }} />
+          <div
+            className="dvizh-flow__progress"
+            role="progressbar"
+            aria-label="Выбор мест"
+            aria-valuemin={1}
+            aria-valuemax={roundCount}
+            aria-valuenow={roundPosition}
+          >
+            <div className="dvizh-flow__progress-track" aria-hidden="true">
+              {Array.from({ length: roundCount }, (_, index) => (
+                <i key={index} className={index < roundPosition ? 'is-active' : undefined} />
+              ))}
+            </div>
           </div>
           <div
             className="swipe-surface"
             style={{ transform: `translateX(${drag}px) rotate(${drag / 24}deg)` }}
             onPointerDown={(event) => {
+              if ((event.target as HTMLElement).closest('a, button, input')) return
               startX.current = event.clientX
               event.currentTarget.setPointerCapture?.(event.pointerId)
             }}
@@ -226,10 +267,10 @@ export function DvizhFlow({
           </div>
           <div className="swipe-actions">
             <button type="button" disabled={busy} onClick={() => react(current, 'PASS')}>
-              Не моё
+              Не пойду
             </button>
             <button type="button" disabled={busy} onClick={() => react(current, 'WOULD_GO')}>
-              Пошёл бы
+              Пойду
             </button>
           </div>
           {choosing && dvizh.chosen_count > 0 ? (
@@ -337,15 +378,46 @@ export function DvizhFlow({
       ) : needsConfirm && match ? (
         <>
           <h1>Похоже, совпало</h1>
-          <ActivityCard candidate={match} status={dvizhStatusLabel(dvizh)} />
-          <div className="dvizh-result">
+          <div className="dvizh-match__group">
             <p>
-              {dvizh.confirmed_count} из {dvizh.min_people} подтвердили
+              Сигнал компании:{' '}
+              <span>{dvizh.activity_ids.map(activityLabel).join(', ').toLowerCase()}</span>
+            </p>
+            <div className="dvizh-match__group-row">
+              <span className="dvizh-match__group-icon" aria-hidden="true">
+                <span
+                  style={{
+                    maskImage: `url("${companyUsersIcon}")`,
+                    WebkitMaskImage: `url("${companyUsersIcon}")`,
+                  }}
+                />
+              </span>
+              <div>
+                <strong>{dvizh.group_name}</strong>
+                <small>
+                  {dvizh.min_people === dvizh.max_people
+                    ? formatPeople(dvizh.min_people)
+                    : `от ${dvizh.min_people} до ${formatPeople(dvizh.max_people)}`}
+                </small>
+              </div>
+            </div>
+          </div>
+          <ActivityCard candidate={match} />
+          <div className="dvizh-result dvizh-match__confirmation">
+            <p>
+              {dvizh.confirmed_count} из {dvizh.min_people} человек подтвердили участие
             </p>
             {!dvizh.my_confirmation ? (
-              <>
+              <div className="swipe-actions">
                 <button
-                  className="primary-button"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void act(() => api.declineDvizh(dvizh.id))}
+                >
+                  Не пойду
+                </button>
+                <button
+                  type="button"
                   disabled={busy}
                   onClick={() =>
                     match.compatibility === 'NEAR'
@@ -356,20 +428,18 @@ export function DvizhFlow({
                         )
                   }
                 >
-                  Я в деле
+                  Пойду
                 </button>
-                <button
-                  className="text-action"
-                  disabled={busy}
-                  onClick={() => void act(() => api.declineDvizh(dvizh.id))}
-                >
-                  Не смогу
-                </button>
-              </>
+              </div>
             ) : waitlisted ? (
               waitlistAction
             ) : (
-              <p>{dvizh.my_confirmation === 'CONFIRMED' ? 'Ждём остальных.' : 'Ты отказался.'}</p>
+              <div className="dvizh-match__status">
+                <strong>
+                  {dvizh.my_confirmation === 'CONFIRMED' ? 'Ты в деле' : 'Ты отказался'}
+                </strong>
+                {dvizh.my_confirmation === 'CONFIRMED' ? <p>Ждём остальных.</p> : null}
+              </div>
             )}
           </div>
         </>
