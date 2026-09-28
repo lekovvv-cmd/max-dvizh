@@ -339,6 +339,10 @@
   transition: none;
 }
 
+.bottom-nav--figma button:active:not(:disabled) {
+  transform: none;
+}
+
 .bottom-nav--figma button:not(.is-active) {
   color: #68647a;
 }
