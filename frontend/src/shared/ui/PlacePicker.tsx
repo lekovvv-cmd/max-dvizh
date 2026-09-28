@@ -15,10 +15,12 @@ export function PlacePicker({
   city,
   value,
   onSelect,
+  compact = false,
 }: {
   city: string
   value: SelectedPlace | null
   onSelect: (place: SelectedPlace | null) => void
+  compact?: boolean
 }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<AddressSuggestion[]>([])
@@ -65,7 +67,7 @@ export function PlacePicker({
   }
 
   return (
-    <div className="place-picker">
+    <div className={`place-picker${compact ? ' place-picker--compact' : ''}`}>
       <label htmlFor="place-address">Адрес или название места</label>
       <div className="place-picker__input">
         <Icon name="search" size={18} />
@@ -73,7 +75,7 @@ export function PlacePicker({
           id="place-address"
           autoComplete="off"
           value={query}
-          placeholder="Начни вводить адрес"
+          placeholder={compact ? 'Адрес' : 'Начни вводить адрес'}
           onChange={(event) => {
             setQuery(event.target.value)
             setResults([])

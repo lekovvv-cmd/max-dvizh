@@ -9,6 +9,7 @@
 @import './dvizh.css';
 @import './ux-polish.css';
 @import './ux-followup.css';
+@import './company-figma.css';
 
 @keyframes spin {
   to {

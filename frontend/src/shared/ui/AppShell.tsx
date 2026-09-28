@@ -1,4 +1,7 @@
 import { Icon, type IconName } from './Icon'
+import companyHomeIcon from '../../assets/figma-company/33510.svg'
+import companyDvizhIcon from '../../assets/figma-company/d6545.svg'
+import companyUsersIcon from '../../assets/figma-company/690e2.svg'
 
 export type Screen = 'home' | 'signal' | 'dvizhi' | 'group'
 
@@ -30,7 +33,10 @@ export function AppShell({
       ) : null}
       <div className="screen-content">{children}</div>
       {screen !== 'signal' ? (
-        <nav className="bottom-nav" aria-label="Основная навигация">
+        <nav
+          className={`bottom-nav${screen === 'group' ? ' bottom-nav--company' : ''}`}
+          aria-label="Основная навигация"
+        >
           {items.map((item) => (
             <button
               key={item.id}
@@ -39,9 +45,22 @@ export function AppShell({
               aria-current={screen === item.id ? 'page' : undefined}
             >
               <span className="bottom-nav__icon">
-                <Icon name={item.icon} />
+                {screen === 'group' ? (
+                  <img
+                    src={
+                      item.id === 'home'
+                        ? companyHomeIcon
+                        : item.id === 'dvizhi'
+                          ? companyDvizhIcon
+                          : companyUsersIcon
+                    }
+                    alt=""
+                  />
+                ) : (
+                  <Icon name={item.icon} />
+                )}
               </span>
-              {item.label}
+              {screen === 'group' && item.id === 'dvizhi' ? 'Движ' : item.label}
             </button>
           ))}
         </nav>
