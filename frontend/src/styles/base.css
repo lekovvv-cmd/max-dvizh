@@ -2,22 +2,22 @@
   font-family: 'Max Sans';
   src: url('../assets/fonts/Max_Sans_Regular.woff2') format('woff2');
   font-style: normal;
-  font-weight: 400 500;
+  font-weight: 400;
   font-display: swap;
 }
 @font-face {
   font-family: 'Max Sans';
   src: url('../assets/fonts/Max_Sans_Medium.woff2') format('woff2');
   font-style: normal;
-  font-weight: 600;
+  font-weight: 500 900;
   font-display: swap;
 }
 :root {
-  --dvizh-bg: #f8f7fc;
+  --dvizh-bg: #f6f7fb;
   --dvizh-surface: #ffffff;
   --dvizh-surface-muted: #f1effa;
   --dvizh-ink: #0d001a;
-  --dvizh-muted: #68647a;
+  --dvizh-muted: #777784;
   --dvizh-line: #e4e1ed;
   --dvizh-line-strong: #817b93;
   --dvizh-blue: #471aff;
@@ -36,6 +36,7 @@
   --space-6: 24px;
   --space-8: 32px;
   --family-base: 'Max Sans', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  --family-heading: 'Unbounded Variable', 'Max Sans', sans-serif;
   font-family: var(--family-base);
   color: var(--dvizh-ink);
   background: var(--dvizh-bg);
@@ -53,10 +54,14 @@ body {
   min-width: 320px;
   margin: 0;
   background: var(--dvizh-bg);
+  font-family: var(--family-base);
 }
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
+  font-family: var(--family-base);
 }
 button {
   cursor: pointer;
@@ -71,6 +76,12 @@ a:focus-visible,
 [tabindex]:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--dvizh-blue) 45%, transparent);
   outline-offset: 2px;
+}
+h1,
+h2,
+h3 {
+  font-family: var(--family-heading);
+  font-weight: 400;
 }
 h1,
 h2,

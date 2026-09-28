@@ -182,7 +182,7 @@ export function DvizhFlow({
 
   return (
     <section
-      className={`dvizh-flow${current ? ' dvizh-flow--tinder' : needsConfirm ? ' dvizh-flow--match' : ''}`}
+      className={`dvizh-flow${current ? ' dvizh-flow--tinder' : needsConfirm ? ' dvizh-flow--match' : ' dvizh-flow--restyled'}`}
       aria-live="polite"
     >
       <div className="dvizh-flow__context" role="region" aria-label="Сигнал">

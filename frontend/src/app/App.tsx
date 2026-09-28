@@ -75,9 +75,9 @@ function DvizhList({
   const gathered = items.filter((item) => item.status === 'GATHERED')
   return (
     <section className="page-stack dvizh-list">
-      <h1 className="dvizh-list__title">ДВИЖИ</h1>
+      <h1 className="dvizh-list__title">Движи</h1>
       {collecting.length ? (
-        <section>
+        <section className="dvizh-list__section">
           <h2>
             Собираются <span aria-hidden="true">{collecting.length}</span>
           </h2>
@@ -87,7 +87,7 @@ function DvizhList({
         </section>
       ) : null}
       {gathered.length ? (
-        <section>
+        <section className="dvizh-list__section">
           <h2>
             Собрались <span aria-hidden="true">{gathered.length}</span>
           </h2>
@@ -97,7 +97,7 @@ function DvizhList({
         </section>
       ) : null}
       {recurring ? (
-        <section className="dvizh-result">
+        <section className="dvizh-result dvizh-list__recurring">
           <h2>Регулярный сигнал</h2>
           {recurring.status === 'PAUSED' ? <p>На паузе</p> : null}
           <p>
@@ -145,7 +145,7 @@ function DvizhList({
         />
       ) : null}
       {!collecting.length && !gathered.length ? (
-        <div className="dvizh-result">
+        <div className="dvizh-result dvizh-list__empty">
           <h2>Пока нет движей</h2>
           <p>Подай сигнал, выбери место, и мы спросим компанию.</p>
           <button className="primary-button" onClick={onSignal}>

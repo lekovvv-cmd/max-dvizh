@@ -12,6 +12,7 @@
 @import './company-figma.css';
 @import './signal-figma.css';
 @import './dvizh-figma.css';
+@import './app-figma.css';
 
 @keyframes spin {
   to {
