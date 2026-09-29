@@ -6,6 +6,7 @@ afterEach(cleanup)
 
 describe('ConfirmDialog keyboard access', () => {
   it('keeps Tab inside the dialog and restores the opener on close', () => {
+    const onCancel = vi.fn()
     const opener = document.createElement('button')
     document.body.append(opener)
     opener.focus()
@@ -16,19 +17,21 @@ describe('ConfirmDialog keyboard access', () => {
         confirmLabel="Удалить"
         cancelLabel="Оставить"
         onConfirm={vi.fn()}
-        onCancel={vi.fn()}
+        onCancel={onCancel}
       />,
     )
     const dialog = screen.getByRole('dialog')
-    const confirm = screen.getByRole('button', { name: 'Удалить' })
+    const close = screen.getByRole('button', { name: 'Закрыть' })
     const cancel = screen.getByRole('button', { name: 'Оставить' })
     expect(dialog).toHaveFocus()
     fireEvent.keyDown(dialog, { key: 'Tab' })
-    expect(confirm).toHaveFocus()
-    fireEvent.keyDown(confirm, { key: 'Tab', shiftKey: true })
+    expect(close).toHaveFocus()
+    fireEvent.keyDown(close, { key: 'Tab', shiftKey: true })
     expect(cancel).toHaveFocus()
     fireEvent.keyDown(cancel, { key: 'Tab' })
-    expect(confirm).toHaveFocus()
+    expect(close).toHaveFocus()
+    fireEvent.click(close)
+    expect(onCancel).toHaveBeenCalledOnce()
     opener.focus()
     expect(dialog).toHaveFocus()
     unmount()

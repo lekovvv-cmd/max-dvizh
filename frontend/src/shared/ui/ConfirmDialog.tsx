@@ -1,5 +1,6 @@
 import { Button } from '@maxhub/max-ui'
 import { useEffect, useId, useRef } from 'react'
+import { Icon } from './Icon'
 
 export function ConfirmDialog({
   title,
@@ -93,6 +94,15 @@ export function ConfirmDialog({
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
       >
+        <button
+          type="button"
+          className="confirm-dialog__close"
+          aria-label="Закрыть"
+          disabled={busy}
+          onClick={onCancel}
+        >
+          <Icon name="close" size={18} />
+        </button>
         <h2 id={titleId}>{title}</h2>
         <p id={descriptionId}>{description}</p>
         {children}

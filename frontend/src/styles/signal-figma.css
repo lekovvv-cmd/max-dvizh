@@ -468,6 +468,7 @@
 :root[data-theme='dark'] .signal-composer,
 :root[data-theme='dark'] .signal-composer .form-section h2,
 :root[data-theme='dark'] .signal-composer .repeat-control,
+:root[data-theme='dark'] .signal-composer .form-row--time label,
 :root[data-theme='dark'] .signal-composer .subsection label {
   color: var(--dvizh-ink);
 }

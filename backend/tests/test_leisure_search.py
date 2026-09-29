@@ -9,7 +9,10 @@ from threading import Event
 from typing import Any
 
 import httpx
+import pytest
+from fastapi import HTTPException
 
+from app.api.routes import place_map
 from app.modules.leisure import geoapify, search
 from app.modules.leisure.provider import NormalizedLeisureItem, ProviderQuery
 from app.modules.leisure.taxonomy import expand, geoapify_retrieval, retrieval_intents
@@ -57,6 +60,7 @@ def test_structured_mapping_and_walk_does_not_become_ropes_course() -> None:
     assert geoapify_retrieval(["walk"])[0] == ("leisure.park", "leisure.park.garden")
     assert "walk" in expand(["walk/*"])
     assert "bowling" in expand(["games/*"])
+    assert "museum" not in expand(["games/*"])
     assert "ropes_course" not in search._activity_ids(
         feature()["properties"], {"walk", "ropes_course"}
     )
@@ -104,6 +108,50 @@ def test_geoapify_rechecks_hard_radius_server_side() -> None:
     assert inside is not None and outside is None
 
 
+def test_geoapify_place_has_signed_map_preview(monkeypatch: Any) -> None:
+    monkeypatch.setattr(geoapify, "settings", replace(geoapify.settings, geoapify_api_key="test"))
+    item = search._normalize(feature(), query("walk"), datetime.now(UTC))
+    assert item is not None and item.image_url is not None
+    assert "test" not in item.image_url
+    latitude, longitude, signature = item.image_url.rsplit("/", 3)[-3:]
+    assert geoapify.valid_place_map_signature(float(latitude), float(longitude), signature)
+    assert not geoapify.valid_place_map_signature(float(latitude), float(longitude), "wrong")
+
+
+def test_signed_map_proxy_keeps_key_server_side(monkeypatch: Any) -> None:
+    configured = replace(geoapify.settings, geoapify_api_key="secret")
+    monkeypatch.setattr(geoapify, "settings", configured)
+    monkeypatch.setattr(place_map, "settings", configured)
+    image_url = geoapify.place_map_url(59.9343, 30.3351)
+    assert image_url is not None
+    signature = image_url.rsplit("/", 1)[-1]
+    calls: list[httpx.Request] = []
+    real_client = httpx.AsyncClient
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return httpx.Response(200, content=b"jpeg", headers={"content-type": "image/jpeg"})
+
+    monkeypatch.setattr(
+        place_map.httpx,
+        "AsyncClient",
+        lambda **kwargs: real_client(transport=httpx.MockTransport(respond), **kwargs),
+    )
+
+    async def run() -> None:
+        with pytest.raises(HTTPException) as invalid:
+            await place_map.place_map(59.9343, 30.3351, "invalid")
+        assert invalid.value.status_code == 404
+        response = await place_map.place_map(59.9343, 30.3351, signature)
+        assert response.body == b"jpeg"
+        assert response.headers["cache-control"] == "public, max-age=86400"
+
+    asyncio.run(run())
+    assert len(calls) == 1
+    assert calls[0].url.params["apiKey"] == "secret"
+    assert "secret" not in image_url
+
+
 def _item(provider: str, name: str, lon: float) -> NormalizedLeisureItem:
     request = query("walk")
     item = search._normalize(feature(name, lon), request, datetime.now(UTC))
@@ -117,9 +165,15 @@ def _item(provider: str, name: str, lon: float) -> NormalizedLeisureItem:
 
 def test_cross_provider_dedupe_preserves_distinct_branches() -> None:
     first = _item("GEOAPIFY", "Surf Coffee", 30.3351)
-    same = _item("KUDAGO", "Surf Coffee", 30.3355)
+    first = replace(first, image_url="/api/v1/place-map/59.934300/30.335100/signed")
+    same = replace(
+        _item("KUDAGO", "Surf Coffee", 30.3355),
+        image_url="https://kudago.com/surf-coffee.jpg",
+    )
     branch = _item("GEOAPIFY", "Surf Coffee", 30.5)
-    assert len(search.dedupe([first, same, branch])) == 2
+    combined = search.dedupe([first, same, branch])
+    assert len(combined) == 2
+    assert combined[0].image_url == same.image_url
 
 
 def test_provider_tasks_start_concurrently_and_keep_partial_result(monkeypatch: Any) -> None:

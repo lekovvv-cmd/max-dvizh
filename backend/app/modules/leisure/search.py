@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 import httpx
 
 from app.core.config import settings
-from app.modules.leisure.geoapify import resolve_city_id
+from app.modules.leisure.geoapify import place_map_url, resolve_city_id
 from app.modules.leisure.provider import (
     KudaGoProvider,
     NormalizedLeisureItem,
@@ -113,7 +113,7 @@ def _normalize(
         price_min=None,
         price_kind="UNKNOWN",
         source_url=source_url,
-        image_url=None,
+        image_url=place_map_url(latitude, longitude),
         address_text=str(address) if address else None,
         opening_hours_unverified=True,
         source_fetched_at=fetched_at,
@@ -170,6 +170,12 @@ def _identity(item: NormalizedLeisureItem) -> str:
     return re.sub(r"\W+", "", item.title.casefold())
 
 
+def _preferred_image(first: str | None, second: str | None) -> str | None:
+    if first and first.startswith("/api/v1/place-map/") and second:
+        return second
+    return first or second
+
+
 def dedupe(items: list[NormalizedLeisureItem]) -> list[NormalizedLeisureItem]:
     result: list[NormalizedLeisureItem] = []
     for item in items:
@@ -207,7 +213,7 @@ def dedupe(items: list[NormalizedLeisureItem]) -> list[NormalizedLeisureItem]:
                 price_text=previous.price_text or item.price_text,
                 price_min=previous.price_min if previous.price_min is not None else item.price_min,
                 source_url=previous.source_url or item.source_url,
-                image_url=previous.image_url or item.image_url,
+                image_url=_preferred_image(previous.image_url, item.image_url),
                 address_text=previous.address_text or item.address_text,
                 categories=tuple(sorted(set(previous.categories) | set(item.categories))),
             )

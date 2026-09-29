@@ -192,6 +192,58 @@ def test_partial_provider_failure_is_visible_after_hard_filters(
         assert result["dvizhi"][0]["status"] == "PROVIDER_UNAVAILABLE"
 
 
+def test_first_provider_outage_is_retried_before_showing_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        users, _, item, payload = fixture(session)
+        calls = 0
+
+        def fetch(query: ProviderQuery) -> ProviderResult:
+            nonlocal calls
+            calls += 1
+            return ProviderResult(
+                [item] if calls == 2 else [],
+                cached=False,
+                fetched_at=datetime.now(UTC),
+                unavailable=calls == 1,
+            )
+
+        monkeypatch.setattr(routes, "fetch_items", fetch)
+        result = routes.create_signal(payload, session, users[0], "cold-provider")
+        assert calls == 2
+        assert result["dvizhi"][0]["status"] == "CHOOSING_CANDIDATES"
+        assert result["dvizhi"][0]["candidates"][0]["title"] == item.title
+
+
+def test_partial_first_search_retries_before_hard_filter_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        users, _, item, payload = fixture(session)
+        calls = 0
+
+        def fetch(query: ProviderQuery) -> ProviderResult:
+            nonlocal calls
+            calls += 1
+            return ProviderResult(
+                [replace(item, categories=("concert",))] if calls == 1 else [item],
+                cached=False,
+                fetched_at=datetime.now(UTC),
+                partial=calls == 1,
+            )
+
+        monkeypatch.setattr(routes, "fetch_items", fetch)
+        result = routes.create_signal(payload, session, users[0], "partial-first")
+        assert calls == 2
+        assert result["dvizhi"][0]["status"] == "CHOOSING_CANDIDATES"
+        assert len(result["dvizhi"][0]["candidates"]) == 1
+
+
 def test_taxonomy_and_strict_classifier() -> None:
     assert classify({"categories": ["questroom"]}, "PLACE")["quest"] == "HIGH"
     assert classify({"categories": ["bar"]}, "PLACE")["bar"] == "HIGH"

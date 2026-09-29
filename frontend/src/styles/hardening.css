@@ -104,7 +104,7 @@
 .company-place-dialog__close {
   width: 44px;
   height: 44px;
-  border-radius: 10px;
+  border-radius: 50%;
 }
 
 .company-popup__city {
@@ -369,5 +369,227 @@
   .company-place {
     padding-right: 12px;
     padding-left: 12px;
+  }
+}
+
+/* One close control across the company, confirmation and selection surfaces. */
+.company-place-dialog__close,
+.confirm-dialog__close,
+.signal-composer__close,
+.dvizh-flow--tinder .dvizh-flow__close {
+  position: relative;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  background: transparent;
+  color: var(--dvizh-ink);
+}
+
+.company-place-dialog__close::before,
+.confirm-dialog__close::before,
+.signal-composer__close::before,
+.dvizh-flow--tinder .dvizh-flow__close::before {
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: var(--dvizh-surface-muted);
+  content: '';
+}
+
+.company-place-dialog__close .icon,
+.confirm-dialog__close .icon,
+.signal-composer__close .icon,
+.dvizh-flow--tinder .dvizh-flow__close .icon {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  stroke-width: 2;
+}
+
+.company-place-dialog__close:hover::before,
+.confirm-dialog__close:hover::before,
+.signal-composer__close:hover::before,
+.dvizh-flow--tinder .dvizh-flow__close:hover::before {
+  background: #e4dcff;
+}
+
+.company-place-dialog__close:disabled,
+.confirm-dialog__close:disabled {
+  opacity: 0.5;
+}
+
+.signal-composer__close {
+  position: absolute;
+  top: -50px;
+  right: 0;
+}
+
+.confirm-dialog {
+  position: relative;
+}
+
+.confirm-dialog .confirm-dialog__close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  min-height: 44px;
+  border-radius: 50%;
+}
+
+.confirm-dialog h2 {
+  padding-right: 48px;
+}
+
+/* Give the waiting state a focused composition and a preview of coming cards. */
+.search-saving {
+  width: 100%;
+  max-width: 440px;
+  gap: 14px;
+  margin: 0 auto;
+  padding-top: clamp(20px, 7vh, 56px);
+}
+
+.search-saving__hero {
+  position: relative;
+  display: grid;
+  width: 100%;
+  min-height: 252px;
+  align-content: end;
+  justify-items: start;
+  gap: 10px;
+  overflow: hidden;
+  border-radius: 26px;
+  padding: 24px;
+  background: linear-gradient(145deg, #6544ff 0%, #471aff 65%, #3210b5 100%);
+  color: #fff;
+}
+
+.search-saving__hero::after {
+  position: absolute;
+  top: -86px;
+  right: -86px;
+  width: 230px;
+  height: 230px;
+  border: 1px solid rgb(255 255 255 / 23%);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 28px rgb(255 255 255 / 7%),
+    0 0 0 58px rgb(255 255 255 / 5%);
+  content: '';
+}
+
+.search-saving__hero .pulse-mark {
+  width: 52px;
+  height: 52px;
+  margin-bottom: 12px;
+  border: 1px solid rgb(255 255 255 / 30%);
+  background: rgb(255 255 255 / 18%);
+}
+
+.search-saving__hero .pulse-mark i {
+  background: #fff;
+}
+
+.search-saving__eyebrow {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.search-saving__hero h1 {
+  max-width: 340px;
+  color: #fff;
+  font-family: var(--family-heading);
+  font-size: clamp(22px, 6vw, 28px);
+  line-height: 1.18;
+  letter-spacing: -0.03em;
+}
+
+.search-saving__hero p {
+  max-width: 330px;
+  margin: 0;
+  color: rgb(255 255 255 / 84%);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.search-saving__summary {
+  display: grid;
+  width: 100%;
+  gap: 6px;
+  border: 1px solid var(--dvizh-line);
+  border-radius: 18px;
+  padding: 16px 18px;
+  background: var(--dvizh-surface);
+}
+
+.search-saving__summary span {
+  color: var(--dvizh-muted);
+  font-size: 12px;
+}
+
+.search-saving__summary strong {
+  color: var(--dvizh-ink);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.search-saving__preview {
+  display: flex;
+  width: 100%;
+  height: 76px;
+  align-items: center;
+  gap: 13px;
+  border: 1px solid var(--dvizh-line);
+  border-radius: 18px;
+  padding: 14px 18px;
+  background: var(--dvizh-surface);
+  opacity: 0.7;
+}
+
+.search-saving__preview-icon {
+  flex: 0 0 44px;
+  height: 44px;
+  border-radius: 11px;
+  background: var(--dvizh-blue-soft);
+}
+
+.search-saving__preview-lines {
+  display: grid;
+  flex: 1;
+  gap: 9px;
+}
+
+.search-saving__preview-lines i {
+  width: 72%;
+  height: 9px;
+  border-radius: 99px;
+  background: var(--dvizh-line);
+}
+
+.search-saving__preview-lines i + i {
+  width: 45%;
+  height: 7px;
+}
+
+.search-saving__preview-dot {
+  flex: 0 0 18px;
+  height: 18px;
+  border: 2px solid var(--dvizh-line);
+  border-top-color: var(--dvizh-blue);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-saving__preview-dot {
+    animation: none;
   }
 }

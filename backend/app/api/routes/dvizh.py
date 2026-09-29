@@ -25,7 +25,7 @@ from app.db.models import (
     OutboxNotification,
     User,
 )
-from app.modules.leisure.provider import KudaGoProvider, ProviderQuery, fetch_items
+from app.modules.leisure.provider import KudaGoProvider, ProviderQuery, ProviderResult, fetch_items
 from app.modules.leisure.search import search_exact_place
 from app.modules.leisure.taxonomy import taxonomy_out, valid_selection
 from app.modules.matching.dvizh import (
@@ -173,6 +173,17 @@ def _create(
     provider_query = _query(payload, city, origin)
     session.commit()
     result = fetch_items(provider_query)
+    if result.unavailable or result.partial:
+        # A cold provider can miss the first deadline. Keep any results it did
+        # return while retrying the missing source before showing an error.
+        retry = fetch_items(provider_query)
+        result = ProviderResult(
+            items=[*result.items, *retry.items],
+            cached=result.cached and retry.cached,
+            fetched_at=retry.fetched_at or result.fetched_at,
+            unavailable=result.unavailable and retry.unavailable,
+            partial=retry.partial,
+        )
     session.scalar(select(User.id).where(User.id == user.id).with_for_update())
     groups, city = _validate_groups(payload, session, user)
     if (existing := _existing_batch(session, user, batch_id)) is not None:

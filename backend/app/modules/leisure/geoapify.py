@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hmac
+from hashlib import sha256
+from math import isfinite
 from time import monotonic
 
 import httpx
@@ -18,6 +21,27 @@ CITY_NAMES = {
     "nsk": "Новосибирск",
 }
 _cities: dict[str, tuple[str, str, float]] = {}
+
+
+def place_map_url(latitude: float, longitude: float) -> str | None:
+    """Create a signed local URL so the Geoapify key stays on the server."""
+    if (
+        not settings.geoapify_api_key
+        or not isfinite(latitude)
+        or not isfinite(longitude)
+        or not (-90 <= latitude <= 90 and -180 <= longitude <= 180)
+    ):
+        return None
+    coordinates = f"{latitude:.6f},{longitude:.6f}"
+    signature = hmac.new(
+        settings.geoapify_api_key.encode(), coordinates.encode(), sha256
+    ).hexdigest()[:32]
+    return f"/api/v1/place-map/{latitude:.6f}/{longitude:.6f}/{signature}"
+
+
+def valid_place_map_signature(latitude: float, longitude: float, signature: str) -> bool:
+    expected = place_map_url(latitude, longitude)
+    return bool(expected) and hmac.compare_digest(expected.rsplit("/", 1)[-1], signature)
 
 
 def city_name(city_slug: str) -> str:

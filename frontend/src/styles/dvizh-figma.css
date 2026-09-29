@@ -12,7 +12,7 @@
 .dvizh-flow--tinder,
 .dvizh-flow--match {
   width: 100%;
-  max-width: 343px;
+  max-width: 100%;
   gap: 0;
   padding-bottom: 16px;
   color: #0d001a;
@@ -260,7 +260,7 @@
   width: 100%;
   min-height: 126px;
   gap: 16px;
-  margin-top: 87px;
+  margin-top: 24px;
   border-radius: 20px;
   padding: 16px;
   background: #fff;

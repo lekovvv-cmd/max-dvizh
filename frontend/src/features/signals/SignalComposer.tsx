@@ -537,9 +537,30 @@ export function SignalComposer({
   if (busy || checking)
     return (
       <section className="search-saving" aria-live="polite">
-        <PulseMark />
-        <h1>{checking ? 'Проверяем сохранение' : 'Ищем варианты'}</h1>
-        <p className="search-saving__summary">{summary}</p>
+        <div className="search-saving__hero">
+          <PulseMark />
+          <span className="search-saving__eyebrow">
+            {checking ? 'Сохраняем сигнал' : 'Подбираем места'}
+          </span>
+          <h1>{checking ? 'Проверяем сохранение' : 'Ищем варианты для вас'}</h1>
+          <p>
+            {checking
+              ? 'Уточняем результат, чтобы не создать сигнал повторно.'
+              : 'Смотрим, что подходит по времени, занятию и компании.'}
+          </p>
+        </div>
+        <div className="search-saving__summary">
+          <span>Ваши условия</span>
+          <strong>{summary}</strong>
+        </div>
+        <div className="search-saving__preview" aria-hidden="true">
+          <span className="search-saving__preview-icon" />
+          <span className="search-saving__preview-lines">
+            <i />
+            <i />
+          </span>
+          <span className="search-saving__preview-dot" />
+        </div>
       </section>
     )
 

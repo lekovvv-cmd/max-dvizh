@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import closeIcon from '../../assets/figma-company/5aeef.svg'
+import { Icon } from '../../shared/ui/Icon'
 
 const EXIT_DURATION_MS = 190
 
@@ -124,7 +124,7 @@ export function CompanyPopup({
           disabled={busy}
           onClick={onClose}
         >
-          <img src={closeIcon} alt="" />
+          <Icon name="close" size={18} />
         </button>
         <div className="company-place-dialog__body">
           <h2 id={titleId}>{title}</h2>
