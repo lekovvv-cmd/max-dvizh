@@ -296,3 +296,62 @@ it('keeps the custom budget field visible while replacing its value', () => {
   expect(screen.getByRole('spinbutton', { name: 'Сумма, ₽' })).toHaveValue(750)
   expect(screen.getByRole('button', { name: 'Начать поиск' })).toBeEnabled()
 })
+
+it('shows Russian date inputs and submits their local times as ISO timestamps', async () => {
+  const save = vi
+    .spyOn(api, 'signalBatch')
+    .mockResolvedValue({ signal_batch_id: 'batch-1', dvizhi: [] })
+  renderCatalog()
+  fireEvent.click(screen.getByRole('button', { name: /Свое время/ }))
+  const start = screen.getByRole('textbox', { name: 'С' })
+  const end = screen.getByRole('textbox', { name: 'До' })
+  expect(start).toHaveAttribute('placeholder', 'дд.мм.гггг чч:мм')
+  expect((start as HTMLInputElement).value).toMatch(/^\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}$/)
+  fireEvent.click(screen.getByRole('button', { name: 'Квест' }))
+  fireEvent.change(start, { target: { value: '31.02.2099 16:00' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Начать поиск' }))
+  expect(screen.getByRole('alert')).toHaveTextContent('Введи начало в формате дд.мм.гггг чч:мм.')
+  expect(save).not.toHaveBeenCalled()
+
+  fireEvent.change(start, { target: { value: '17.09.2099 16:00' } })
+  fireEvent.change(end, { target: { value: '17.09.2099 18:00' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Начать поиск' }))
+  await waitFor(() => expect(save).toHaveBeenCalledTimes(1))
+  expect(save.mock.calls[0][0]).toMatchObject({
+    available_from: new Date(2099, 8, 17, 16).toISOString(),
+    available_to: new Date(2099, 8, 17, 18).toISOString(),
+  })
+})
+
+it('converts an older datetime-local draft into Russian date inputs', () => {
+  localStorage.setItem(
+    'dvizh-signal-draft-v2:new',
+    JSON.stringify({
+      categories: [],
+      groupIds: [group.id],
+      draftVersion: 3,
+      when: 'custom',
+      start: '2099-09-17T16:00',
+      end: '2099-09-17T18:00',
+    }),
+  )
+  renderCatalog()
+  expect(screen.getByRole('textbox', { name: 'С' })).toHaveValue('17.09.2099 16:00')
+  expect(screen.getByRole('textbox', { name: 'До' })).toHaveValue('17.09.2099 18:00')
+})
+
+it('uses 24-hour text inputs for a weekly schedule', () => {
+  const save = vi.spyOn(api, 'recurringSignal')
+  renderCatalog()
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Повторять каждую неделю' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Квест' }))
+  const start = screen.getByRole('textbox', { name: 'С' })
+  const end = screen.getByRole('textbox', { name: 'До' })
+  expect(start).toHaveAttribute('placeholder', 'чч:мм')
+  expect(start).toHaveValue('18:00')
+  expect(end).toHaveValue('23:00')
+  fireEvent.change(start, { target: { value: '25:00' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Начать поиск' }))
+  expect(screen.getByRole('alert')).toHaveTextContent('Введи время в формате чч:мм.')
+  expect(save).not.toHaveBeenCalled()
+})
