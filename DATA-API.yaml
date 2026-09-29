@@ -79,7 +79,7 @@ checks:
     body: { group_ids: ["<group_id>"], activity_categories: ["quest"], available_from: "<future ISO-8601>", available_to: "<later ISO-8601>", budget_max: 1500, min_people: 3 }
     expected_statuses: [201, 401, 404, 409, 422]
     response_format: json_object
-    required_response_fields: [signal_batch_id, dvizhi]
+    required_response_fields: [signal_batch_id, dvizhi] # dvizhi[] uses DvizhOut in OpenAPI
     error_response_fields: [code, detail] # 409 SCHEDULE_CONFLICT
   - id: private_dvizh
     method: GET
@@ -89,7 +89,8 @@ checks:
     headers: { X-MAX-Init-Data: "<signed initData; or X-Demo-User in development>" }
     expected_statuses: [200, 401, 404]
     response_format: json_object
-    required_response_fields: [id, status, candidates, active_candidate_id, my_confirmation, my_reconfirmed, my_reconfirm_available, participants]
+    required_response_fields: [id, signal_batch_id, group_id, group_name, status, is_initiator, activity_ids, min_people, max_people, available_from, available_to, expires_at, active_candidate_id, candidates, chosen_count, reaction_count, confirmed_count, my_confirmation, my_reconfirmed, my_reconfirm_available, participants]
+    candidate_fields: [id, title, venue_name, starts_at, ends_at, price_text, price_min, distance_km, address_text, source_url, image_url, activity_ids, compatibility, budget_delta, expires_at, my_reaction, position]
   - id: soft_reaction
     method: PUT
     path: /api/v1/dvizhi/{dvizh_id}/candidates/{candidate_id}/reaction

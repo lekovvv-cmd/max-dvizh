@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbSession
-from app.api.schemas import AutoSignalIn, SignalBatchIn
+from app.api.schemas import AutoSignalIn, DvizhOut, DvizhSignalOut, SignalBatchIn
 from app.core.domain_errors import DomainError
 from app.db.models import (
     DvizhCandidate,
@@ -498,7 +498,7 @@ def taxonomy() -> dict[str, object]:
     return taxonomy_out()
 
 
-@router.post("/signals", status_code=201)
+@router.post("/signals", status_code=201, response_model=DvizhSignalOut)
 def create_signal(
     payload: SignalBatchIn,
     session: DbSession,
@@ -510,7 +510,7 @@ def create_signal(
     return _create(payload, session, user, x_request_id)
 
 
-@router.put("/signals/{batch_id}")
+@router.put("/signals/{batch_id}", response_model=DvizhSignalOut)
 def edit_signal(
     batch_id: str,
     payload: SignalBatchIn,
@@ -555,7 +555,7 @@ def cancel_signal(batch_id: str, session: DbSession, user: CurrentUser) -> dict[
     return {"status": "cancelled"}
 
 
-@router.get("/dvizhi")
+@router.get("/dvizhi", response_model=list[DvizhOut])
 def list_dvizhi(session: DbSession, user: CurrentUser) -> list[dict[str, object]]:
     group_ids = select(GroupMember.group_id).where(GroupMember.user_id == user.id)
     launched_candidates = (
@@ -577,12 +577,12 @@ def list_dvizhi(session: DbSession, user: CurrentUser) -> list[dict[str, object]
     return result
 
 
-@router.get("/dvizhi/{dvizh_id}")
+@router.get("/dvizhi/{dvizh_id}", response_model=DvizhOut)
 def get_dvizh_detail(dvizh_id: str, session: DbSession, user: CurrentUser) -> dict[str, object]:
     return public_dvizh(session, get_dvizh(session, dvizh_id, user.id), user.id)
 
 
-@router.post("/dvizhi/{dvizh_id}/more")
+@router.post("/dvizhi/{dvizh_id}/more", response_model=DvizhOut)
 def more(dvizh_id: str, session: DbSession, user: CurrentUser) -> dict[str, object]:
     dvizh = get_dvizh(session, dvizh_id, user.id)
     if dvizh.initiator_id != user.id or dvizh.status not in {
@@ -613,7 +613,7 @@ def more(dvizh_id: str, session: DbSession, user: CurrentUser) -> dict[str, obje
     return public_dvizh(session, dvizh, user.id)
 
 
-@router.post("/dvizhi/{dvizh_id}/places/search")
+@router.post("/dvizhi/{dvizh_id}/places/search", response_model=DvizhOut)
 def search_place(
     dvizh_id: str, payload: PlaceSearchIn, session: DbSession, user: CurrentUser
 ) -> dict[str, object]:
@@ -651,7 +651,7 @@ def search_place(
     return public_dvizh(session, dvizh, user.id)
 
 
-@router.put("/dvizhi/{dvizh_id}/candidates/{candidate_id}/reaction")
+@router.put("/dvizhi/{dvizh_id}/candidates/{candidate_id}/reaction", response_model=DvizhOut)
 def react(
     dvizh_id: str, candidate_id: str, payload: ReactionIn, session: DbSession, user: CurrentUser
 ) -> dict[str, object]:
@@ -706,7 +706,7 @@ def react(
     return public_dvizh(session, dvizh, user.id)
 
 
-@router.post("/dvizhi/{dvizh_id}/launch")
+@router.post("/dvizhi/{dvizh_id}/launch", response_model=DvizhOut)
 def launch(dvizh_id: str, session: DbSession, user: CurrentUser) -> dict[str, object]:
     preview = get_dvizh(session, dvizh_id, user.id)
     selected = []
@@ -772,7 +772,7 @@ def launch(dvizh_id: str, session: DbSession, user: CurrentUser) -> dict[str, ob
     return public_dvizh(session, dvizh, user.id)
 
 
-@router.post("/dvizhi/{dvizh_id}/confirm")
+@router.post("/dvizhi/{dvizh_id}/confirm", response_model=DvizhOut)
 def confirm(
     dvizh_id: str, payload: ConfirmationIn, session: DbSession, user: CurrentUser
 ) -> dict[str, object]:
@@ -874,7 +874,7 @@ def confirm(
     return public_dvizh(session, dvizh, user.id)
 
 
-@router.post("/dvizhi/{dvizh_id}/reconfirm")
+@router.post("/dvizhi/{dvizh_id}/reconfirm", response_model=DvizhOut)
 def reconfirm(
     dvizh_id: str, payload: ConfirmationIn, session: DbSession, user: CurrentUser
 ) -> dict[str, object]:
@@ -904,7 +904,7 @@ def reconfirm(
     return public_dvizh(session, dvizh, user.id)
 
 
-@router.post("/dvizhi/{dvizh_id}/withdraw")
+@router.post("/dvizhi/{dvizh_id}/withdraw", response_model=DvizhOut)
 def withdraw(
     dvizh_id: str, payload: ConfirmationIn, session: DbSession, user: CurrentUser
 ) -> dict[str, object]:
@@ -964,7 +964,7 @@ def withdraw(
     return public_dvizh(session, dvizh, user.id)
 
 
-@router.post("/dvizhi/{dvizh_id}/decline")
+@router.post("/dvizhi/{dvizh_id}/decline", response_model=DvizhOut)
 def decline(dvizh_id: str, session: DbSession, user: CurrentUser) -> dict[str, object]:
     dvizh = get_dvizh(session, dvizh_id, user.id, lock=True)
     candidate = active(session, dvizh)

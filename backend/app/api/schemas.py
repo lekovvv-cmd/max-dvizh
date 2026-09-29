@@ -260,6 +260,55 @@ class PlanParticipantOut(BaseModel):
     display_name: str
 
 
+class DvizhCandidateOut(BaseModel):
+    id: str
+    title: str
+    venue_name: str | None
+    starts_at: datetime
+    ends_at: datetime
+    price_text: str | None
+    price_min: int | None
+    distance_km: float | None
+    address_text: str | None
+    source_url: str | None
+    image_url: str | None
+    activity_ids: list[str]
+    compatibility: str
+    budget_delta: int | None
+    expires_at: datetime
+    my_reaction: str | None
+    position: int
+
+
+class DvizhOut(BaseModel):
+    id: str
+    group_id: str
+    group_name: str
+    signal_batch_id: str | None
+    status: str
+    is_initiator: bool
+    activity_ids: list[str]
+    min_people: int
+    max_people: int
+    available_from: datetime | None
+    available_to: datetime | None
+    expires_at: datetime
+    active_candidate_id: str | None
+    candidates: list[DvizhCandidateOut]
+    chosen_count: int
+    reaction_count: int
+    confirmed_count: int
+    my_confirmation: str | None
+    my_reconfirmed: bool
+    my_reconfirm_available: bool
+    participants: list[PlanParticipantOut]
+
+
+class DvizhSignalOut(BaseModel):
+    signal_batch_id: str
+    dvizhi: list[DvizhOut]
+
+
 class CityOut(BaseModel):
     slug: str
     name: str

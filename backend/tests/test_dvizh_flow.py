@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.api.routes import dvizh as routes
 from app.api.routes.product import join_group
-from app.api.schemas import AutoSignalIn, SignalBatchIn
+from app.api.schemas import AutoSignalIn, DvizhOut, DvizhSignalOut, SignalBatchIn
 from app.core.config import Settings
 from app.db.models import (
     Base,
@@ -100,6 +100,25 @@ def create(
         lambda query: ProviderResult([item], cached=False, fetched_at=datetime.now(UTC)),
     )
     return routes.create_signal(payload, session, user, "request-1")
+
+
+def test_dvizh_response_models_cover_public_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        users, _, item, payload = fixture(session)
+        created = create(monkeypatch, session, item, payload, users[0])
+        parsed = DvizhSignalOut.model_validate(created)
+        dvizh = created["dvizhi"][0]
+        candidate = dvizh["candidates"][0]
+        assert set(DvizhOut.model_fields) == set(dvizh)
+        assert set(type(parsed.dvizhi[0].candidates[0]).model_fields) == set(candidate)
+        routes.react(
+            dvizh["id"], candidate["id"], routes.ReactionIn(value="WOULD_GO"), session, users[0]
+        )
+        routes.launch(dvizh["id"], session, users[0])
+        friend = DvizhOut.model_validate(routes.get_dvizh_detail(dvizh["id"], session, users[1]))
+        assert friend.signal_batch_id is None
 
 
 def test_unknown_price_keeps_candidate_and_allows_reaction(monkeypatch: pytest.MonkeyPatch) -> None:

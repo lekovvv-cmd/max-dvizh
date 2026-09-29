@@ -2919,9 +2919,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Create Signal Api V1 Signals Post"
+                  "$ref": "#/components/schemas/DvizhSignalOut"
                 }
               }
             }
@@ -3021,9 +3019,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Edit Signal Api V1 Signals  Batch Id  Put"
+                  "$ref": "#/components/schemas/DvizhSignalOut"
                 }
               }
             }
@@ -3166,8 +3162,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "object",
-                    "additionalProperties": true
+                    "$ref": "#/components/schemas/DvizhOut"
                   },
                   "title": "Response List Dvizhi Api V1 Dvizhi Get"
                 }
@@ -3243,9 +3238,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Get Dvizh Detail Api V1 Dvizhi  Dvizh Id  Get"
+                  "$ref": "#/components/schemas/DvizhOut"
                 }
               }
             }
@@ -3319,9 +3312,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response More Api V1 Dvizhi  Dvizh Id  More Post"
+                  "$ref": "#/components/schemas/DvizhOut"
                 }
               }
             }
@@ -3405,9 +3396,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Search Place Api V1 Dvizhi  Dvizh Id  Places Search Post"
+                  "$ref": "#/components/schemas/DvizhOut"
                 }
               }
             }
@@ -3500,9 +3489,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response React Api V1 Dvizhi  Dvizh Id  Candidates  Candidate Id  Reaction Put"
+                  "$ref": "#/components/schemas/DvizhOut"
                 }
               }
             }
@@ -3576,9 +3563,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Launch Api V1 Dvizhi  Dvizh Id  Launch Post"
+                  "$ref": "#/components/schemas/DvizhOut"
                 }
               }
             }
@@ -3662,9 +3647,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Confirm Api V1 Dvizhi  Dvizh Id  Confirm Post"
+                  "$ref": "#/components/schemas/DvizhOut"
                 }
               }
             }
@@ -3748,9 +3731,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Reconfirm Api V1 Dvizhi  Dvizh Id  Reconfirm Post"
+                  "$ref": "#/components/schemas/DvizhOut"
                 }
               }
             }
@@ -3834,9 +3815,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Withdraw Api V1 Dvizhi  Dvizh Id  Withdraw Post"
+                  "$ref": "#/components/schemas/DvizhOut"
                 }
               }
             }
@@ -3910,9 +3889,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Decline Api V1 Dvizhi  Dvizh Id  Decline Post"
+                  "$ref": "#/components/schemas/DvizhOut"
                 }
               }
             }
@@ -4244,6 +4221,349 @@
           "candidate_id"
         ],
         "title": "ConfirmationIn"
+      },
+      "DvizhCandidateOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "venue_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Venue Name"
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Starts At"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ends At"
+          },
+          "price_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Text"
+          },
+          "price_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Min"
+          },
+          "distance_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Km"
+          },
+          "address_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address Text"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          },
+          "activity_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Activity Ids"
+          },
+          "compatibility": {
+            "type": "string",
+            "title": "Compatibility"
+          },
+          "budget_delta": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Delta"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "my_reaction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "My Reaction"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "venue_name",
+          "starts_at",
+          "ends_at",
+          "price_text",
+          "price_min",
+          "distance_km",
+          "address_text",
+          "source_url",
+          "image_url",
+          "activity_ids",
+          "compatibility",
+          "budget_delta",
+          "expires_at",
+          "my_reaction",
+          "position"
+        ],
+        "title": "DvizhCandidateOut"
+      },
+      "DvizhOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "group_id": {
+            "type": "string",
+            "title": "Group Id"
+          },
+          "group_name": {
+            "type": "string",
+            "title": "Group Name"
+          },
+          "signal_batch_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signal Batch Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "is_initiator": {
+            "type": "boolean",
+            "title": "Is Initiator"
+          },
+          "activity_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Activity Ids"
+          },
+          "min_people": {
+            "type": "integer",
+            "title": "Min People"
+          },
+          "max_people": {
+            "type": "integer",
+            "title": "Max People"
+          },
+          "available_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available From"
+          },
+          "available_to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available To"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "active_candidate_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Candidate Id"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/DvizhCandidateOut"
+            },
+            "type": "array",
+            "title": "Candidates"
+          },
+          "chosen_count": {
+            "type": "integer",
+            "title": "Chosen Count"
+          },
+          "reaction_count": {
+            "type": "integer",
+            "title": "Reaction Count"
+          },
+          "confirmed_count": {
+            "type": "integer",
+            "title": "Confirmed Count"
+          },
+          "my_confirmation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "My Confirmation"
+          },
+          "my_reconfirmed": {
+            "type": "boolean",
+            "title": "My Reconfirmed"
+          },
+          "my_reconfirm_available": {
+            "type": "boolean",
+            "title": "My Reconfirm Available"
+          },
+          "participants": {
+            "items": {
+              "$ref": "#/components/schemas/PlanParticipantOut"
+            },
+            "type": "array",
+            "title": "Participants"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "group_id",
+          "group_name",
+          "signal_batch_id",
+          "status",
+          "is_initiator",
+          "activity_ids",
+          "min_people",
+          "max_people",
+          "available_from",
+          "available_to",
+          "expires_at",
+          "active_candidate_id",
+          "candidates",
+          "chosen_count",
+          "reaction_count",
+          "confirmed_count",
+          "my_confirmation",
+          "my_reconfirmed",
+          "my_reconfirm_available",
+          "participants"
+        ],
+        "title": "DvizhOut"
+      },
+      "DvizhSignalOut": {
+        "properties": {
+          "signal_batch_id": {
+            "type": "string",
+            "title": "Signal Batch Id"
+          },
+          "dvizhi": {
+            "items": {
+              "$ref": "#/components/schemas/DvizhOut"
+            },
+            "type": "array",
+            "title": "Dvizhi"
+          }
+        },
+        "type": "object",
+        "required": [
+          "signal_batch_id",
+          "dvizhi"
+        ],
+        "title": "DvizhSignalOut"
       },
       "GroupCityUpdateIn": {
         "properties": {
