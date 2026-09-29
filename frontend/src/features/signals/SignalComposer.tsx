@@ -84,11 +84,7 @@ function initialForm(groups: Group[], group: Group, existing?: Intent): Form {
     end: formatLocalDateTimeInput(end),
     categories: existing?.activity_categories?.length
       ? normalizeCategorySelection(existing.activity_categories)
-      : existing
-        ? []
-        : getActivityTaxonomy()
-            .directions.slice(0, 1)
-            .map((item) => `${item.id}/*`),
+      : [],
     groupIds: [selected],
     budget: existing?.budget_max?.toString() ?? '',
     budgetCustom: !budgetOptions.includes(existing?.budget_max?.toString() ?? ''),
@@ -107,8 +103,9 @@ function readDraft(key: string, fallback: Form): Form {
   try {
     const raw = localStorage.getItem(key)
     if (!raw) return fallback
-    const saved: Partial<Form> = JSON.parse(raw)
+    const saved: Partial<Form> & { draftVersion?: number } = JSON.parse(raw)
     if (!Array.isArray(saved.categories) || !Array.isArray(saved.groupIds)) return fallback
+    const { draftVersion, ...savedForm } = saved
     if (saved.when && !['tomorrow', 'weekend', 'custom'].includes(saved.when)) {
       delete saved.when
       delete saved.start
@@ -119,18 +116,23 @@ function readDraft(key: string, fallback: Form): Form {
       ...taxonomy.activities.map((activity) => activity.id),
       ...taxonomy.directions.map((direction) => `${direction.id}/*`),
     ])
+    const categories = saved.categories.filter(
+      (category): category is string => typeof category === 'string' && valid.has(category),
+    )
+    // Older new-search drafts included the first direction without a user choice.
+    if (key.endsWith(':new') && draftVersion !== 3) {
+      const defaultCategory = taxonomy.directions[0]?.id + '/*'
+      const index = categories.indexOf(defaultCategory)
+      if (index !== -1) categories.splice(index, 1)
+    }
     return {
       ...fallback,
-      ...saved,
+      ...savedForm,
       budgetCustom:
         typeof saved.budgetCustom === 'boolean'
           ? saved.budgetCustom
           : !budgetOptions.includes(saved.budget ?? fallback.budget),
-      categories: normalizeCategorySelection(
-        saved.categories.filter(
-          (category): category is string => typeof category === 'string' && valid.has(category),
-        ),
-      ),
+      categories: normalizeCategorySelection(categories),
     }
   } catch {
     return fallback
@@ -239,7 +241,7 @@ export function SignalComposer({
   const visibleActivities = searchActivities(categorySearch)
 
   useEffect(() => {
-    localStorage.setItem(key, JSON.stringify(form))
+    localStorage.setItem(key, JSON.stringify({ ...form, draftVersion: 3 }))
   }, [form, key])
 
   const update = (change: Partial<Form>) => setForm((current) => ({ ...current, ...change }))
@@ -718,7 +720,7 @@ export function SignalComposer({
               </div>
             </div>
           ) : null}
-          <p className="activity-section-label">Выбери направление, а затем конкретные варианты</p>
+          <p className="activity-section-label">Открой направление, затем выбери занятие</p>
           <div className="choices activity-quick" role="tablist" aria-label="Направление поиска">
             {taxonomy.directions.map((item) => (
               <button

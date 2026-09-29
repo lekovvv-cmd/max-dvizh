@@ -24,12 +24,14 @@ function renderCatalog(existing?: Intent) {
     directions: [
       { id: 'games', label: 'Игры' },
       { id: 'culture', label: 'Культура' },
+      { id: 'walk', label: 'Прогулки' },
     ],
     activities: [
       { id: 'quest', label: 'Квест', directions: ['games'] },
       { id: 'board_games', label: 'Настольные игры', directions: ['games'] },
       { id: 'theatre', label: 'Театр', directions: ['culture'] },
       { id: 'museum', label: 'Музей', directions: ['culture'] },
+      { id: 'walk', label: 'Погулять', directions: ['walk'] },
     ],
   })
   return render(
@@ -114,13 +116,50 @@ it('keeps several specific activities in one direction', () => {
   ])
 })
 
-it('shows the retained default choice while viewing another direction', () => {
+it('starts without a hidden activity selection when switching directions', () => {
   renderCatalog()
   fireEvent.click(screen.getByRole('tab', { name: 'Культура' }))
-  expect(screen.getByText('Выбрано: Игры')).toBeInTheDocument()
+  expect(screen.queryByText(/^Выбрано:/)).not.toBeInTheDocument()
+  expect(JSON.parse(localStorage.getItem('dvizh-signal-draft-v2:new') || '{}').categories).toEqual(
+    [],
+  )
+  expect(screen.getByRole('button', { name: 'Начать поиск' })).toBeDisabled()
+})
+
+it('shows only the chosen walk and highlights its activity button', () => {
+  renderCatalog()
+  fireEvent.click(screen.getByRole('tab', { name: 'Прогулки' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Погулять' }))
+  expect(screen.getByRole('button', { name: 'Погулять' })).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.getByText('Выбрано: Погулять')).toBeInTheDocument()
   expect(JSON.parse(localStorage.getItem('dvizh-signal-draft-v2:new') || '{}').categories).toEqual([
-    'games/*',
+    'walk',
   ])
+})
+
+it('removes the implicit Games choice from an older new-search draft', () => {
+  localStorage.setItem(
+    'dvizh-signal-draft-v2:new',
+    JSON.stringify({ categories: ['games/*', 'walk'], groupIds: [group.id] }),
+  )
+  renderCatalog()
+  expect(screen.getByText('Выбрано: Погулять')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Погулять' })).toHaveAttribute('aria-pressed', 'true')
+  expect(JSON.parse(localStorage.getItem('dvizh-signal-draft-v2:new') || '{}').categories).toEqual([
+    'walk',
+  ])
+})
+
+it('keeps an explicitly chosen Games wildcard after reopening the draft', () => {
+  const view = renderCatalog()
+  fireEvent.click(screen.getByRole('button', { name: 'Любое в разделе «Игры»' }))
+  view.unmount()
+  renderCatalog()
+  expect(screen.getByText('Выбрано: Игры')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Любое в разделе «Игры»' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
 })
 
 it('opens the relevant direction while editing and preserves other selected activities', () => {
@@ -141,7 +180,7 @@ it('opens the relevant direction while editing and preserves other selected acti
 it('keeps restored draft selection and does not duplicate a direction wildcard with an activity', () => {
   localStorage.setItem(
     'dvizh-signal-draft-v2:new',
-    JSON.stringify({ categories: ['games/*', 'theatre'], groupIds: [group.id] }),
+    JSON.stringify({ categories: ['games/*', 'theatre'], groupIds: [group.id], draftVersion: 3 }),
   )
   renderCatalog()
   fireEvent.click(screen.getByRole('tab', { name: 'Культура' }))
@@ -160,6 +199,7 @@ it('normalizes redundant wildcard and activity selections in a restored draft', 
     JSON.stringify({
       categories: ['games/*', 'quest', 'games/*', 'theatre'],
       groupIds: [group.id],
+      draftVersion: 3,
     }),
   )
   renderCatalog()
@@ -171,6 +211,7 @@ it('normalizes redundant wildcard and activity selections in a restored draft', 
 
 it('adds a search result without changing selections in the current direction', () => {
   renderCatalog()
+  fireEvent.click(screen.getByRole('button', { name: 'Любое в разделе «Игры»' }))
   fireEvent.change(screen.getByRole('searchbox', { name: 'Поиск занятия' }), {
     target: { value: 'Театр' },
   })
@@ -213,6 +254,7 @@ it('keeps the custom budget field visible while replacing its value', () => {
     />,
   )
 
+  fireEvent.click(screen.getByRole('button', { name: 'Квест' }))
   fireEvent.click(screen.getByText('Бюджет, расстояние и количество друзей'))
   fireEvent.click(screen.getByRole('button', { name: 'Своя сумма' }))
   const amount = screen.getByRole('spinbutton', { name: 'Сумма, ₽' })
