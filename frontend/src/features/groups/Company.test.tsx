@@ -77,10 +77,9 @@ function renderCompany(overrides: Partial<Parameters<typeof Company>[0]> = {}) {
   return { ...render(<Company {...props} />), props }
 }
 
-it('marks the active company, opens members, switches company and exposes invite and create actions', async () => {
+it('expands the company in place, switches company and keeps invite and create actions', async () => {
   const { props, rerender } = renderCompany()
-  expect(screen.getByText('3 участника')).toBeInTheDocument()
-  expect(screen.getByText('1 участник')).toBeInTheDocument()
+  expect(document.querySelectorAll('.company-group-card__count')).toHaveLength(2)
   expect(screen.getByText('Текущая')).toBeInTheDocument()
   expect(screen.getByText('Москва · Друзья')).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Новая компания' }))
@@ -96,10 +95,17 @@ it('marks the active company, opens members, switches company and exposes invite
   await waitFor(() =>
     expect(screen.queryByRole('dialog', { name: 'Создать компанию' })).not.toBeInTheDocument(),
   )
-  fireEvent.click(screen.getByRole('button', { name: 'Открыть компанию Друзья, текущая' }))
-  const dialog = await screen.findByRole('dialog', { name: 'Друзья' })
-  await waitFor(() => expect(within(dialog).getByText('Друг')).toBeInTheDocument())
-  fireEvent.click(within(dialog).getByRole('button', { name: 'Пригласить друзей' }))
+  const toggle = screen.getByRole('button', { name: 'Открыть компанию Друзья, текущая' })
+  expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  fireEvent.click(toggle)
+  const expandedToggle = screen.getByRole('button', {
+    name: 'Свернуть компанию Друзья, текущая',
+  })
+  expect(expandedToggle).toHaveAttribute('aria-expanded', 'true')
+  expect(screen.queryByRole('dialog', { name: 'Друзья' })).not.toBeInTheDocument()
+  const card = expandedToggle.closest('.company-group-card') as HTMLElement
+  await waitFor(() => expect(within(card).getByText('Друг')).toBeInTheDocument())
+  fireEvent.click(within(card).getByRole('button', { name: 'Пригласить друзей' }))
   expect(screen.getByRole('dialog', { name: 'Позвать друзей' })).toBeInTheDocument()
   fireEvent.click(
     within(screen.getByRole('dialog', { name: 'Позвать друзей' })).getByRole('button', {
@@ -108,6 +114,11 @@ it('marks the active company, opens members, switches company and exposes invite
   )
   await waitFor(() =>
     expect(screen.queryByRole('dialog', { name: 'Позвать друзей' })).not.toBeInTheDocument(),
+  )
+  fireEvent.click(expandedToggle)
+  expect(screen.getByRole('button', { name: 'Открыть компанию Друзья, текущая' })).toHaveAttribute(
+    'aria-expanded',
+    'false',
   )
   fireEvent.click(screen.getByRole('button', { name: 'Открыть компанию Работа' }))
   expect(props.onSelect).toHaveBeenCalledWith(second)
@@ -165,8 +176,7 @@ it('adds a place from the visible current location action and supports rename, d
 it('changes the active company city through the city picker', async () => {
   const { props } = renderCompany()
   fireEvent.click(screen.getByRole('button', { name: 'Открыть компанию Друзья, текущая' }))
-  const dialog = screen.getByRole('dialog', { name: 'Друзья' })
-  fireEvent.click(within(dialog).getByRole('button', { name: 'Изменить город компании Друзья' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Изменить город компании Друзья' }))
   const cityDialog = screen.getByRole('dialog', { name: 'Сменить город компании?' })
   await waitFor(() =>
     expect(within(cityDialog).getByRole('button', { name: 'Город' })).toBeEnabled(),

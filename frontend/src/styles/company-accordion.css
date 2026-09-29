@@ -1,0 +1,121 @@
+.company-group-card {
+  overflow: hidden;
+}
+
+.company-group-card.is-active {
+  border-color: rgb(13 0 26 / 10%);
+}
+
+.company-group-card.is-expanded .company-group-card__header {
+  height: 64px;
+}
+
+.company-group-card.is-expanded .company-group-card__icon {
+  top: 10px;
+}
+
+.company-group-card__city {
+  position: absolute;
+  z-index: 2;
+  top: 26px;
+  left: 52px;
+  display: inline-flex;
+  max-width: calc(100% - 94px);
+  height: 28px;
+  align-items: center;
+  gap: 4px;
+  color: #777784;
+  font-size: 13px;
+  line-height: 18px;
+  pointer-events: none;
+}
+
+.company-group-card__city > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.company-group-card__city-edit {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  padding: 0;
+  background: transparent;
+  pointer-events: auto;
+}
+
+.company-group-card__city-edit img {
+  display: block;
+  width: 14px;
+  height: 15px;
+}
+
+.company-group-card__city-edit:hover {
+  background: var(--dvizh-blue-soft);
+}
+
+.company-group-card__toggle img {
+  transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.company-group-card.is-expanded .company-group-card__toggle img {
+  transform: rotate(90deg);
+}
+
+.company-group-card__reveal {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 300ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 180ms ease;
+}
+
+.company-group-card.is-expanded .company-group-card__reveal {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.company-group-card__reveal-inner {
+  min-height: 0;
+  overflow: hidden;
+  transform: translateY(-6px);
+  transition: transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.company-group-card.is-expanded .company-group-card__reveal-inner {
+  transform: translateY(0);
+}
+
+.company-group-card__members {
+  padding-top: 4px;
+}
+
+.company-group-card__invite {
+  margin-top: 16px;
+}
+
+:root[data-theme='dark'] .company-group-card.is-active {
+  border-color: var(--dvizh-line);
+}
+
+:root[data-theme='dark'] .company-group-card__city {
+  color: var(--dvizh-muted);
+}
+
+:root[data-theme='dark'] .company-group-card__city-edit img {
+  filter: brightness(0) invert(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .company-group-card__toggle img,
+  .company-group-card__reveal,
+  .company-group-card__reveal-inner {
+    transition: none;
+  }
+}

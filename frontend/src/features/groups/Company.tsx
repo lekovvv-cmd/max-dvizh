@@ -26,6 +26,16 @@ function formatMembers(count: number) {
   return `${count} ${word}`
 }
 
+function cityLabel(slug: string, cities: { slug: string; name: string }[]) {
+  return (
+    cities.find((city) => city.slug === slug)?.name ||
+    ({ ekb: 'Екатеринбург', msk: 'Москва', spb: 'Санкт-Петербург' } as Record<string, string>)[
+      slug
+    ] ||
+    'Твой город'
+  )
+}
+
 export function Company({
   groups,
   active,
@@ -65,7 +75,6 @@ export function Company({
   onDeletePlace: (id: string) => Promise<void>
 }) {
   const [openGroupId, setOpenGroupId] = useState<string | null>(null)
-  const [groupOpen, setGroupOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [person, setPerson] = useState('anton')
@@ -210,17 +219,10 @@ export function Company({
     }
   }
 
-  const cityName =
-    cities.find((city) => city.slug === active.city_slug)?.name ||
-    ({ ekb: 'Екатеринбург', msk: 'Москва', spb: 'Санкт-Петербург' } as Record<string, string>)[
-      active.city_slug
-    ] ||
-    'Твой город'
+  const cityName = cityLabel(active.city_slug, cities)
   const cityLocations = locations.filter(
     (item) => item.city_slug === active.city_slug && item.kind !== 'CURRENT',
   )
-  const selectedGroup = groups.find((group) => group.id === openGroupId)
-
   return (
     <section className="page-stack company-page">
       <SectionHeader
@@ -243,37 +245,109 @@ export function Company({
       <section className="company-panel" aria-labelledby="company-list-title">
         <h2 id="company-list-title">Мои компании</h2>
         <div className="company-group-list">
-          {groups.map((group) => (
-            <div
-              className={'company-group-card' + (active.id === group.id ? ' is-active' : '')}
-              key={group.id}
-            >
-              <div className="company-group-card__header">
-                <span className="company-group-card__icon" aria-hidden="true">
-                  <img src={groupIcon} alt="" />
-                </span>
-                <span className="company-group-card__name">{group.name}</span>
-                <span className="company-group-card__count">
-                  {formatMembers(group.member_count)}
-                </span>
-                {active.id === group.id ? (
-                  <span className="company-group-card__current">Текущая</span>
-                ) : null}
-                <button
-                  type="button"
-                  className="company-group-card__toggle"
-                  aria-label={`Открыть компанию ${group.name}${active.id === group.id ? ', текущая' : ''}`}
-                  onClick={() => {
-                    setOpenGroupId(group.id)
-                    onSelect(group)
-                    setGroupOpen(true)
-                  }}
+          {groups.map((group) => {
+            const expanded = openGroupId === group.id
+            const current = active.id === group.id
+            return (
+              <div
+                className={`company-group-card${current ? ' is-active' : ''}${expanded ? ' is-expanded' : ''}`}
+                key={group.id}
+              >
+                <div className="company-group-card__header">
+                  <span className="company-group-card__icon" aria-hidden="true">
+                    <img src={groupIcon} alt="" />
+                  </span>
+                  <span className="company-group-card__name">{group.name}</span>
+                  {expanded ? (
+                    <span className="company-group-card__city">
+                      <span>{cityLabel(group.city_slug, cities)}</span>
+                      <button
+                        type="button"
+                        className="company-group-card__city-edit"
+                        aria-label={`Изменить город компании ${group.name}`}
+                        onClick={() => {
+                          setError('')
+                          setNextCity(group.city_slug)
+                          setChangeCityOpen(true)
+                        }}
+                      >
+                        <img src={editIcon} alt="" />
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="company-group-card__count">
+                      {formatMembers(group.member_count)}
+                    </span>
+                  )}
+                  {current && !expanded ? (
+                    <span className="company-group-card__current">Текущая</span>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="company-group-card__toggle"
+                    aria-label={`${expanded ? 'Свернуть' : 'Открыть'} компанию ${group.name}${current ? ', текущая' : ''}`}
+                    aria-expanded={expanded}
+                    aria-controls={`company-group-details-${group.id}`}
+                    onClick={() => {
+                      setOpenGroupId(expanded ? null : group.id)
+                      if (!expanded && !current) onSelect(group)
+                    }}
+                  >
+                    <img src={arrowIcon} alt="" />
+                  </button>
+                </div>
+                <div
+                  id={`company-group-details-${group.id}`}
+                  className="company-group-card__reveal"
+                  aria-hidden={!expanded}
+                  inert={!expanded}
                 >
-                  <img src={arrowIcon} alt="" />
-                </button>
+                  <div className="company-group-card__reveal-inner">
+                    <div className="company-group-card__members">
+                      <p>{formatMembers(group.member_count)}</p>
+                      {!current || membersStatus === 'loading' ? (
+                        <p role="status">Загружаем участников…</p>
+                      ) : null}
+                      {current && membersStatus === 'error' ? (
+                        <p className="form-error" role="alert">
+                          Не удалось загрузить участников.
+                        </p>
+                      ) : null}
+                      {current && membersStatus === 'ready' ? (
+                        <ul>
+                          {members.map((member) => (
+                            <li key={member.id}>
+                              <span className="company-group-card__person">
+                                <span className="company-group-card__avatar" aria-hidden="true">
+                                  <img src={avatarCircle} alt="" />
+                                  <span>
+                                    {member.display_name.trim().slice(0, 1).toUpperCase()}
+                                  </span>
+                                </span>
+                                <span>{member.display_name}</span>
+                              </span>
+                              {member.is_me ? <small>Ты</small> : null}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </div>
+                    <button
+                      type="button"
+                      className="company-primary-button company-group-card__invite"
+                      onClick={() => {
+                        setError('')
+                        setCopied(false)
+                        setInviteOpen(true)
+                      }}
+                    >
+                      Пригласить друзей
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </section>
 
@@ -361,70 +435,6 @@ export function Company({
           </Button>
         </section>
       ) : null}
-
-      <CompanyPopup
-        open={groupOpen}
-        title={selectedGroup?.name || active.name}
-        onClose={() => setGroupOpen(false)}
-      >
-        {selectedGroup ? (
-          <>
-            <button
-              type="button"
-              className="company-popup__city"
-              aria-label={`Изменить город компании ${selectedGroup.name}`}
-              onClick={() => {
-                setGroupOpen(false)
-                setError('')
-                setNextCity(selectedGroup.city_slug)
-                setChangeCityOpen(true)
-              }}
-            >
-              <span>{cityName}</span>
-              <img src={editIcon} alt="" />
-            </button>
-            <div className="company-group-card__members">
-              <p>{formatMembers(selectedGroup.member_count)}</p>
-              {active.id !== selectedGroup.id || membersStatus === 'loading' ? (
-                <p role="status">Загружаем участников…</p>
-              ) : null}
-              {active.id === selectedGroup.id && membersStatus === 'error' ? (
-                <p className="form-error" role="alert">
-                  Не удалось загрузить участников.
-                </p>
-              ) : null}
-              {active.id === selectedGroup.id && membersStatus === 'ready' ? (
-                <ul>
-                  {members.map((member) => (
-                    <li key={member.id}>
-                      <span className="company-group-card__person">
-                        <span className="company-group-card__avatar" aria-hidden="true">
-                          <img src={avatarCircle} alt="" />
-                          <span>{member.display_name.trim().slice(0, 1).toUpperCase()}</span>
-                        </span>
-                        <span>{member.display_name}</span>
-                      </span>
-                      {member.is_me ? <small>Ты</small> : null}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
-            <button
-              type="button"
-              className="company-primary-button"
-              onClick={() => {
-                setGroupOpen(false)
-                setError('')
-                setCopied(false)
-                setInviteOpen(true)
-              }}
-            >
-              Пригласить друзей
-            </button>
-          </>
-        ) : null}
-      </CompanyPopup>
 
       <CompanyPopup
         open={createOpen}

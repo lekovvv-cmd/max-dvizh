@@ -480,25 +480,6 @@ body:has(.company-place-overlay[data-open='true']) {
   line-height: 17px;
 }
 
-.company-popup__city {
-  display: inline-flex;
-  width: fit-content;
-  min-height: 32px;
-  align-items: center;
-  gap: 8px;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: #68647a;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.company-popup__city img {
-  width: 14px;
-  height: 15px;
-}
-
 .company-create-form form {
   display: grid;
   gap: 12px;
@@ -732,8 +713,7 @@ body:has(.company-place-overlay[data-open='true']) {
 
 :root[data-theme='dark'] .company-group-card__toggle img,
 :root[data-theme='dark'] .company-place > button img,
-:root[data-theme='dark'] .company-place-dialog__close img,
-:root[data-theme='dark'] .company-popup__city img {
+:root[data-theme='dark'] .company-place-dialog__close img {
   filter: brightness(0) invert(1);
 }
 
@@ -750,8 +730,7 @@ body:has(.company-place-overlay[data-open='true']) {
   color: var(--dvizh-muted);
 }
 
-:root[data-theme='dark'] .company-place-dialog__description,
-:root[data-theme='dark'] .company-popup__city {
+:root[data-theme='dark'] .company-place-dialog__description {
   color: var(--dvizh-muted);
 }
 

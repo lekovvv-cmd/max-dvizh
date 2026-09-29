@@ -14,6 +14,7 @@
 @import './dvizh-figma.css';
 @import './app-figma.css';
 @import './hardening.css';
+@import './company-accordion.css';
 
 @keyframes spin {
   to {
