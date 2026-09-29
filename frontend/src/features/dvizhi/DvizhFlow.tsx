@@ -457,6 +457,26 @@ export function DvizhFlow({
           <ActivityCard candidate={match} status="Собрался">
             <p>{dvizh.participants.map((person) => person.display_name).join(' · ')}</p>
           </ActivityCard>
+          {dvizh.my_confirmation === 'CONFIRMED' ? (
+            <div className="swipe-actions">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void act(() => api.withdrawDvizh(dvizh.id, match.id))}
+              >
+                Не смогу
+              </button>
+              {dvizh.my_reconfirm_available && !dvizh.my_reconfirmed ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void act(() => api.reconfirmDvizh(dvizh.id, match.id))}
+                >
+                  Я иду
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           {waitlistAction}
         </>
       ) : dvizh.status === 'COLLECTING_REACTIONS' || dvizh.status === 'AWAITING_CONFIRMATION' ? (

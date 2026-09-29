@@ -15,6 +15,11 @@ from app.db.models import CandidatePlanMember, DvizhSession, Intent, Offer, User
 from app.db.session import SessionLocal, engine
 from app.modules.leisure.provider import ProviderQuery, fetch_items
 from app.modules.matching.dvizh import recompute as recompute_dvizh
+from app.modules.matching.notifications import (
+    process_gathered,
+    schedule_match_reminders,
+    schedule_review_reminders,
+)
 from app.modules.matching.service import regenerate_group
 
 logger = logging.getLogger(__name__)
@@ -168,7 +173,7 @@ def evaluate_auto_signal(intent_id: str) -> None:
         logger.exception("AutoSignal evaluation failed for %s", intent_id)
 
 
-def run_once() -> int:
+def run_once(*, include_recurring: bool = True) -> int:
     with engine.connect() as connection:
         acquired = connection.scalar(
             text("SELECT pg_try_advisory_lock(:lock_id)"), {"lock_id": LOCK_ID}
@@ -180,17 +185,25 @@ def run_once() -> int:
             return 0
         try:
             with Session(bind=connection) as session:
-                refreshed = evaluate_active_autosignals(session) if settings.local_demo_mode else 0
+                refreshed = (
+                    evaluate_active_autosignals(session)
+                    if include_recurring and settings.local_demo_mode
+                    else 0
+                )
                 from app.api.routes.dvizh import materialize_recurring
 
-                for rule in list(
-                    session.scalars(
-                        select(Intent).where(
-                            Intent.type == "RECURRING",
-                            Intent.flow_version == 2,
-                            Intent.status == "ACTIVE",
+                for rule in (
+                    list(
+                        session.scalars(
+                            select(Intent).where(
+                                Intent.type == "RECURRING",
+                                Intent.flow_version == 2,
+                                Intent.status == "ACTIVE",
+                            )
                         )
                     )
+                    if include_recurring
+                    else []
                 ):
                     user = session.get(User, rule.user_id)
                     if user:
@@ -211,7 +224,11 @@ def run_once() -> int:
                     .with_for_update(skip_locked=True)
                 ):
                     recompute_dvizh(session, dvizh)
+                    current = datetime.now(UTC)
+                    schedule_review_reminders(session, dvizh, current)
+                    schedule_match_reminders(session, dvizh, current)
                 session.commit()
+                process_gathered(session, datetime.now(UTC))
                 connection.commit()
                 return refreshed
         except Exception:
@@ -242,14 +259,20 @@ def startup() -> None:
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
     startup()
+    next_recurring_at = 0.0
     while True:
         started = monotonic()
         try:
-            logger.info("AutoSignal scheduler refreshed %s companies", run_once())
+            include_recurring = started >= next_recurring_at
+            logger.info(
+                "AutoSignal scheduler refreshed %s companies",
+                run_once(include_recurring=include_recurring),
+            )
+            if include_recurring:
+                next_recurring_at = started + max(60, settings.autosignal_poll_seconds)
         except Exception:
             logger.exception("AutoSignal scheduler run failed")
-        interval = max(60, settings.autosignal_poll_seconds)
-        sleep(max(1, interval - (monotonic() - started)))
+        sleep(max(1, 60 - (monotonic() - started)))
 
 
 if __name__ == "__main__":

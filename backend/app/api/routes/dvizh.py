@@ -32,6 +32,7 @@ from app.modules.matching.dvizh import (
     active,
     add_candidates,
     aware,
+    cancel_unavailable_gathered,
     candidates,
     confirmation_count,
     conflict,
@@ -41,6 +42,7 @@ from app.modules.matching.dvizh import (
     get_dvizh,
     member,
     now,
+    premeet_due_time,
     public_dvizh,
     recompute,
 )
@@ -330,10 +332,12 @@ def materialize_recurring(
         child.recurrence_json = {"parent_rule_id": rule.id}
     created_dvizhi = result.get("dvizhi")
     for item in created_dvizhi if isinstance(created_dvizhi, list) else []:
-        if isinstance(item, dict) and item.get("status") == "CHOOSING_CANDIDATES":
+        if isinstance(item, dict):
             dvizh = session.get(DvizhSession, item["id"])
-            if dvizh:
+            if dvizh and item.get("status") == "CHOOSING_CANDIDATES":
                 enqueue(session, "DVIZH_INITIATOR_REVIEW", user.id, dvizh)
+            elif dvizh and item.get("status") in {"NO_SOURCE", "PROVIDER_UNAVAILABLE"}:
+                enqueue(session, f"DVIZH_RECURRING_{item['status']}", user.id, dvizh)
     session.commit()
     return True
 
@@ -796,17 +800,7 @@ def confirm(
         ):
             notification.status = "CANCELLED"
         if dvizh.status == "GATHERED":
-            dvizh.status = "CANCELLED"
-            signal = session.get(Intent, dvizh.signal_id)
-            if signal and signal.flow_version == 2 and signal.status == "FULFILLED":
-                signal.status = "EXPIRED"
-            for confirmed in session.scalars(
-                select(DvizhConfirmation).where(
-                    DvizhConfirmation.candidate_id == candidate.id,
-                    DvizhConfirmation.status == "CONFIRMED",
-                )
-            ):
-                enqueue(session, "DVIZH_SOURCE_CANCELLED", confirmed.user_id, dvizh, candidate)
+            cancel_unavailable_gathered(session, dvizh, candidate)
         else:
             recompute(session, dvizh)
         session.commit()
@@ -853,6 +847,8 @@ def confirm(
     session.flush()
     if dvizh.status != "GATHERED" and confirmation_count(session, candidate.id) >= dvizh.min_people:
         dvizh.status = "GATHERED"
+        if dvizh.premeet_due_at is None:
+            dvizh.premeet_due_at = premeet_due_time(candidate.starts_at, now())
         signal = session.get(Intent, dvizh.signal_id)
         if signal and signal.status == "ACTIVE":
             signal.status = "FULFILLED"
@@ -865,6 +861,96 @@ def confirm(
             enqueue(session, "DVIZH_GATHERED", confirmed.user_id, dvizh, candidate)
     elif dvizh.status == "GATHERED" and status == "CONFIRMED":
         enqueue(session, "DVIZH_GATHERED", user.id, dvizh, candidate)
+    session.commit()
+    return public_dvizh(session, dvizh, user.id)
+
+
+@router.post("/dvizhi/{dvizh_id}/reconfirm")
+def reconfirm(
+    dvizh_id: str, payload: ConfirmationIn, session: DbSession, user: CurrentUser
+) -> dict[str, object]:
+    dvizh = get_dvizh(session, dvizh_id, user.id, lock=True)
+    candidate = active(session, dvizh)
+    if (
+        dvizh.status != "GATHERED"
+        or candidate is None
+        or candidate.id != payload.candidate_id
+        or dvizh.premeet_due_at is None
+        or aware(dvizh.premeet_due_at) > now()
+        or aware(candidate.starts_at) <= now()
+    ):
+        raise fail(409, "Повторное подтверждение сейчас недоступно")
+    confirmation = session.scalar(
+        select(DvizhConfirmation).where(
+            DvizhConfirmation.candidate_id == candidate.id,
+            DvizhConfirmation.user_id == user.id,
+            DvizhConfirmation.status == "CONFIRMED",
+        )
+    )
+    if confirmation is None:
+        raise fail(403, "Ты не участвуешь в этом движе")
+    if confirmation.reconfirmed_at is None:
+        confirmation.reconfirmed_at = now()
+        session.commit()
+    return public_dvizh(session, dvizh, user.id)
+
+
+@router.post("/dvizhi/{dvizh_id}/withdraw")
+def withdraw(
+    dvizh_id: str, payload: ConfirmationIn, session: DbSession, user: CurrentUser
+) -> dict[str, object]:
+    dvizh = get_dvizh(session, dvizh_id, user.id, lock=True)
+    candidate = active(session, dvizh)
+    if (
+        dvizh.status not in {"GATHERED", "AWAITING_CONFIRMATION"}
+        or candidate is None
+        or candidate.id != payload.candidate_id
+        or aware(candidate.starts_at) <= now()
+    ):
+        raise fail(409, "Этот вариант уже не актуален")
+    confirmation = session.scalar(
+        select(DvizhConfirmation).where(
+            DvizhConfirmation.candidate_id == candidate.id,
+            DvizhConfirmation.user_id == user.id,
+        )
+    )
+    if confirmation is None:
+        raise fail(403, "Участие не подтверждено")
+    if confirmation.status == "DECLINED":
+        return public_dvizh(session, dvizh, user.id)
+    if confirmation.status != "CONFIRMED":
+        raise fail(409, "Участие уже не подтверждено")
+    confirmation.status = "DECLINED"
+    confirmation.reconfirmed_at = None
+    session.flush()
+    waiting = next(
+        (
+            item
+            for item in session.scalars(
+                select(DvizhConfirmation)
+                .where(
+                    DvizhConfirmation.candidate_id == candidate.id,
+                    DvizhConfirmation.status == "WAITLISTED",
+                )
+                .order_by(DvizhConfirmation.created_at, DvizhConfirmation.id)
+            )
+            if not conflict(session, item.user_id, candidate)
+        ),
+        None,
+    )
+    if waiting and confirmation_count(session, candidate.id) < dvizh.max_people:
+        waiting.status = "CONFIRMED"
+        waiting.confirmed_at = now()
+        session.flush()
+        enqueue(session, "DVIZH_WAITLIST_AVAILABLE", waiting.user_id, dvizh, candidate)
+        if dvizh.premeet_due_at and aware(dvizh.premeet_due_at) <= now():
+            enqueue(session, "DVIZH_PREMEET_CHECK", waiting.user_id, dvizh, candidate)
+    if dvizh.status == "GATHERED" and confirmation_count(session, candidate.id) < dvizh.min_people:
+        dvizh.status = "AWAITING_CONFIRMATION"
+        signal = session.get(Intent, dvizh.signal_id)
+        if signal and signal.flow_version == 2 and signal.status == "FULFILLED":
+            signal.status = "ACTIVE"
+        recompute(session, dvizh)
     session.commit()
     return public_dvizh(session, dvizh, user.id)
 

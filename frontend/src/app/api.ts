@@ -49,6 +49,8 @@ export type Dvizh = {
   reaction_count: number
   confirmed_count: number
   my_confirmation: string | null
+  my_reconfirmed?: boolean
+  my_reconfirm_available?: boolean
   participants: { id: string; display_name: string }[]
 }
 export type GroupMember = { id: string; display_name: string; is_me: boolean }
@@ -271,6 +273,16 @@ export const api = {
       body: JSON.stringify({ candidate_id: candidateId, confirm_near_exception: near }),
     }),
   declineDvizh: (id: string) => request<Dvizh>(`/dvizhi/${id}/decline`, { method: 'POST' }),
+  reconfirmDvizh: (id: string, candidateId: string) =>
+    request<Dvizh>(`/dvizhi/${id}/reconfirm`, {
+      method: 'POST',
+      body: JSON.stringify({ candidate_id: candidateId }),
+    }),
+  withdrawDvizh: (id: string, candidateId: string) =>
+    request<Dvizh>(`/dvizhi/${id}/withdraw`, {
+      method: 'POST',
+      body: JSON.stringify({ candidate_id: candidateId }),
+    }),
   moreDvizh: (id: string) => request<Dvizh>(`/dvizhi/${id}/more`, { method: 'POST' }),
   searchPlace: (id: string, query: string) =>
     request<Dvizh>(`/dvizhi/${id}/places/search`, {

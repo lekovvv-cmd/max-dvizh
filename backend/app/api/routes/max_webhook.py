@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import DbSession
-from app.api.routes.dvizh import ConfirmationIn, confirm
+from app.api.routes.dvizh import ConfirmationIn, confirm, reconfirm, withdraw
 from app.core.config import settings
 from app.db.models import Group, MaxWebhookEvent, OutboxNotification, User
 from app.modules.max_integration.client import (
@@ -134,14 +134,27 @@ async def max_webhook(
             payload = str(callback.get("payload") or "")
             answer = "Открой ДВИЖ, чтобы продолжить."
             parts = payload.split(":")
-            if callback_id and len(parts) == 3 and parts[0] == "confirm" and all(parts[1:]):
+            if (
+                callback_id
+                and len(parts) == 3
+                and parts[0] in {"confirm", "reconfirm", "withdraw"}
+                and all(parts[1:])
+            ):
                 try:
-                    result = confirm(parts[1], ConfirmationIn(candidate_id=parts[2]), session, user)
-                    answer = (
-                        "Ты в деле!"
-                        if result["my_confirmation"] == "CONFIRMED"
-                        else "Ты в листе ожидания. Проверь позже в ДВИЖе."
-                    )
+                    confirmation = ConfirmationIn(candidate_id=parts[2])
+                    if parts[0] == "confirm":
+                        result = confirm(parts[1], confirmation, session, user)
+                        answer = (
+                            "Ты в деле!"
+                            if result["my_confirmation"] == "CONFIRMED"
+                            else "Ты в листе ожидания. Проверь позже в ДВИЖе."
+                        )
+                    elif parts[0] == "reconfirm":
+                        reconfirm(parts[1], confirmation, session, user)
+                        answer = "Ты идёшь! До встречи."
+                    else:
+                        withdraw(parts[1], confirmation, session, user)
+                        answer = "Поняли, ты не сможешь. Место освобождено."
                 except HTTPException as error:
                     answer = str(error.detail)
             if callback_id:

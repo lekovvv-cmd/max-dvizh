@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime, timedelta
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 from sqlalchemy import or_, select
@@ -11,7 +12,15 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.timezones import display_timezone
-from app.db.models import DvizhCandidate, DvizhSession, GroupMember, OutboxNotification, User
+from app.db.models import (
+    DvizhCandidate,
+    DvizhConfirmation,
+    DvizhReaction,
+    DvizhSession,
+    GroupMember,
+    OutboxNotification,
+    User,
+)
 from app.modules.max_integration.diagnostics import classify_failure, failure_summary
 
 logger = logging.getLogger(__name__)
@@ -23,6 +32,15 @@ DVIZH_MESSAGE_KINDS = frozenset(
         "DVIZH_MATCH_FOUND",
         "DVIZH_GATHERED",
         "DVIZH_SOURCE_CANCELLED",
+        "DVIZH_INITIATOR_REVIEW_REMINDER",
+        "DVIZH_REVIEW_REMINDER",
+        "DVIZH_MATCH_REMINDER",
+        "DVIZH_NOT_GATHERED",
+        "DVIZH_RECURRING_NO_SOURCE",
+        "DVIZH_RECURRING_PROVIDER_UNAVAILABLE",
+        "DVIZH_PREMEET_CHECK",
+        "DVIZH_PREMEET_REMINDER",
+        "DVIZH_WAITLIST_AVAILABLE",
     }
 )
 
@@ -42,6 +60,8 @@ def dvizh_notification_current(session: Session, event: OutboxNotification) -> b
         return False
     if event.kind == "DVIZH_SOURCE_CANCELLED":
         return dvizh.status == "CANCELLED"
+    if event.kind == "DVIZH_NOT_GATHERED":
+        return dvizh.status in {"EXPIRED", "NO_MATCH"} and event.user_id == dvizh.initiator_id
     if (
         session.scalar(
             select(GroupMember.id).where(
@@ -54,17 +74,32 @@ def dvizh_notification_current(session: Session, event: OutboxNotification) -> b
     deadline = dvizh.expires_at if dvizh.expires_at.tzinfo else dvizh.expires_at.replace(tzinfo=UTC)
     if deadline <= utcnow() and dvizh.status != "GATHERED":
         return False
-    if event.kind == "DVIZH_INITIATOR_REVIEW":
+    if event.kind in {"DVIZH_RECURRING_NO_SOURCE", "DVIZH_RECURRING_PROVIDER_UNAVAILABLE"}:
+        expected = event.kind.removeprefix("DVIZH_RECURRING_")
+        return dvizh.status == expected and event.user_id == dvizh.initiator_id
+    if event.kind in {"DVIZH_INITIATOR_REVIEW", "DVIZH_INITIATOR_REVIEW_REMINDER"}:
         if dvizh.status != "CHOOSING_CANDIDATES":
             return False
         require_seed = False
-    elif event.kind == "DVIZH_REVIEW_REQUIRED":
+    elif event.kind in {"DVIZH_REVIEW_REQUIRED", "DVIZH_REVIEW_REMINDER"}:
         if dvizh.status not in {"COLLECTING_REACTIONS", "AWAITING_CONFIRMATION"}:
             return False
         require_seed = True
     else:
         require_seed = None
     if require_seed is not None:
+        if event.kind.endswith("_REMINDER") or event.kind == "DVIZH_REVIEW_REQUIRED":
+            reacted = session.scalar(
+                select(DvizhReaction.id)
+                .join(DvizhCandidate, DvizhCandidate.id == DvizhReaction.candidate_id)
+                .where(
+                    DvizhCandidate.session_id == dvizh.id,
+                    DvizhCandidate.seed.is_(require_seed),
+                    DvizhReaction.user_id == event.user_id,
+                )
+            )
+            if reacted:
+                return False
         for option in session.scalars(
             select(DvizhCandidate).where(DvizhCandidate.session_id == dvizh.id)
         ):
@@ -87,10 +122,72 @@ def dvizh_notification_current(session: Session, event: OutboxNotification) -> b
         if candidate.expires_at.tzinfo
         else candidate.expires_at.replace(tzinfo=UTC)
     )
-    if event.kind == "DVIZH_MATCH_FOUND":
-        return dvizh.status == "AWAITING_CONFIRMATION" and expiry > utcnow()
+    if event.kind in {"DVIZH_MATCH_FOUND", "DVIZH_MATCH_REMINDER"}:
+        if dvizh.status != "AWAITING_CONFIRMATION" or expiry <= utcnow():
+            return False
+        if session.scalar(
+            select(DvizhConfirmation.id).where(
+                DvizhConfirmation.candidate_id == candidate.id,
+                DvizhConfirmation.user_id == event.user_id,
+            )
+        ):
+            return False
+        return bool(
+            session.scalar(
+                select(DvizhReaction.id).where(
+                    DvizhReaction.candidate_id == candidate.id,
+                    DvizhReaction.user_id == event.user_id,
+                    DvizhReaction.value == "WOULD_GO",
+                )
+            )
+        )
     if event.kind == "DVIZH_GATHERED":
-        return dvizh.status == "GATHERED"
+        return dvizh.status == "GATHERED" and bool(
+            session.scalar(
+                select(DvizhConfirmation.id).where(
+                    DvizhConfirmation.candidate_id == candidate.id,
+                    DvizhConfirmation.user_id == event.user_id,
+                    DvizhConfirmation.status == "CONFIRMED",
+                )
+            )
+        )
+    if event.kind in {"DVIZH_PREMEET_CHECK", "DVIZH_PREMEET_REMINDER"}:
+        confirmation = session.scalar(
+            select(DvizhConfirmation).where(
+                DvizhConfirmation.candidate_id == candidate.id,
+                DvizhConfirmation.user_id == event.user_id,
+                DvizhConfirmation.status == "CONFIRMED",
+            )
+        )
+        start = (
+            candidate.starts_at
+            if candidate.starts_at.tzinfo
+            else candidate.starts_at.replace(tzinfo=UTC)
+        )
+        return (
+            dvizh.status == "GATHERED"
+            and start > utcnow()
+            and confirmation is not None
+            and confirmation.reconfirmed_at is None
+        )
+    if event.kind == "DVIZH_WAITLIST_AVAILABLE":
+        if dvizh.status not in {"GATHERED", "AWAITING_CONFIRMATION"}:
+            return False
+        start = (
+            candidate.starts_at
+            if candidate.starts_at.tzinfo
+            else candidate.starts_at.replace(tzinfo=UTC)
+        )
+        if start <= utcnow():
+            return False
+        promoted = session.scalar(
+            select(DvizhConfirmation.id).where(
+                DvizhConfirmation.candidate_id == candidate.id,
+                DvizhConfirmation.user_id == event.user_id,
+                DvizhConfirmation.status == "CONFIRMED",
+            )
+        )
+        return bool(promoted)
     return False
 
 
@@ -134,11 +231,13 @@ def send_welcome(max_user_id: str) -> None:
 
 
 def dvizh_link(dvizh_id: str) -> str | None:
-    return (
-        f"https://max.ru/{settings.max_bot_username}?startapp=dvizh_{dvizh_id}"
-        if settings.max_bot_username
-        else None
-    )
+    if settings.max_bot_username:
+        return f"https://max.ru/{settings.max_bot_username}?startapp=dvizh_{dvizh_id}"
+    if settings.max_mini_app_url:
+        parsed = urlsplit(settings.max_mini_app_url)
+        if parsed.scheme == "https" and parsed.netloc:
+            return urlunsplit(parsed._replace(fragment=f"startapp=dvizh_{dvizh_id}"))
+    return None
 
 
 def _dvizh_message(event: OutboxNotification) -> tuple[str, str, str | None]:
@@ -152,35 +251,90 @@ def _dvizh_message(event: OutboxNotification) -> tuple[str, str, str | None]:
         else "Досуг"
     )
     title = str(event.payload.get("title") or label or "Движ")
-    if event.kind == "DVIZH_INITIATOR_REVIEW":
-        return (
-            f"Нашли варианты для твоего регулярного сигнала\n{label}\nВыбери, куда ты пошёл бы, и запусти движ.",
-            "Выбрать варианты",
-            dvizh_link(dvizh_id),
-        )
-    if event.kind == "DVIZH_REVIEW_REQUIRED":
-        return (
-            f"🎯 В компании намечается движ\n{label}\nЕсть подходящие варианты. Отметь, куда ты реально пошёл бы.",
-            "Выбрать варианты",
-            dvizh_link(dvizh_id),
-        )
-    if event.kind == "DVIZH_MATCH_FOUND":
-        return (
-            f"👀 Похоже, совпало\n{title}\nЭтот вариант выбрали достаточно людей. Осталось подтвердить участие.",
-            "Я в деле",
-            dvizh_link(dvizh_id),
-        )
-    if event.kind == "DVIZH_SOURCE_CANCELLED":
-        return (
-            f"Место больше недоступно\n{title}\nПроверь движ и подай новый сигнал, если хочешь собрать компанию.",
-            "Открыть движ",
-            dvizh_link(dvizh_id),
-        )
-    return (
-        f"⚡ ДВИЖ СОБРАЛСЯ\n{title}\nНужное число участников подтвердило.",
-        "Открыть движ",
-        dvizh_link(dvizh_id),
+    starts_at = event.payload.get("starts_at")
+    when = "Уточни в движе"
+    if isinstance(starts_at, str):
+        try:
+            when = (
+                datetime.fromisoformat(starts_at)
+                .astimezone(display_timezone(str(event.payload.get("timezone") or "UTC")))
+                .strftime("%d.%m %H:%M")
+            )
+        except ValueError:
+            pass
+    place = str(
+        event.payload.get("venue_name") or event.payload.get("address_text") or "Уточни в движе"
     )
+    details = (
+        f"Компания: {event.payload.get('group_name') or 'Компания'}\n"
+        f"Что: {title}\nДата и время: {when}\nМесто: {place}"
+    )
+    messages = {
+        "DVIZH_INITIATOR_REVIEW": (
+            "Нашли варианты для твоего регулярного сигнала",
+            "Выбери варианты и запусти движ.",
+            "Выбрать варианты",
+        ),
+        "DVIZH_INITIATOR_REVIEW_REMINDER": (
+            "Напоминание: выбери варианты",
+            "Движ ждёт твоего выбора.",
+            "Выбрать варианты",
+        ),
+        "DVIZH_REVIEW_REQUIRED": (
+            "🎯 В компании намечается движ",
+            "Отметь, куда ты реально пошёл бы.",
+            "Выбрать варианты",
+        ),
+        "DVIZH_REVIEW_REMINDER": (
+            "Напоминание: выбери место",
+            "Твой ответ ещё нужен.",
+            "Выбрать варианты",
+        ),
+        "DVIZH_MATCH_FOUND": ("👀 Похоже, совпало", "Осталось подтвердить участие.", "Я в деле"),
+        "DVIZH_MATCH_REMINDER": (
+            "Напоминание: подтверди участие",
+            "Ты всё ещё хочешь пойти?",
+            "Я в деле",
+        ),
+        "DVIZH_GATHERED": (
+            "⚡ ДВИЖ СОБРАЛСЯ",
+            "Нужное число участников подтвердило.",
+            "Открыть движ",
+        ),
+        "DVIZH_SOURCE_CANCELLED": (
+            "Место больше недоступно",
+            "Встреча отменена. Проверь движ.",
+            "Открыть движ",
+        ),
+        "DVIZH_NOT_GATHERED": (
+            "Движ не собрался",
+            "Подтверждений не хватило или время истекло.",
+            "Открыть движ",
+        ),
+        "DVIZH_RECURRING_NO_SOURCE": (
+            "Пока нет подходящих мест",
+            "Регулярный сигнал не нашёл вариантов. Проверь условия.",
+            "Открыть движ",
+        ),
+        "DVIZH_RECURRING_PROVIDER_UNAVAILABLE": (
+            "Источник временно недоступен",
+            "Не удалось проверить варианты для регулярного сигнала. Попробуй позже.",
+            "Открыть движ",
+        ),
+        "DVIZH_PREMEET_CHECK": ("⚡️ Движ скоро", "Ты всё ещё в деле?", "Я иду"),
+        "DVIZH_PREMEET_REMINDER": ("⚡️ Движ скоро", "Напоминание: ты всё ещё в деле?", "Я иду"),
+        "DVIZH_WAITLIST_AVAILABLE": (
+            "Освободилось место",
+            "Ты переведён из листа ожидания в участники.",
+            "Открыть движ",
+        ),
+    }
+    heading, prompt, button = messages[event.kind]
+    if event.kind in {"DVIZH_PREMEET_CHECK", "DVIZH_PREMEET_REMINDER"}:
+        text = f"{heading}\n{place} · {when}\n{prompt}\n\n{details}"
+    else:
+        text = f"{heading}\n{details}\n{prompt}"
+    return text, button, dvizh_link(dvizh_id)
 
 
 def send_dvizh_message(max_user_id: str, event: OutboxNotification) -> bool:
@@ -188,16 +342,42 @@ def send_dvizh_message(max_user_id: str, event: OutboxNotification) -> bool:
     # ``notify`` defaults to true in MAX, but setting it explicitly prevents a
     # deployment-side default from turning an invitation into a silent message.
     body: dict[str, object] = {"text": text, "notify": True}
+    candidate_id = event.payload.get("candidate_id")
+    buttons: list[list[dict[str, str]]] = []
+    if event.kind in {"DVIZH_PREMEET_CHECK", "DVIZH_PREMEET_REMINDER"} and candidate_id:
+        buttons = [
+            [
+                {
+                    "type": "callback",
+                    "text": "Я иду",
+                    "payload": f"reconfirm:{event.payload['dvizh_id']}:{candidate_id}",
+                },
+                {
+                    "type": "callback",
+                    "text": "Не смогу",
+                    "payload": f"withdraw:{event.payload['dvizh_id']}:{candidate_id}",
+                },
+            ]
+        ]
+    elif (
+        event.kind in {"DVIZH_MATCH_FOUND", "DVIZH_MATCH_REMINDER"}
+        and candidate_id
+        and event.payload.get("compatibility") == "EXACT"
+    ):
+        buttons = [
+            [
+                {
+                    "type": "callback",
+                    "text": "Я в деле",
+                    "payload": f"confirm:{event.payload['dvizh_id']}:{candidate_id}",
+                }
+            ]
+        ]
     if link:
-        button: dict[str, str] = {"type": "link", "text": label, "url": link}
-        buttons = [[button]]
-        if event.kind == "DVIZH_MATCH_FOUND" and event.payload.get("compatibility") == "EXACT":
-            button = {
-                "type": "callback",
-                "text": "Я в деле",
-                "payload": f"confirm:{event.payload['dvizh_id']}:{event.payload['candidate_id']}",
-            }
-            buttons = [[button], [{"type": "link", "text": "Открыть ДВИЖ", "url": link}]]
+        buttons.append(
+            [{"type": "link", "text": "Открыть ДВИЖ" if buttons else label, "url": link}]
+        )
+    if buttons:
         body["attachments"] = [{"type": "inline_keyboard", "payload": {"buttons": buttons}}]
     response = httpx.post(
         f"{settings.max_bot_api_base}/messages",

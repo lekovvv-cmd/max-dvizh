@@ -287,6 +287,21 @@ describe('finite candidate round', () => {
     await waitFor(() => expect(save).toHaveBeenCalledWith('d1', 'c1', false))
   })
 
+  it('lets a confirmed member answer the second question or withdraw', async () => {
+    const item = sample()
+    item.status = 'GATHERED'
+    item.active_candidate_id = 'c1'
+    item.my_confirmation = 'CONFIRMED'
+    item.my_reconfirm_available = true
+    const reconfirm = vi.spyOn(api, 'reconfirmDvizh').mockResolvedValue(item)
+    const withdraw = vi.spyOn(api, 'withdrawDvizh').mockResolvedValue(item)
+    render(<DvizhFlow dvizh={item} onUpdate={vi.fn()} onEdit={vi.fn()} onNew={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Я иду' }))
+    await waitFor(() => expect(reconfirm).toHaveBeenCalledWith('d1', 'c1'))
+    fireEvent.click(screen.getByRole('button', { name: 'Не смогу' }))
+    await waitFor(() => expect(withdraw).toHaveBeenCalledWith('d1', 'c1'))
+  })
+
   it('shows a saved confirmation on the detail card', () => {
     const item = sample()
     item.status = 'AWAITING_CONFIRMATION'

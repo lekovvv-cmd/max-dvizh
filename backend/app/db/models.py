@@ -226,6 +226,10 @@ class DvizhSession(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     launched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    premeet_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    source_rechecked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class DvizhCandidate(Base):
@@ -279,6 +283,7 @@ class DvizhConfirmation(Base):
     status: Mapped[str] = mapped_column(String(16), default="CONFIRMED")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reconfirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class MaxWebhookEvent(Base):

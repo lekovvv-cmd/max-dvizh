@@ -38,6 +38,18 @@ def now() -> datetime:
     return datetime.now(UTC)
 
 
+def premeet_due_time(starts_at: datetime, gathered_at: datetime) -> datetime:
+    """Choose one pre-meeting question time from the horizon at gathering."""
+    remaining = aware(starts_at) - aware(gathered_at)
+    if remaining > timedelta(hours=48):
+        return aware(starts_at) - timedelta(hours=24)
+    if remaining >= timedelta(hours=12):
+        return aware(starts_at) - timedelta(hours=6)
+    if remaining >= timedelta(hours=3):
+        return aware(starts_at) - timedelta(hours=2)
+    return aware(gathered_at)
+
+
 def aware(value: datetime) -> datetime:
     return value if value.tzinfo else value.replace(tzinfo=UTC)
 
@@ -139,11 +151,17 @@ def enqueue(
         "group_name": group.name if group else "Компания",
         "activity_ids": dvizh.activity_ids,
     }
+    signal = session.get(Intent, dvizh.signal_id)
+    if signal and signal.available_from:
+        payload["starts_at"] = signal.available_from.isoformat()
+        payload["timezone"] = group.timezone_name if group else "UTC"
     if candidate:
         payload.update(
             {
                 "candidate_id": candidate.id,
                 "title": candidate.title,
+                "venue_name": candidate.venue_name,
+                "address_text": candidate.address_text,
                 "starts_at": candidate.starts_at.isoformat(),
                 "timezone": group.timezone_name if group else "UTC",
                 "compatibility": candidate.compatibility,
@@ -425,6 +443,7 @@ def expire(session: Session, dvizh: DvizhSession) -> None:
         signal = session.get(Intent, dvizh.signal_id)
         if signal and signal.flow_version == 2 and signal.status == "ACTIVE":
             signal.status = "EXPIRED"
+        enqueue(session, "DVIZH_NOT_GATHERED", dvizh.initiator_id, dvizh, active(session, dvizh))
     elif dvizh.status == "CHOOSING_CANDIDATES" and not any(
         aware(candidate.expires_at) > now() for candidate in candidates(session, dvizh.id)
     ):
@@ -502,10 +521,19 @@ def recompute(session: Session, dvizh: DvizhSession) -> None:
     if not ordered:
         _supersede_confirmations(session, old_active)
         dvizh.active_candidate_id = None
+        dvizh.premeet_due_at = None
+        dvizh.source_rechecked_at = None
         dvizh.status = "NO_MATCH"
         signal = session.get(Intent, dvizh.signal_id)
         if signal and signal.flow_version == 2 and signal.status == "ACTIVE":
             signal.status = "EXPIRED"
+        enqueue(
+            session,
+            "DVIZH_NOT_GATHERED",
+            dvizh.initiator_id,
+            dvizh,
+            session.get(DvizhCandidate, old_active) if old_active else None,
+        )
         return
     if dvizh.status == "AWAITING_CONFIRMATION":
         current = active(session, dvizh)
@@ -519,6 +547,8 @@ def recompute(session: Session, dvizh: DvizhSession) -> None:
             continue
         _supersede_confirmations(session, old_active)
         dvizh.active_candidate_id = candidate.id
+        dvizh.premeet_due_at = None
+        dvizh.source_rechecked_at = None
         dvizh.status = "AWAITING_CONFIRMATION"
         session.flush()
         for reaction in session.scalars(
@@ -538,6 +568,8 @@ def recompute(session: Session, dvizh: DvizhSession) -> None:
         return
     _supersede_confirmations(session, old_active)
     dvizh.active_candidate_id = None
+    dvizh.premeet_due_at = None
+    dvizh.source_rechecked_at = None
     dvizh.status = "COLLECTING_REACTIONS"
 
 
@@ -551,6 +583,31 @@ def _supersede_confirmations(session: Session, candidate_id: str | None) -> None
         )
     ):
         confirmation.status = "SUPERSEDED"
+
+
+def cancel_unavailable_gathered(
+    session: Session, dvizh: DvizhSession, candidate: DvizhCandidate
+) -> None:
+    """Cancel a gathered plan only when its real source confirms disappearance."""
+    dvizh.status = "CANCELLED"
+    signal = session.get(Intent, dvizh.signal_id)
+    if signal and signal.flow_version == 2 and signal.status == "FULFILLED":
+        signal.status = "EXPIRED"
+    for notification in session.scalars(
+        select(OutboxNotification).where(
+            OutboxNotification.status == "PENDING",
+            OutboxNotification.dedupe_key.like(f"DVIZH_%:{dvizh.id}:%"),
+        )
+    ):
+        if notification.kind != "DVIZH_SOURCE_CANCELLED":
+            notification.status = "CANCELLED"
+    for confirmation in session.scalars(
+        select(DvizhConfirmation).where(
+            DvizhConfirmation.candidate_id == candidate.id,
+            DvizhConfirmation.status == "CONFIRMED",
+        )
+    ):
+        enqueue(session, "DVIZH_SOURCE_CANCELLED", confirmation.user_id, dvizh, candidate)
 
 
 def public_candidate(
@@ -649,5 +706,14 @@ def public_dvizh(session: Session, dvizh: DvizhSession, user_id: str) -> dict[st
         "reaction_count": reaction_count(session, matched.id) if matched else 0,
         "confirmed_count": confirmation_count(session, matched.id) if matched else 0,
         "my_confirmation": my_confirmation.status if my_confirmation else None,
+        "my_reconfirmed": bool(my_confirmation and my_confirmation.reconfirmed_at),
+        "my_reconfirm_available": bool(
+            dvizh.status == "GATHERED"
+            and matched
+            and my_confirmation
+            and my_confirmation.status == "CONFIRMED"
+            and dvizh.premeet_due_at
+            and aware(dvizh.premeet_due_at) <= now() < aware(matched.starts_at)
+        ),
         "participants": confirmed,
     }

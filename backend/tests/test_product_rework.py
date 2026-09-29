@@ -832,8 +832,9 @@ def test_scheduler_uses_active_recurring_rules_without_visiting_app(
 def test_scheduler_poll_interval_includes_evaluation_time(monkeypatch: pytest.MonkeyPatch) -> None:
     ticks = iter((100.0, 125.0))
     monkeypatch.setattr(scheduler, "settings", replace(settings, autosignal_poll_seconds=1800))
+    monkeypatch.setattr(scheduler, "startup", lambda: None)
     monkeypatch.setattr(scheduler, "monotonic", lambda: next(ticks))
-    monkeypatch.setattr(scheduler, "run_once", lambda: 1)
+    monkeypatch.setattr(scheduler, "run_once", lambda **kwargs: 1)
     observed: list[float] = []
 
     def stop_after_sleep(delay: float) -> None:
@@ -843,7 +844,7 @@ def test_scheduler_poll_interval_includes_evaluation_time(monkeypatch: pytest.Mo
     monkeypatch.setattr(scheduler, "sleep", stop_after_sleep)
     with pytest.raises(StopIteration):
         scheduler.main()
-    assert observed == [1775.0]
+    assert observed == [35.0]
 
 
 def test_auto_signal_save_returns_before_provider_evaluation(
