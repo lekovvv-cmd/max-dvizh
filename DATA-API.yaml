@@ -1,84 +1,146 @@
 config_version: "2.0"
 solution:
   name: "MAX ДВИЖ"
+  team: null # TO_BE_FILLED_BEFORE_SUBMISSION: confirmed team name
   stage: "MVP"
   repository: "https://github.com/lekovvv-cmd/max-dvizh"
-base_url: null # Fill with the deployed HTTPS API origin when assigned; never substitute localhost for production.
+base_url: null # TO_BE_FILLED_BEFORE_SUBMISSION: public HTTPS API origin; never use localhost here
 authentication:
   production: "X-MAX-Init-Data: signed MAX WebApp.initData"
-  development: "X-Demo-User: anton (APP_ENV=development only)"
-  max_webhook: "X-Max-Bot-Api-Secret: value from MAX_WEBHOOK_SECRET"
+  development: "X-Demo-User: anton|lena|maxim; APP_ENV=development and ALLOW_DEMO_AUTH=true only"
+  max_webhook: "X-Max-Bot-Api-Secret: value from MAX_WEBHOOK_SECRET; real MAX delivery only"
+request_conventions:
+  content_type: application/json
+  response_fields: "required_response_fields/required_item_fields apply to successful responses; errors use FastAPI detail"
+  demo_auth: "For local Compose replace X-MAX-Init-Data header with X-Demo-User: anton|lena|maxim"
+  dynamic_ids: "Resolve group_id, invite_token, dvizh_id and candidate_id from preceding responses"
+  future_times: "Use future ISO-8601 datetimes with timezone offset; provider results are not deterministic"
 checks:
+  - id: readiness
+    method: GET
+    path: /api/v1/health/ready
+    role: public
+    headers: {}
+    query_params: {}
+    expected_statuses: [200, 503]
+    response_format: json_object
+    required_response_fields: [status, database]
   - id: session
     method: GET
     path: /api/v1/session
     role: authenticated_user
-    expected_statuses: [200]
-    required_response_fields: [id, display_name]
+    headers: { X-MAX-Init-Data: "<signed initData; or X-Demo-User in development>" }
+    query_params: {}
+    expected_statuses: [200, 401]
+    response_format: json_object
+    required_response_fields: [id, display_name, max_mode]
   - id: create_company
     method: POST
     path: /api/v1/groups
     role: authenticated_user
-    body: { name: "Друзья", city_slug: "msk" }
-    expected_statuses: [201]
+    headers: { X-MAX-Init-Data: "<signed initData; or X-Demo-User in development>" }
+    body: { name: "Demo company", city_slug: "msk" }
+    expected_statuses: [201, 401, 422]
+    response_format: json_object
     required_response_fields: [id, name, invite_token]
+  - id: join_company
+    method: POST
+    path: /api/v1/groups/join/{token}
+    role: invited_user
+    path_params: { token: "<invite_token from create_company>" }
+    headers: { X-MAX-Init-Data: "<signed initData; or X-Demo-User in development>" }
+    expected_statuses: [200, 401, 404, 410]
+    response_format: json_object
+    required_response_fields: [group, already_member]
   - id: taxonomy
     method: GET
     path: /api/v1/leisure/taxonomy
     role: public
+    headers: {}
+    query_params: {}
     expected_statuses: [200]
+    response_format: json_object
     required_response_fields: [directions, activities]
+  - id: address_suggestions
+    method: GET
+    path: /api/v1/locations/suggest
+    role: company_member
+    headers: { X-MAX-Init-Data: "<signed initData; or X-Demo-User in development>" }
+    query_params: { q: "<at least 3 characters>", city: "msk" }
+    expected_statuses: [200, 401, 403, 422, 503]
+    response_format: json_array
+    required_item_fields: [id, title, address_text]
   - id: create_signal
     method: POST
     path: /api/v1/signals
     role: company_member
-    headers: { X-Request-ID: "stable-request-uuid" }
+    headers: { X-MAX-Init-Data: "<signed initData; or X-Demo-User in development>", X-Request-ID: "<unique ASCII request id>" }
     body: { group_ids: ["<group_id>"], activity_categories: ["quest"], available_from: "<future ISO-8601>", available_to: "<later ISO-8601>", budget_max: 1500, min_people: 3 }
-    expected_statuses: [201, 422, 503]
+    expected_statuses: [201, 401, 404, 422]
+    response_format: json_object
     required_response_fields: [signal_batch_id, dvizhi]
   - id: private_dvizh
     method: GET
     path: /api/v1/dvizhi/{dvizh_id}
     role: company_member
-    expected_statuses: [200, 404]
+    path_params: { dvizh_id: "<dvizhi[0].id from create_signal>" }
+    headers: { X-MAX-Init-Data: "<signed initData; or X-Demo-User in development>" }
+    expected_statuses: [200, 401, 404]
+    response_format: json_object
     required_response_fields: [id, status, candidates, my_confirmation, participants]
   - id: soft_reaction
     method: PUT
     path: /api/v1/dvizhi/{dvizh_id}/candidates/{candidate_id}/reaction
     role: company_member
+    path_params: { dvizh_id: "<dvizh ID>", candidate_id: "<candidate ID from visible candidates>" }
+    headers: { X-MAX-Init-Data: "<signed initData; or X-Demo-User in development>" }
     body: { value: "WOULD_GO", confirm_near_exception: false }
-    expected_statuses: [200, 403, 404, 409]
+    expected_statuses: [200, 401, 403, 404, 409]
+    response_format: json_object
     required_response_fields: [id, status, chosen_count]
   - id: launch
     method: POST
     path: /api/v1/dvizhi/{dvizh_id}/launch
     role: initiator
-    expected_statuses: [200, 403, 409]
+    path_params: { dvizh_id: "<dvizh ID>" }
+    headers: { X-MAX-Init-Data: "<signed initData; or X-Demo-User in development>" }
+    expected_statuses: [200, 401, 403, 404, 409]
+    response_format: json_object
     required_response_fields: [id, status]
   - id: confirmation
     method: POST
     path: /api/v1/dvizhi/{dvizh_id}/confirm
     role: interested_company_member
+    path_params: { dvizh_id: "<dvizh ID>" }
+    headers: { X-MAX-Init-Data: "<signed initData; or X-Demo-User in development>" }
     body: { candidate_id: "<active_candidate_id>", confirm_near_exception: false }
-    expected_statuses: [200, 403, 409]
+    expected_statuses: [200, 401, 403, 404, 409]
+    response_format: json_object
     required_response_fields: [id, status, my_confirmation, confirmed_count]
   - id: list_dvizhi
     method: GET
     path: /api/v1/dvizhi
     role: authenticated_user
-    expected_statuses: [200]
-    required_response_fields: []
+    headers: { X-MAX-Init-Data: "<signed initData; or X-Demo-User in development>" }
+    query_params: {}
+    expected_statuses: [200, 401]
+    response_format: json_array
+    required_item_fields: [id, status]
   - id: recurring_signal
     method: POST
     path: /api/v1/recurring-signals
     role: company_member
-    body: { group_id: "<group_id>", name: "По пятницам", activity_category: "quest", activity_categories: ["quest"], weekdays: [4], local_start: "18:00", local_end: "23:00", timezone: "Europe/Moscow", min_people: 3 }
-    expected_statuses: [201, 422]
+    headers: { X-MAX-Init-Data: "<signed initData; or X-Demo-User in development>" }
+    body: { group_id: "<group_id>", name: "По пятницам", activity_categories: ["quest"], weekdays: [4], local_start: "18:00", local_end: "23:00", timezone: "Europe/Moscow", min_people: 3 }
+    expected_statuses: [201, 401, 404, 422]
+    response_format: json_object
     required_response_fields: [id, status]
-  - id: max_webhook
+  - id: max_webhook_rejects_unsigned
     method: POST
     path: /api/v1/integrations/max/webhook
-    role: max_signed_delivery
-    body: { update_type: "bot_started", timestamp: 1750000000000, user: { user_id: 123, name: "Антон" } }
-    expected_statuses: [200, 403]
-    required_response_fields: [ok]
+    role: public_negative_check
+    headers: {}
+    body: {}
+    expected_statuses: [403]
+    response_format: json_object
+    error_response_fields: [detail]

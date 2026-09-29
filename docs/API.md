@@ -4,13 +4,16 @@
 
 | Метод | Путь | Назначение |
 | --- | --- | --- |
+| GET / POST | `/session`, `/session/onboarding-seen` | Текущий пользователь и отметка локального онбординга |
+| GET / POST | `/groups`, `/groups/join/{token}` | Компании пользователя, создание и вступление по приглашению |
+| GET | `/locations/suggest` | Подсказки адреса через Geoapify при наличии серверного ключа |
 | GET | `/leisure/taxonomy` | Направления, занятия, доступные wildcard-направления |
 | POST | `/signals` | Сигнал в 1–12 компаний одного города; `X-Request-ID` делает повтор безопасным |
 | PUT / DELETE | `/signals/{batch_id}` | Изменить или отменить ещё не запущенный сигнал |
 | GET | `/dvizhi` | Видимые пользователю движи всех компаний |
 | GET | `/dvizhi/{id}` | Полное личное product state одного движа |
 | POST | `/dvizhi/{id}/more` | Повторить поиск до запуска |
-| POST | `/dvizhi/{id}/places/search` | Поиск места по названию в KudaGo до запуска; добавляет только проверенных кандидатов |
+| POST | `/dvizhi/{id}/places/search` | Поиск места по названию через Geoapify (если задан ключ) и KudaGo до запуска; добавляет только проверенных кандидатов |
 | PUT | `/dvizhi/{id}/candidates/{candidate_id}/reaction` | `WOULD_GO` либо `PASS`, для `NEAR` требуется `confirm_near_exception` |
 | POST | `/dvizhi/{id}/launch` | Явно открыть обзор компании |
 | POST | `/dvizhi/{id}/confirm` | Окончательное подтверждение активного варианта |
@@ -22,6 +25,8 @@
 | POST | `/integrations/max/webhook` | Подписанный входящий MAX Update |
 
 `POST /signals` принимает `group_ids`, `activity_categories`, `available_from`, `available_to`, `min_people`, необязательные `max_people`, `budget_max`, `origin_location_id`, `radius_km`. Ответ содержит `signal_batch_id` и отдельный `dvizhi[]` для каждой компании. Режимы `NO_SOURCE` и `PROVIDER_UNAVAILABLE` явны. В `GET /dvizhi` поля `my_reaction`, `my_confirmation` личные; до `GATHERED` `participants=[]`.
+
+Полный контракт текущего FastAPI экспортирован в [OpenAPI](openapi.json). Проверочный сценарий с динамическими ID и локальными demo-ролями — в [EVALUATOR_SCENARIO.md](EVALUATOR_SCENARIO.md). Публичный HTTPS origin для `DATA-API.yaml` ещё не предоставлен командой, поэтому `base_url: null`.
 
 ## MAX Webhook
 
