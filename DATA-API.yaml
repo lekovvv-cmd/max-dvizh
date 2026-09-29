@@ -1,10 +1,10 @@
 config_version: "2.0"
 solution:
   name: "MAX ДВИЖ"
-  team: null # NEEDS_TEAM_INPUT: confirmed team name
+  team: "Байтсы"
   stage: "MVP"
   repository: "https://github.com/lekovvv-cmd/max-dvizh"
-base_url: null # NEEDS_TEAM_INPUT: public HTTPS API origin; never use localhost here
+base_url: "https://max-dvizh.relaxdev.ru"
 authentication:
   production: "X-MAX-Init-Data: signed MAX WebApp.initData"
   development: "X-Demo-User: anton|lena|maxim; APP_ENV=development and ALLOW_DEMO_AUTH=true only"
