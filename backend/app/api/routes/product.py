@@ -50,7 +50,7 @@ from app.db.models import (
     User,
 )
 from app.modules.auth.service import optional_max_chat_id
-from app.modules.leisure.geoapify import resolve_city
+from app.modules.leisure.geoapify import city_name, resolve_city_center
 from app.modules.leisure.provider import (
     KudaGoProvider,
     NormalizedLeisureItem,
@@ -454,7 +454,7 @@ def suggest_locations(
     q: str = Query(min_length=3, max_length=120),
     city: str = Query(min_length=2, max_length=64),
 ) -> list[AddressSuggestionOut]:
-    """Suggest addresses in a user's city without exposing the geocoder to the browser."""
+    """Suggest nearby addresses first without restricting the search to one city."""
     if len(q.strip()) < 3:
         return []
     if not session.scalar(
@@ -467,42 +467,58 @@ def suggest_locations(
     if not settings.geoapify_api_key:
         raise error(status.HTTP_503_SERVICE_UNAVAILABLE, "Поиск адресов временно недоступен")
 
-    async def fetch() -> tuple[object, str]:
+    async def fetch() -> tuple[list[object], str]:
         async with httpx.AsyncClient(
             base_url=settings.geoapify_base_url.rstrip("/"),
             timeout=settings.geoapify_timeout_seconds,
         ) as client:
-            boundary, resolved_city = await resolve_city(city, client)
-            response = await client.get(
-                "/v1/geocode/autocomplete",
-                params={
-                    "text": q.strip(),
-                    "filter": f"place:{boundary}",
-                    "format": "json",
-                    "lang": "ru",
-                    "limit": 8,
-                    "apiKey": settings.geoapify_api_key,
-                },
+            center = await resolve_city_center(city, client)
+            biases = ["countrycode:ru"]
+            if center:
+                biases.insert(0, f"proximity:{center[2]},{center[1]}|countrycode:ru")
+
+            async def autocomplete(bias: str) -> list[object]:
+                response = await client.get(
+                    "/v1/geocode/autocomplete",
+                    params={
+                        "text": q.strip(),
+                        "bias": bias,
+                        "format": "json",
+                        "lang": "ru",
+                        "limit": 12,
+                        "apiKey": settings.geoapify_api_key,
+                    },
+                )
+                response.raise_for_status()
+                payload = response.json()
+                if not isinstance(payload, dict) or not isinstance(payload.get("results"), list):
+                    raise ValueError("Malformed Geoapify autocomplete response")
+                results: list[object] = payload["results"]
+                return results
+
+            responses = await asyncio.gather(
+                *(autocomplete(bias) for bias in biases), return_exceptions=True
             )
-            response.raise_for_status()
-            return response.json(), resolved_city
+            results = [
+                result
+                for response in responses
+                if isinstance(response, list)
+                for result in response
+            ]
+            if not any(isinstance(response, list) for response in responses):
+                raise ValueError("Geoapify autocomplete unavailable")
+            return results, center[0] if center else city_name(city)
 
     try:
-        payload, resolved_city = asyncio.run(fetch())
-        if not isinstance(payload, dict) or not isinstance(payload.get("results"), list):
-            raise ValueError("Malformed Geoapify autocomplete response")
-        results = payload["results"]
+        results, resolved_city = asyncio.run(fetch())
     except (httpx.HTTPError, ValueError, TypeError) as exc:
         raise error(status.HTTP_503_SERVICE_UNAVAILABLE, "Не удалось найти адреса") from exc
-    suggestions: list[AddressSuggestionOut] = []
+    local: list[AddressSuggestionOut] = []
+    other: list[AddressSuggestionOut] = []
+    seen: set[str] = set()
     expected_city = resolved_city.casefold()
     for result in results:
         if not isinstance(result, dict):
-            continue
-        if str(result.get("country_code") or "").casefold() != "ru":
-            continue
-        result_city = result.get("city") or result.get("town")
-        if not isinstance(result_city, str) or result_city.casefold() != expected_city:
             continue
         latitude, longitude = result.get("lat"), result.get("lon")
         if (
@@ -518,31 +534,47 @@ def suggest_locations(
         identifier = result.get("place_id")
         title = result.get("name") or result.get("address_line1")
         address = result.get("formatted")
+        locality = next(
+            (
+                value.strip()
+                for key in ("city", "town", "village", "municipality", "suburb", "county")
+                if isinstance(value := result.get(key), str) and value.strip()
+            ),
+            None,
+        )
         if (
             not isinstance(identifier, str)
             or not identifier.strip()
+            or identifier in seen
             or not isinstance(title, str)
             or not title.strip()
             or not isinstance(address, str)
             or not address.strip()
+            or locality is None
         ):
             continue
-        subtitle = result.get("address_line2")
-        if not isinstance(subtitle, str) or not subtitle.strip():
-            subtitle = resolved_city
-        suggestions.append(
-            AddressSuggestionOut(
-                id=identifier,
-                title=title.strip(),
-                subtitle=subtitle.strip(),
-                address_text=address.strip(),
-                latitude=float(latitude),
-                longitude=float(longitude),
-            )
+        subtitle = address.strip()
+        if locality.casefold() not in subtitle.casefold():
+            subtitle = f"{subtitle}, {locality}"
+        suggestion = AddressSuggestionOut(
+            id=identifier,
+            title=title.strip(),
+            subtitle=subtitle,
+            address_text=address.strip(),
+            latitude=float(latitude),
+            longitude=float(longitude),
         )
-        if len(suggestions) == 5:
-            break
-    return suggestions
+        seen.add(identifier)
+        city_fields = (result.get("city"), result.get("town"), result.get("municipality"))
+        if any(
+            isinstance(value, str) and value.strip().casefold() == expected_city
+            for value in city_fields
+        ):
+            local.append(suggestion)
+        else:
+            other.append(suggestion)
+    local = local[:5]
+    return local + other[: 8 - len(local)]
 
 
 def own_location(session: DbSession, user_id: str, location_id: str) -> Location:

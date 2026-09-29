@@ -1,4 +1,4 @@
-"""Address suggestions use the same Geoapify city boundary as place search."""
+"""Address suggestions prioritize the current city while keeping global matches."""
 
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ def configured(monkeypatch: pytest.MonkeyPatch) -> None:
     active = replace(product.settings, geoapify_api_key="test-key")
     monkeypatch.setattr(product, "settings", active)
     monkeypatch.setattr(geoapify, "settings", active)
-    geoapify._cities.clear()
+    geoapify._city_centers.clear()
 
 
 def mock_client(monkeypatch: pytest.MonkeyPatch, respond: Any) -> None:
@@ -67,7 +67,7 @@ def address(index: int, *, city: str = "Екатеринбург") -> dict[str, 
     }
 
 
-def test_city_filter_result_validation_limit_and_cache(
+def test_current_city_first_other_city_available_and_center_cached(
     monkeypatch: pytest.MonkeyPatch, member: tuple[Session, User]
 ) -> None:
     configured(monkeypatch)
@@ -77,7 +77,12 @@ def test_city_filter_result_validation_limit_and_cache(
         calls.append(request)
         if request.url.path.endswith("/geocode/search"):
             return httpx.Response(
-                200, json={"results": [{"place_id": "city-id", "country_code": "ru"}]}
+                200,
+                json={
+                    "results": [
+                        {"city": "Екатеринбург", "country_code": "ru", "lat": 56.84, "lon": 60.6}
+                    ]
+                },
             )
         return httpx.Response(
             200,
@@ -95,15 +100,75 @@ def test_city_filter_result_validation_limit_and_cache(
     session, user = member
     first = product.suggest_locations(session, user, q="Ленина 1", city="ekb")
     second = product.suggest_locations(session, user, q="Ленина 2", city="ekb")
-    assert len(first) == len(second) == 5
+    assert len(first) == len(second) == 6
     assert first[0].id == "address-2"
+    assert first[-1].id == "address-0"
+    assert first[-1].subtitle == "Место 0, Ленина 0, Москва"
     assert (first[0].latitude, first[0].longitude) == (56.838, 60.58)
     assert first[0].address_text == "Место 2, Ленина 2, Екатеринбург"
     assert [request.url.path for request in calls].count("/v1/geocode/search") == 1
     autocomplete = [request for request in calls if request.url.path.endswith("/autocomplete")]
-    assert all(request.url.params["filter"] == "place:city-id" for request in autocomplete)
+    assert len(autocomplete) == 4
+    assert all("filter" not in request.url.params for request in autocomplete)
+    assert {request.url.params["bias"] for request in autocomplete} == {
+        "proximity:60.6,56.84|countrycode:ru",
+        "countrycode:ru",
+    }
     assert all(request.url.params["apiKey"] == "test-key" for request in calls)
     assert all(request.url.host == "api.geoapify.com" for request in calls)
+
+
+def test_nearby_town_and_suburb_are_not_discarded(
+    monkeypatch: pytest.MonkeyPatch, member: tuple[Session, User]
+) -> None:
+    configured(monkeypatch)
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/geocode/search"):
+            return httpx.Response(
+                200,
+                json={
+                    "results": [
+                        {"city": "Екатеринбург", "country_code": "ru", "lat": 56.84, "lon": 60.6}
+                    ]
+                },
+            )
+        town = {**address(1, city="Берёзовский"), "town": "Берёзовский"}
+        town.pop("city")
+        suburb = {**address(2), "suburb": "Уралмаш"}
+        return httpx.Response(200, json={"results": [town, suburb]})
+
+    mock_client(monkeypatch, respond)
+    session, user = member
+    suggestions = product.suggest_locations(session, user, q="Ленина", city="ekb")
+    assert [item.id for item in suggestions] == ["address-2", "address-1"]
+    assert "Берёзовский" in suggestions[1].subtitle
+
+
+def test_empty_local_response_still_returns_global_matches(
+    monkeypatch: pytest.MonkeyPatch, member: tuple[Session, User]
+) -> None:
+    configured(monkeypatch)
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/geocode/search"):
+            return httpx.Response(
+                200,
+                json={
+                    "results": [
+                        {"city": "Екатеринбург", "country_code": "ru", "lat": 56.84, "lon": 60.6}
+                    ]
+                },
+            )
+        if request.url.params["bias"].startswith("proximity:"):
+            return httpx.Response(200, json={"results": []})
+        return httpx.Response(200, json={"results": [address(3, city="Москва")]})
+
+    mock_client(monkeypatch, respond)
+    session, user = member
+    suggestions = product.suggest_locations(session, user, q="Ленина", city="ekb")
+    assert [item.id for item in suggestions] == ["address-3"]
+    assert suggestions[0].address_text == "Место 3, Ленина 3, Москва"
 
 
 def test_membership_short_query_and_missing_key(
@@ -129,7 +194,12 @@ def test_provider_failures_are_controlled(
     def respond(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/geocode/search"):
             return httpx.Response(
-                200, json={"results": [{"place_id": "city-id", "country_code": "ru"}]}
+                200,
+                json={
+                    "results": [
+                        {"city": "Екатеринбург", "country_code": "ru", "lat": 56.84, "lon": 60.6}
+                    ]
+                },
             )
         if failure == "timeout":
             raise httpx.ReadTimeout("timeout", request=request)

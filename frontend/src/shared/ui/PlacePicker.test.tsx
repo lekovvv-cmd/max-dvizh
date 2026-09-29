@@ -44,6 +44,32 @@ it('offers addresses while typing and requires choosing a suggestion', async () 
   expect(onSelect).toHaveBeenLastCalledWith(null)
 })
 
+it('shows the full address and city for an address outside the current city', async () => {
+  vi.spyOn(api, 'suggestLocations').mockResolvedValue([
+    {
+      id: 'W:moscow',
+      title: 'Ленина 1',
+      subtitle: 'Ленина 1, Москва',
+      address_text: 'Ленина 1, Москва',
+      latitude: 55.75,
+      longitude: 37.62,
+    },
+  ])
+  const onSelect = vi.fn<(place: SelectedPlace | null) => void>()
+  render(<PlacePicker city="ekb" value={null} onSelect={onSelect} />)
+  fireEvent.change(screen.getByLabelText('Адрес или название места'), {
+    target: { value: 'Ленина 1' },
+  })
+  expect(await screen.findByText('Ленина 1, Москва')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: /Ленина 1, Москва/ }))
+  expect(onSelect).toHaveBeenLastCalledWith({
+    latitude: 55.75,
+    longitude: 37.62,
+    addressText: 'Ленина 1, Москва',
+    title: 'Ленина 1',
+  })
+})
+
 it('waits for three characters and debounces changes', async () => {
   const suggest = vi.spyOn(api, 'suggestLocations').mockResolvedValue([])
   render(<PlacePicker city="ekb" value={null} onSelect={vi.fn()} />)
