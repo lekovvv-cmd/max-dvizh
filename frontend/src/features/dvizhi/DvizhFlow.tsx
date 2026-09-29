@@ -1,9 +1,11 @@
 import { useRef, useState } from 'react'
 
-import { api, type Dvizh, type DvizhCandidate } from '../../app/api'
+import { ApiError, api, type Dvizh, type DvizhCandidate } from '../../app/api'
 import { activityLabel, formatPeople, formatSignalWindow } from '../../shared/lib/format'
 import { ActivityCard } from '../../shared/ui/ActivityCard'
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog'
+import { ActionErrorModal } from '../../shared/ui/ActionErrorModal'
+import { useActionError } from '../../shared/ui/actionErrors'
 import { Icon } from '../../shared/ui/Icon'
 import companyUsersIcon from '../../assets/figma-company/690e2.svg'
 
@@ -27,7 +29,7 @@ export function DvizhFlow({
   const [limit, setLimit] = useState(ROUND_SIZE)
   const [drag, setDrag] = useState(0)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
+  const { actionError, showActionError, dismissActionError } = useActionError()
   const [placeOpen, setPlaceOpen] = useState(false)
   const [placeQuery, setPlaceQuery] = useState('')
   const [selectionFinished, setSelectionFinished] = useState(false)
@@ -57,23 +59,21 @@ export function DvizhFlow({
   const roundCount = Math.min(ROUND_SIZE, actionableCount - roundStart)
   const roundPosition = currentIndex - roundStart + 1
 
-  async function act(
-    action: () => Promise<Dvizh>,
-    failure = 'Не удалось сохранить. Попробуй ещё раз.',
-  ) {
+  async function act(action: () => Promise<Dvizh>) {
     if (busyRef.current) return
     busyRef.current = true
     setBusy(true)
-    setError('')
     try {
       onUpdate(await action())
     } catch (reason) {
-      setError(
-        reason instanceof Error &&
-          ['Не нашли это место.', 'Это место не подошло по условиям.'].includes(reason.message)
-          ? reason.message
-          : failure,
-      )
+      const refresh =
+        reason instanceof ApiError &&
+        ['CANDIDATE_STALE', 'SELECTION_CLOSED'].includes(reason.code ?? '')
+          ? () => {
+              void api.dvizh(dvizh.id).then(onUpdate).catch(showActionError)
+            }
+          : undefined
+      showActionError(reason, refresh)
     } finally {
       busyRef.current = false
       setBusy(false)
@@ -90,7 +90,7 @@ export function DvizhFlow({
       dragX.current = 0
       return
     }
-    void act(() => api.react(dvizh.id, candidate.id, value, false), 'Этот вариант уже недоступен.')
+    void act(() => api.react(dvizh.id, candidate.id, value, false))
   }
 
   const placeRule = new Intl.PluralRules('ru-RU').select(dvizh.chosen_count)
@@ -108,10 +108,7 @@ export function DvizhFlow({
           onClick={() =>
             match.compatibility === 'NEAR'
               ? setNearConsent({ candidate: match, action: 'confirm' })
-              : void act(
-                  () => api.confirmDvizh(dvizh.id, match.id, false),
-                  'Этот вариант уже недоступен.',
-                )
+              : void act(() => api.confirmDvizh(dvizh.id, match.id, false))
           }
         >
           Проверить место
@@ -142,20 +139,7 @@ export function DvizhFlow({
             onSubmit={(event) => {
               event.preventDefault()
               if (placeQuery.trim().length >= 2)
-                void act(async () => {
-                  try {
-                    return await api.searchPlace(dvizh.id, placeQuery.trim())
-                  } catch (reason) {
-                    const message = reason instanceof Error ? reason.message : ''
-                    throw new Error(
-                      /не подходит/i.test(message)
-                        ? 'Это место не подошло по условиям.'
-                        : /не нашли/i.test(message)
-                          ? 'Не нашли это место.'
-                          : 'Не удалось загрузить варианты.',
-                    )
-                  }
-                }, 'Не удалось загрузить варианты.')
+                void act(() => api.searchPlace(dvizh.id, placeQuery.trim()))
             }}
           >
             <label>
@@ -192,11 +176,6 @@ export function DvizhFlow({
           {formatSignalWindow(dvizh.available_from, dvizh.available_to)} · {dvizh.group_name}
         </small>
       </div>
-      {error ? (
-        <p className="inline-notice" role="alert">
-          {error}
-        </p>
-      ) : null}
       {current ? (
         <>
           {onBack ? (
@@ -353,9 +332,7 @@ export function DvizhFlow({
               <button
                 className="text-action"
                 disabled={busy}
-                onClick={() =>
-                  void act(() => api.moreDvizh(dvizh.id), 'Не удалось загрузить варианты.')
-                }
+                onClick={() => void act(() => api.moreDvizh(dvizh.id))}
               >
                 Повторить поиск
               </button>
@@ -365,9 +342,7 @@ export function DvizhFlow({
               <button
                 className="primary-button"
                 disabled={busy}
-                onClick={() =>
-                  void act(() => api.moreDvizh(dvizh.id), 'Не удалось загрузить варианты.')
-                }
+                onClick={() => void act(() => api.moreDvizh(dvizh.id))}
               >
                 Повторить
               </button>
@@ -425,10 +400,7 @@ export function DvizhFlow({
                   onClick={() =>
                     match.compatibility === 'NEAR'
                       ? setNearConsent({ candidate: match, action: 'confirm' })
-                      : void act(
-                          () => api.confirmDvizh(dvizh.id, match.id, false),
-                          'Этот вариант уже недоступен.',
-                        )
+                      : void act(() => api.confirmDvizh(dvizh.id, match.id, false))
                   }
                 >
                   Пойду
@@ -519,16 +491,15 @@ export function DvizhFlow({
           onConfirm={() => {
             const { candidate, action } = nearConsent
             setNearConsent(null)
-            void act(
-              () =>
-                action === 'react'
-                  ? api.react(dvizh.id, candidate.id, 'WOULD_GO', true)
-                  : api.confirmDvizh(dvizh.id, candidate.id, true),
-              'Этот вариант уже недоступен.',
+            void act(() =>
+              action === 'react'
+                ? api.react(dvizh.id, candidate.id, 'WOULD_GO', true)
+                : api.confirmDvizh(dvizh.id, candidate.id, true),
             )
           }}
         />
       ) : null}
+      <ActionErrorModal error={actionError} onClose={dismissActionError} />
     </section>
   )
 }

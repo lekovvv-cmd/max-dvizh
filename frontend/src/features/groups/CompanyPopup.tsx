@@ -52,6 +52,7 @@ export function CompanyPopup({
     dialog?.focus()
     const handleKey = (event: KeyboardEvent) => {
       if (!dialog) return
+      if (document.querySelector('.dialog-backdrop')) return
       if (event.key === 'Escape' && !busyRef.current) {
         event.preventDefault()
         closeRef.current()
@@ -83,6 +84,7 @@ export function CompanyPopup({
       }
     }
     const keepFocusInside = (event: FocusEvent) => {
+      if (document.querySelector('.dialog-backdrop')) return
       if (event.target instanceof Node && !dialog?.contains(event.target)) dialog?.focus()
     }
     document.addEventListener('keydown', handleKey)

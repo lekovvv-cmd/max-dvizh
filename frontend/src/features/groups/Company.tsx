@@ -7,6 +7,8 @@ import arrowIcon from '../../assets/figma-company/18d2d.svg'
 import editIcon from '../../assets/figma-company/188ab.svg'
 import avatarCircle from '../../assets/figma-company/5a81c.svg'
 import { PlacePicker, type SelectedPlace } from '../../shared/ui/PlacePicker'
+import { ActionErrorModal } from '../../shared/ui/ActionErrorModal'
+import { useActionError } from '../../shared/ui/actionErrors'
 import { SectionHeader } from '../../shared/ui/SectionHeader'
 import { CityPicker } from '../../shared/ui/CityPicker'
 import { CompanyPopup } from './CompanyPopup'
@@ -82,8 +84,7 @@ export function Company({
   const [selectedPlace, setSelectedPlace] = useState<SelectedPlace | null>(null)
   const [placeOpen, setPlaceOpen] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const [placeError, setPlaceError] = useState('')
+  const { actionError, showActionError, showActionMessage, dismissActionError } = useActionError()
   const [editingPlace, setEditingPlace] = useState<Location | null>(null)
   const [editPlaceOpen, setEditPlaceOpen] = useState(false)
   const [editingLabel, setEditingLabel] = useState('')
@@ -97,11 +98,8 @@ export function Company({
   const [membersStatus, setMembersStatus] = useState<'loading' | 'ready' | 'error'>('loading')
 
   useEffect(() => {
-    void api
-      .cities()
-      .then(setCities)
-      .catch(() => setError('Не удалось загрузить список городов'))
-  }, [])
+    void api.cities().then(setCities).catch(showActionError)
+  }, [showActionError])
   useEffect(() => setNextCity(active.city_slug), [active.city_slug])
   useEffect(() => setCityResult(''), [active.id])
   useEffect(() => {
@@ -124,14 +122,17 @@ export function Company({
           setMembersStatus('ready')
         }
       },
-      () => {
-        if (current) setMembersStatus('error')
+      (reason: unknown) => {
+        if (current) {
+          setMembersStatus('error')
+          showActionError(reason)
+        }
       },
     )
     return () => {
       current = false
     }
-  }, [active.id])
+  }, [active.id, showActionError])
   const invite =
     active.invite_url ||
     (mode === 'development' && active.invite_token
@@ -139,9 +140,12 @@ export function Company({
       : null)
 
   async function shareInvite() {
-    setError('')
     if (!invite) {
-      setError('Приглашение в MAX пока не настроено. Нужен адрес бота.')
+      setInviteOpen(false)
+      showActionMessage({
+        title: 'Приглашение недоступно',
+        message: 'Для приглашений нужно настроить адрес MAX-бота.',
+      })
       return
     }
     try {
@@ -154,27 +158,35 @@ export function Company({
         setCopied(true)
       }
     } catch {
-      setError('Не удалось поделиться. Скопируй приглашение вручную.')
+      setInviteOpen(false)
+      showActionMessage({
+        title: 'Не удалось поделиться',
+        message: 'Скопируй приглашение вручную.',
+      })
     }
   }
 
   async function copyInvite() {
     if (!invite) {
-      setError('Приглашение в MAX пока не настроено. Нужен адрес бота.')
+      setInviteOpen(false)
+      showActionMessage({
+        title: 'Приглашение недоступно',
+        message: 'Для приглашений нужно настроить адрес MAX-бота.',
+      })
       return
     }
     try {
       await navigator.clipboard.writeText(invite)
       setCopied(true)
     } catch {
-      setError('Не удалось скопировать ссылку.')
+      setInviteOpen(false)
+      showActionMessage({ title: 'Не удалось скопировать ссылку', message: 'Попробуй ещё раз.' })
     }
   }
 
   async function addPlace() {
     if (!selectedPlace) return
     setBusy(true)
-    setPlaceError('')
     try {
       await onAddPlace(
         label.trim() || selectedPlace.title,
@@ -185,8 +197,9 @@ export function Company({
       setLabel('')
       setSelectedPlace(null)
       setPlaceOpen(false)
-    } catch {
-      setPlaceError('Не удалось сохранить место. Попробуй ещё раз.')
+    } catch (reason) {
+      setPlaceOpen(false)
+      showActionError(reason)
     } finally {
       setBusy(false)
     }
@@ -194,11 +207,11 @@ export function Company({
 
   async function changePlace(action: () => Promise<void>) {
     setBusy(true)
-    setError('')
     try {
       await action()
-    } catch {
-      setError('Не удалось изменить место. Попробуй ещё раз.')
+    } catch (reason) {
+      setEditPlaceOpen(false)
+      showActionError(reason)
     } finally {
       setBusy(false)
     }
@@ -206,14 +219,14 @@ export function Company({
 
   async function changeCity() {
     setBusy(true)
-    setError('')
     try {
       await onChangeCity(active.id, nextCity)
       setChangeCityOpen(false)
       setCityResultLeaving(false)
       setCityResult('Город изменён.')
-    } catch {
-      setError('Не удалось изменить город. Попробуй ещё раз.')
+    } catch (reason) {
+      setChangeCityOpen(false)
+      showActionError(reason)
     } finally {
       setBusy(false)
     }
@@ -266,7 +279,6 @@ export function Company({
                         className="company-group-card__city-edit"
                         aria-label={`Изменить город компании ${group.name}`}
                         onClick={() => {
-                          setError('')
                           setNextCity(group.city_slug)
                           setChangeCityOpen(true)
                         }}
@@ -308,11 +320,6 @@ export function Company({
                       {!current || membersStatus === 'loading' ? (
                         <p role="status">Загружаем участников…</p>
                       ) : null}
-                      {current && membersStatus === 'error' ? (
-                        <p className="form-error" role="alert">
-                          Не удалось загрузить участников.
-                        </p>
-                      ) : null}
                       {current && membersStatus === 'ready' ? (
                         <ul>
                           {members.map((member) => (
@@ -336,7 +343,6 @@ export function Company({
                       type="button"
                       className="company-primary-button company-group-card__invite"
                       onClick={() => {
-                        setError('')
                         setCopied(false)
                         setInviteOpen(true)
                       }}
@@ -380,7 +386,6 @@ export function Company({
                   onClick={() => {
                     setEditingPlace(place)
                     setEditingLabel(place.label)
-                    setError('')
                     setEditPlaceOpen(true)
                   }}
                 >
@@ -394,7 +399,6 @@ export function Company({
           type="button"
           className="company-primary-button"
           onClick={() => {
-            setPlaceError('')
             setPlaceOpen(true)
           }}
         >
@@ -412,11 +416,6 @@ export function Company({
         </div>
       ) : null}
 
-      {error ? (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      ) : null}
       {mode === 'development' && new URLSearchParams(window.location.search).has('dev') ? (
         <section className="dev-tools">
           <p>Dev / demo tools</p>
@@ -474,11 +473,6 @@ export function Company({
           onSelect={setSelectedPlace}
           compact
         />
-        {placeError ? (
-          <p className="form-error" role="alert">
-            {placeError}
-          </p>
-        ) : null}
         <button
           type="button"
           className="company-primary-button"
@@ -510,11 +504,6 @@ export function Company({
             ) : null}
             {editingPlace.is_default ? (
               <p className="company-place-dialog__address">По умолчанию</p>
-            ) : null}
-            {error ? (
-              <p className="form-error" role="alert">
-                {error}
-              </p>
             ) : null}
             <button
               type="button"
@@ -569,11 +558,6 @@ export function Company({
         onClose={() => setChangeCityOpen(false)}
       >
         <CityPicker cities={cities} value={nextCity} onChange={setNextCity} />
-        {error ? (
-          <p className="form-error" role="alert">
-            {error}
-          </p>
-        ) : null}
         <button
           type="button"
           className="company-primary-button"
@@ -603,11 +587,6 @@ export function Company({
             Приглашение станет доступно после настройки адреса MAX-бота.
           </p>
         ) : null}
-        {error ? (
-          <p className="form-error" role="alert">
-            {error}
-          </p>
-        ) : null}
         <button
           type="button"
           className="company-primary-button"
@@ -630,6 +609,7 @@ export function Company({
           </button>
         ) : null}
       </CompanyPopup>
+      <ActionErrorModal error={actionError} onClose={dismissActionError} />
     </section>
   )
 }

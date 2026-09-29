@@ -114,9 +114,10 @@ it('shows provider failure while keeping current geolocation available', async (
   fireEvent.change(screen.getByLabelText('Адрес или название места'), {
     target: { value: 'Ленина' },
   })
-  expect(
-    await screen.findByText('Не удалось загрузить адреса. Попробуй ещё раз.'),
-  ).toBeInTheDocument()
+  expect(await screen.findByRole('dialog', { name: 'Что-то пошло не так' })).toHaveTextContent(
+    'Попробуй ещё раз.',
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Понятно' }))
   fireEvent.click(screen.getByRole('button', { name: 'Взять мою геопозицию' }))
   await waitFor(() =>
     expect(onSelect).toHaveBeenLastCalledWith({

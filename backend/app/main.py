@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from app.api.router import api_router
 from app.core.config import settings
+from app.core.domain_errors import DomainError, domain_error_response
 
 
 @asynccontextmanager
@@ -24,4 +25,5 @@ app = FastAPI(
     description="MAX ДВИЖ: Signal, private candidate choice, group reactions and final confirmation.",
     lifespan=lifespan,
 )
+app.add_exception_handler(DomainError, domain_error_response)
 app.include_router(api_router)

@@ -209,8 +209,8 @@ describe('new Dvizh product route', () => {
     vi.spyOn(api, 'join').mockRejectedValue(error)
     render(<App />)
     expect(
-      await screen.findByText('Не удалось открыть приглашение. Попробуй ещё раз.'),
-    ).toBeInTheDocument()
+      await screen.findByRole('dialog', { name: 'Не удалось открыть приглашение' }),
+    ).toHaveTextContent('Попробуй ещё раз.')
     expect(screen.queryByText('Приглашение недействительно или устарело.')).not.toBeInTheDocument()
   })
 

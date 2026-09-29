@@ -18,6 +18,8 @@ import {
   type GroupSizeChoice,
 } from '../../shared/lib/signalForm'
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog'
+import { ActionErrorModal } from '../../shared/ui/ActionErrorModal'
+import { useActionError } from '../../shared/ui/actionErrors'
 import { Icon } from '../../shared/ui/Icon'
 import { PulseMark } from '../../shared/ui/PulseMark'
 import { PlacePicker, type SelectedPlace } from '../../shared/ui/PlacePicker'
@@ -209,14 +211,13 @@ export function SignalComposer({
   )
   const [busy, setBusy] = useState(false)
   const busyRef = useRef(false)
-  const [error, setError] = useState('')
+  const { actionError, showActionError, showActionMessage, dismissActionError } = useActionError()
   const [timeError, setTimeError] = useState('')
   const [exitOpen, setExitOpen] = useState(false)
   const [placeOpen, setPlaceOpen] = useState(false)
   const [placeLabel, setPlaceLabel] = useState('Дом')
   const [selectedNewPlace, setSelectedNewPlace] = useState<SelectedPlace | null>(null)
   const [placeBusy, setPlaceBusy] = useState(false)
-  const [placeError, setPlaceError] = useState('')
   const [checking, setChecking] = useState(false)
   const [locatingCurrent, setLocatingCurrent] = useState(false)
   const locatingCurrentRef = useRef(false)
@@ -380,10 +381,13 @@ export function SignalComposer({
             : dvizhi.filter((item) => item.signal_batch_id === submissionId.current),
         )
       } else {
-        setError('Не удалось подтвердить сохранение. Проверь связь и попробуй ещё раз.')
+        showActionMessage({
+          title: 'Не удалось проверить сохранение',
+          message: 'Проверь связь и попробуй ещё раз.',
+        })
       }
     } catch {
-      setError('Связь пропала. Проверяем, сохранился ли сигнал.')
+      showActionMessage({ title: 'Нет связи', message: 'Проверь интернет и попробуй ещё раз.' })
     } finally {
       setChecking(false)
     }
@@ -407,7 +411,6 @@ export function SignalComposer({
       return
     }
     setTimeError('')
-    setError('')
     setBusy(true)
     busyRef.current = true
     const common = {
@@ -474,9 +477,8 @@ export function SignalComposer({
       await onDone(createdDvizhi)
     } catch (reason) {
       if (reason instanceof ApiTimeoutError) {
-        setError('Не удалось сохранить. Проверяем сигнал.')
         await checkTimedOutSubmission(Number.isFinite(from.getTime()) ? from.toISOString() : '')
-      } else setError('Не удалось сохранить. Попробуй ещё раз.')
+      } else showActionError(reason)
     } finally {
       setBusy(false)
       busyRef.current = false
@@ -487,7 +489,6 @@ export function SignalComposer({
     if (locatingCurrentRef.current) return
     locatingCurrentRef.current = true
     setLocatingCurrent(true)
-    setPlaceError('')
     try {
       const point = await currentCoordinates()
       let place: Location
@@ -499,14 +500,16 @@ export function SignalComposer({
           city,
           'CURRENT',
         )
-      } catch {
-        setPlaceError('Не удалось сохранить геопозицию. Попробуй ещё раз.')
+      } catch (reason) {
+        showActionError(reason)
         return
       }
       update({ locationId: place.id })
     } catch (reason) {
-      setPlaceError(geolocationError(reason))
-      setPlaceOpen(true)
+      showActionMessage(
+        { title: 'Не удалось определить место', message: geolocationError(reason) },
+        () => setPlaceOpen(true),
+      )
     } finally {
       locatingCurrentRef.current = false
       setLocatingCurrent(false)
@@ -516,7 +519,6 @@ export function SignalComposer({
   async function savePlace() {
     if (!selectedNewPlace || placeBusy) return
     setPlaceBusy(true)
-    setPlaceError('')
     try {
       const place = await onCreateLocation(
         placeLabel.trim() || selectedNewPlace.title,
@@ -529,8 +531,9 @@ export function SignalComposer({
       update({ locationId: place.id })
       setPlaceOpen(false)
       setSelectedNewPlace(null)
-    } catch {
-      setPlaceError('Не удалось сохранить место. Попробуй ещё раз.')
+    } catch (reason) {
+      setPlaceOpen(false)
+      showActionError(reason)
     } finally {
       setPlaceBusy(false)
     }
@@ -902,11 +905,6 @@ export function SignalComposer({
                   </button>
                 </div>
               ) : null}
-              {placeError && !placeOpen ? (
-                <p className="form-error" role="alert">
-                  {placeError}
-                </p>
-              ) : null}
               {form.radius && !selectedPlace ? (
                 <p className="form-hint">Теперь выбери точку отсчёта.</p>
               ) : null}
@@ -962,11 +960,6 @@ export function SignalComposer({
             }
           />
         </label>
-        {error ? (
-          <p className="form-error" role="alert">
-            {error}
-          </p>
-        ) : null}
         <div className="wizard__footer">
           <p className="wizard__summary sr-only">{summary}</p>
           <button className="primary-button" type="submit" disabled={!valid || busy}>
@@ -998,7 +991,6 @@ export function SignalComposer({
           onConfirm={() => void savePlace()}
           onCancel={() => {
             setPlaceOpen(false)
-            setPlaceError('')
           }}
         >
           <PlacePicker city={city} value={selectedNewPlace} onSelect={setSelectedNewPlace} />
@@ -1010,13 +1002,9 @@ export function SignalComposer({
               onChange={(event) => setPlaceLabel(event.target.value)}
             />
           </label>
-          {placeError ? (
-            <p className="form-error" role="alert">
-              {placeError}
-            </p>
-          ) : null}
         </ConfirmDialog>
       ) : null}
+      <ActionErrorModal error={actionError} onClose={dismissActionError} />
     </section>
   )
 }

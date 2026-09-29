@@ -37,6 +37,11 @@ export function ConfirmDialog({
     const handleKey = (event: KeyboardEvent) => {
       const dialog = dialogRef.current
       if (!dialog) return
+      if (
+        document.querySelector('[data-action-error-modal]') &&
+        !dialog.closest('[data-action-error-modal]')
+      )
+        return
       if (event.key === 'Escape' && !busy) {
         event.preventDefault()
         onCancel()
@@ -67,6 +72,11 @@ export function ConfirmDialog({
       }
     }
     const keepFocusInside = (event: FocusEvent) => {
+      if (
+        document.querySelector('[data-action-error-modal]') &&
+        !dialogRef.current?.closest('[data-action-error-modal]')
+      )
+        return
       if (event.target instanceof Node && !dialogRef.current?.contains(event.target))
         dialogRef.current?.focus()
     }

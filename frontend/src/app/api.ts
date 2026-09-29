@@ -132,6 +132,7 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    readonly code: string | null = null,
   ) {
     super(message)
   }
@@ -170,18 +171,28 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!response.ok) {
     if (response.status === 401) throw new MaxAuthError(Boolean(window.WebApp?.initData))
     let detail = ''
+    let code: string | null = null
     try {
-      const body = await response.json()
-      if (typeof body.detail === 'string') detail = body.detail
+      const body: unknown = await response.json()
+      if (body && typeof body === 'object') {
+        const fields = body as Record<string, unknown>
+        const domain =
+          fields.detail && typeof fields.detail === 'object'
+            ? (fields.detail as Record<string, unknown>)
+            : fields
+        if (typeof domain.code === 'string') code = domain.code
+        if (typeof domain.detail === 'string') detail = domain.detail
+      }
     } catch {
       // Keep a useful local fallback when the server did not send JSON.
     }
-    if (detail && /[А-Яа-яЁё]/.test(detail)) throw new ApiError(response.status, detail)
+    if (response.status < 500 && detail && /[А-Яа-яЁё]/.test(detail))
+      throw new ApiError(response.status, detail, code)
     if (response.status === 422)
-      throw new ApiError(response.status, 'Проверь заполненные поля и попробуй ещё раз.')
+      throw new ApiError(response.status, 'Проверь заполненные поля и попробуй ещё раз.', code)
     if (response.status === 404)
-      throw new ApiError(response.status, 'Этот вариант больше недоступен. Обнови страницу.')
-    throw new ApiError(response.status, 'Сервис временно недоступен. Попробуй ещё раз.')
+      throw new ApiError(response.status, 'Этот вариант больше недоступен. Обнови страницу.', code)
+    throw new ApiError(response.status, 'Сервис временно недоступен. Попробуй ещё раз.', code)
   }
   try {
     return (await response.json()) as T

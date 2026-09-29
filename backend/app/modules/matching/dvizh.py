@@ -12,6 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.domain_errors import DomainError
 from app.core.timezones import display_timezone
 from app.db.models import (
     CandidatePlan,
@@ -56,6 +57,53 @@ def aware(value: datetime) -> datetime:
 
 def fail(code: int, message: str) -> HTTPException:
     return HTTPException(status_code=code, detail=message)
+
+
+def schedule_conflict(
+    session: Session,
+    user_id: str,
+    starts_at: datetime,
+    ends_at: datetime,
+    *,
+    exclude_dvizh_id: str | None = None,
+) -> bool:
+    """Count only a current, confirmed commitment that overlaps this window."""
+    current = now()
+    for offer in session.scalars(
+        select(Offer).where(Offer.user_id == user_id, Offer.status == "ACCEPTED")
+    ):
+        plan = session.get(CandidatePlan, offer.candidate_plan_id)
+        if (
+            plan
+            and plan.status in {"CONFIRMED", "CONFIRMED_OPEN"}
+            and aware(plan.ends_at) > current
+            and overlaps(starts_at, ends_at, plan.starts_at, plan.ends_at)
+        ):
+            return True
+    for confirmation in session.scalars(
+        select(DvizhConfirmation).where(
+            DvizhConfirmation.user_id == user_id, DvizhConfirmation.status == "CONFIRMED"
+        )
+    ):
+        other = session.get(DvizhCandidate, confirmation.candidate_id)
+        other_session = session.get(DvizhSession, other.session_id) if other else None
+        if (
+            other
+            and other_session
+            and other_session.status == "GATHERED"
+            and other.session_id != exclude_dvizh_id
+            and aware(other.ends_at) > current
+            and overlaps(starts_at, ends_at, other.starts_at, other.ends_at)
+        ):
+            return True
+    return False
+
+
+def require_available_schedule(
+    session: Session, user_id: str, starts_at: datetime, ends_at: datetime
+) -> None:
+    if schedule_conflict(session, user_id, starts_at, ends_at):
+        raise DomainError(409, "SCHEDULE_CONFLICT", "У тебя уже есть движ на это время.")
 
 
 def member(session: Session, group_id: str, user_id: str) -> bool:
@@ -111,28 +159,13 @@ def active(session: Session, dvizh: DvizhSession) -> DvizhCandidate | None:
 
 
 def conflict(session: Session, user_id: str, candidate: DvizhCandidate) -> bool:
-    for offer in session.scalars(
-        select(Offer).where(Offer.user_id == user_id, Offer.status == "ACCEPTED")
-    ):
-        plan = session.get(CandidatePlan, offer.candidate_plan_id)
-        if plan and overlaps(candidate.starts_at, candidate.ends_at, plan.starts_at, plan.ends_at):
-            return True
-    for confirmation in session.scalars(
-        select(DvizhConfirmation).where(
-            DvizhConfirmation.user_id == user_id, DvizhConfirmation.status == "CONFIRMED"
-        )
-    ):
-        other = session.get(DvizhCandidate, confirmation.candidate_id)
-        other_session = session.get(DvizhSession, other.session_id) if other else None
-        if (
-            other
-            and other_session
-            and other_session.status == "GATHERED"
-            and other.session_id != candidate.session_id
-            and overlaps(candidate.starts_at, candidate.ends_at, other.starts_at, other.ends_at)
-        ):
-            return True
-    return False
+    return schedule_conflict(
+        session,
+        user_id,
+        candidate.starts_at,
+        candidate.ends_at,
+        exclude_dvizh_id=candidate.session_id,
+    )
 
 
 def enqueue(

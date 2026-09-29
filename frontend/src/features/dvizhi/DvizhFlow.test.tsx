@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { api, type Dvizh } from '../../app/api'
+import { ApiError, api, type Dvizh } from '../../app/api'
 import { setActivityTaxonomy } from '../../shared/lib/activityCatalog'
 import { DvizhFlow } from './DvizhFlow'
 
@@ -70,6 +70,70 @@ setActivityTaxonomy({
 })
 
 describe('finite candidate round', () => {
+  it('advances to the next card after an accepted WOULD_GO reaction without an error popup', async () => {
+    const item = sample()
+    item.candidates.push({
+      ...item.candidates[0],
+      id: 'c2',
+      title: 'Другой квест',
+      position: 1,
+    })
+    const updated: Dvizh = {
+      ...item,
+      chosen_count: 1,
+      candidates: [{ ...item.candidates[0], my_reaction: 'WOULD_GO' }, item.candidates[1]],
+    }
+    vi.spyOn(api, 'react').mockResolvedValue(updated)
+    const onUpdate = vi.fn()
+    const view = render(
+      <DvizhFlow dvizh={item} onUpdate={onUpdate} onEdit={vi.fn()} onNew={vi.fn()} />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Пойду' }))
+    await waitFor(() => expect(onUpdate).toHaveBeenCalledWith(updated))
+    view.rerender(
+      <DvizhFlow dvizh={updated} onUpdate={onUpdate} onEdit={vi.fn()} onNew={vi.fn()} />,
+    )
+    expect(screen.getByText('Другой квест')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('shows stale candidate in a popup and refreshes the card after dismissal', async () => {
+    const item = sample()
+    const refreshed: Dvizh = { ...item, candidates: [] }
+    vi.spyOn(api, 'react').mockRejectedValue(
+      new ApiError(404, 'Вариант больше недоступен', 'CANDIDATE_STALE'),
+    )
+    const reload = vi.spyOn(api, 'dvizh').mockResolvedValue(refreshed)
+    const onUpdate = vi.fn()
+    const view = render(
+      <DvizhFlow dvizh={item} onUpdate={onUpdate} onEdit={vi.fn()} onNew={vi.fn()} />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Пойду' }))
+    expect(await screen.findByRole('dialog', { name: 'Вариант уже недоступен' })).toHaveTextContent(
+      'Покажем актуальные варианты.',
+    )
+    expect(view.container.querySelector('.inline-notice')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Понятно' }))
+    await waitFor(() => expect(reload).toHaveBeenCalledWith('d1'))
+    view.rerender(
+      <DvizhFlow dvizh={refreshed} onUpdate={onUpdate} onEdit={vi.fn()} onNew={vi.fn()} />,
+    )
+    expect(screen.queryByRole('button', { name: 'Пойду' })).not.toBeInTheDocument()
+  })
+
+  it('shows an unexpected API failure in the generic popup without an inline error', async () => {
+    vi.spyOn(api, 'react').mockRejectedValue(new ApiError(500, 'Traceback'))
+    const view = render(
+      <DvizhFlow dvizh={sample()} onUpdate={vi.fn()} onEdit={vi.fn()} onNew={vi.fn()} />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Пойду' }))
+    expect(await screen.findByRole('dialog', { name: 'Что-то пошло не так' })).toHaveTextContent(
+      'Попробуй ещё раз.',
+    )
+    expect(screen.queryByText('Traceback')).not.toBeInTheDocument()
+    expect(view.container.querySelector('.inline-notice')).toBeNull()
+  })
+
   it('shows a Geoapify map preview and falls back when the image fails', () => {
     const item = sample()
     item.candidates[0].image_url = '/api/v1/place-map/59.934300/30.335100/signed'

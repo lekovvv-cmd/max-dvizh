@@ -8,6 +8,8 @@ import { SignalComposer } from '../features/signals/SignalComposer'
 import { setActivityTaxonomy } from '../shared/lib/activityCatalog'
 import { needsDvizhConfirmation } from '../shared/lib/dvizhStatus'
 import { AppShell, type Screen } from '../shared/ui/AppShell'
+import { ActionErrorModal } from '../shared/ui/ActionErrorModal'
+import { useActionError } from '../shared/ui/actionErrors'
 import { CoachMark } from '../shared/ui/CoachMark'
 import { ConfirmDialog } from '../shared/ui/ConfirmDialog'
 import { DvizhCard } from '../shared/ui/DvizhCard'
@@ -163,6 +165,8 @@ export function App() {
   )
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const { actionError, showActionError, showActionMessage, dismissActionError } = useActionError()
+  const loadedOnce = useRef(false)
   const [authRequired, setAuthRequired] = useState(false)
   const [groups, setGroups] = useState<Group[]>([])
   const [groupId, setGroupId] = useState<string | null>(null)
@@ -172,7 +176,6 @@ export function App() {
   const [mode, setMode] = useState('MAX')
   const [chatAvailable, setChatAvailable] = useState(false)
   const [creatingGroup, setCreatingGroup] = useState(false)
-  const [joinError, setJoinError] = useState('')
   const [targetId, setTargetId] = useState<string | null>(() => {
     const token = initialDeepLink()
     return token.startsWith('dvizh_') ? token.slice(6) : null
@@ -207,17 +210,20 @@ export function App() {
       setLocations(nextLocations)
       setIntents(nextIntents)
       setDvizhi(nextDvizhi)
+      loadedOnce.current = true
     } catch (reason) {
       setAuthRequired(reason instanceof MaxAuthError)
-      setError(
-        reason instanceof MaxAuthError
-          ? reason.message
-          : 'Не удалось загрузить данные. Попробуй ещё раз.',
-      )
+      if (reason instanceof MaxAuthError || !loadedOnce.current)
+        setError(
+          reason instanceof MaxAuthError
+            ? reason.message
+            : 'Не удалось загрузить данные. Попробуй ещё раз.',
+        )
+      else showActionError(reason)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [showActionError])
 
   useEffect(() => {
     void load()
@@ -231,9 +237,12 @@ export function App() {
             current.some((value) => value.id === item.id) ? current : [item, ...current],
           ),
         )
-        .catch(() => setTargetId(null))
+        .catch((reason: unknown) => {
+          setTargetId(null)
+          showActionError(reason)
+        })
     }
-  }, [loading, targetId, dvizhi])
+  }, [loading, targetId, dvizhi, showActionError])
   useEffect(() => {
     const token = initialDeepLink()
     if (!token || token.startsWith('dvizh_')) return
@@ -244,13 +253,15 @@ export function App() {
         void load()
       })
       .catch((reason: unknown) =>
-        setJoinError(
-          reason instanceof ApiError && [404, 410].includes(reason.status)
-            ? 'Приглашение недействительно или устарело.'
-            : 'Не удалось открыть приглашение. Попробуй ещё раз.',
-        ),
+        showActionMessage({
+          title: 'Не удалось открыть приглашение',
+          message:
+            reason instanceof ApiError && [404, 410].includes(reason.status)
+              ? 'Приглашение недействительно или устарело.'
+              : 'Попробуй ещё раз.',
+        }),
       )
-  }, [load])
+  }, [load, showActionMessage])
   useEffect(() => {
     const timer = window.setInterval(() => {
       if (
@@ -459,7 +470,7 @@ export function App() {
             await api.pauseRecurringSignal(recurring.id)
             await load()
           } catch (reason) {
-            setError('Не удалось приостановить сигнал. Попробуй ещё раз.')
+            showActionError(reason)
             throw reason
           }
         }}
@@ -469,7 +480,7 @@ export function App() {
             await api.resumeRecurringSignal(recurring.id)
             await load()
           } catch (reason) {
-            setError('Не удалось возобновить сигнал. Попробуй ещё раз.')
+            showActionError(reason)
             throw reason
           }
         }}
@@ -479,7 +490,7 @@ export function App() {
             await api.deleteRecurringSignal(recurring.id)
             await load()
           } catch (reason) {
-            setError('Не удалось удалить сигнал. Попробуй ещё раз.')
+            showActionError(reason)
             throw reason
           }
         }}
@@ -551,23 +562,10 @@ export function App() {
           setScreen(value)
         }}
       >
-        {error ? (
-          <p className="inline-notice" role="alert">
-            {error}
-          </p>
-        ) : null}
         {content}
       </AppShell>
       {!introDone ? <CoachMark onDone={finishCoach} /> : null}
-      {joinError ? (
-        <ConfirmDialog
-          title="Не удалось открыть приглашение"
-          description={joinError}
-          confirmLabel="Понятно"
-          onConfirm={() => setJoinError('')}
-          onCancel={() => setJoinError('')}
-        />
-      ) : null}
+      <ActionErrorModal error={actionError} onClose={dismissActionError} />
     </>
   )
 }

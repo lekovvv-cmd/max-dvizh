@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react'
 import { api, type Group } from '../../app/api'
 import { PulseMark } from '../../shared/ui/PulseMark'
 import { CityPicker } from '../../shared/ui/CityPicker'
+import { ActionErrorModal } from '../../shared/ui/ActionErrorModal'
+import { useActionError } from '../../shared/ui/actionErrors'
 
 export function CreateCompany({
   onCreated,
@@ -20,7 +22,8 @@ export function CreateCompany({
   const [name, setName] = useState('')
   const [city, setCity] = useState('')
   const [cities, setCities] = useState<{ slug: string; name: string }[]>([])
-  const [error, setError] = useState('')
+  const [citiesLoadFailed, setCitiesLoadFailed] = useState(false)
+  const { actionError, showActionError, dismissActionError } = useActionError()
   const [busy, setBusy] = useState(false)
   useEffect(() => {
     void api
@@ -29,14 +32,16 @@ export function CreateCompany({
         setCities(items)
         setCity(items[0]?.slug || '')
       })
-      .catch(() => setError('Не удалось загрузить города. Попробуй позже.'))
-  }, [])
+      .catch((reason: unknown) => {
+        setCitiesLoadFailed(true)
+        showActionError(reason)
+      })
+  }, [showActionError])
   async function submit(event: React.FormEvent, bindCurrentChat = false) {
     event.preventDefault()
     if (!name.trim() || !city) return
     setBusy(true)
     onBusyChange?.(true)
-    setError('')
     try {
       onCreated(
         await api.createGroup({
@@ -45,8 +50,8 @@ export function CreateCompany({
           bind_current_chat: bindCurrentChat,
         }),
       )
-    } catch {
-      setError('Не удалось создать компанию. Попробуй ещё раз.')
+    } catch (reason) {
+      showActionError(reason)
     } finally {
       setBusy(false)
       onBusyChange?.(false)
@@ -65,12 +70,7 @@ export function CreateCompany({
         />
       </label>
       <CityPicker cities={cities} value={city} onChange={setCity} />
-      {error ? (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      ) : null}
-      {error && !cities.length ? (
+      {citiesLoadFailed && !cities.length ? (
         <Button
           type="button"
           variant="secondary"
@@ -80,9 +80,9 @@ export function CreateCompany({
               .then((items) => {
                 setCities(items)
                 setCity(items[0]?.slug || '')
-                setError('')
+                setCitiesLoadFailed(false)
               })
-              .catch(() => setError('Не удалось загрузить города. Попробуй позже.'))
+              .catch(showActionError)
           }
         >
           Повторить загрузку городов
@@ -124,7 +124,13 @@ export function CreateCompany({
       ) : null}
     </form>
   )
-  if (inline) return <div className="company-create-form">{form}</div>
+  if (inline)
+    return (
+      <div className="company-create-form">
+        {form}
+        <ActionErrorModal error={actionError} onClose={dismissActionError} />
+      </div>
+    )
   return (
     <main className="start-screen">
       <section className="start-card">
@@ -133,6 +139,7 @@ export function CreateCompany({
         <p>Позови друзей, и ДВИЖ подберёт план, который подходит всем.</p>
         {form}
       </section>
+      <ActionErrorModal error={actionError} onClose={dismissActionError} />
     </main>
   )
 }

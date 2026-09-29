@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 
 import { api, type AddressSuggestion } from '../../app/api'
 import { currentCoordinates, geolocationError } from '../lib/geolocation'
+import { ActionErrorModal } from './ActionErrorModal'
+import { useActionError } from './actionErrors'
 import { Icon } from './Icon'
 
 export type SelectedPlace = {
@@ -24,9 +26,9 @@ export function PlacePicker({
 }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<AddressSuggestion[]>([])
-  const [status, setStatus] = useState<'idle' | 'loading' | 'empty' | 'error'>('idle')
+  const [status, setStatus] = useState<'idle' | 'loading' | 'empty'>('idle')
   const [locating, setLocating] = useState(false)
-  const [locationError, setLocationError] = useState('')
+  const { actionError, showActionError, showActionMessage, dismissActionError } = useActionError()
 
   useEffect(() => {
     const text = query.trim()
@@ -39,8 +41,11 @@ export function PlacePicker({
           setResults(items)
           setStatus(items.length ? 'idle' : 'empty')
         },
-        () => {
-          if (!controller.signal.aborted) setStatus('error')
+        (reason: unknown) => {
+          if (!controller.signal.aborted) {
+            setStatus('idle')
+            showActionError(reason)
+          }
         },
       )
     }, 700)
@@ -48,19 +53,18 @@ export function PlacePicker({
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [city, query, value])
+  }, [city, query, value, showActionError])
 
   async function chooseCurrent() {
     if (locating) return
     setLocating(true)
-    setLocationError('')
     try {
       const point = await currentCoordinates()
       onSelect({ ...point, addressText: null, title: 'Моя геопозиция' })
       setQuery('Моя геопозиция')
       setResults([])
     } catch (reason) {
-      setLocationError(geolocationError(reason))
+      showActionMessage({ title: 'Не удалось определить место', message: geolocationError(reason) })
     } finally {
       setLocating(false)
     }
@@ -80,7 +84,6 @@ export function PlacePicker({
             setQuery(event.target.value)
             setResults([])
             setStatus('idle')
-            setLocationError('')
             onSelect(null)
           }}
         />
@@ -118,11 +121,6 @@ export function PlacePicker({
         </p>
       ) : null}
       {status === 'empty' ? <p className="form-hint">Ничего не нашли. Уточни запрос.</p> : null}
-      {status === 'error' ? (
-        <p className="form-error" role="alert">
-          Не удалось загрузить адреса. Попробуй ещё раз.
-        </p>
-      ) : null}
       {value ? (
         <p className="place-picker__selected" role="status">
           <Icon name="check" size={16} /> Точка выбрана
@@ -136,16 +134,12 @@ export function PlacePicker({
       >
         <Icon name="pin" size={18} /> {locating ? 'Определяем геопозицию…' : 'Взять мою геопозицию'}
       </button>
-      {locationError ? (
-        <p className="form-error" role="alert">
-          {locationError}
-        </p>
-      ) : null}
       <p className="place-picker__credit">
         Адреса: <a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a>
         {' · '}
         <a href="https://www.geoapify.com/">Powered by Geoapify</a>
       </p>
+      <ActionErrorModal error={actionError} onClose={dismissActionError} />
     </div>
   )
 }

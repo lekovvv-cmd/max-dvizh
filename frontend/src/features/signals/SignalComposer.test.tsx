@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 
-import { api, type Group, type Intent } from '../../app/api'
+import { ApiError, api, type Group, type Intent } from '../../app/api'
 import { setActivityTaxonomy } from '../../shared/lib/activityCatalog'
 import { SignalComposer } from './SignalComposer'
 
@@ -19,7 +19,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-function renderCatalog(existing?: Intent) {
+function renderCatalog(existing?: Intent, onDone = vi.fn()) {
   setActivityTaxonomy({
     directions: [
       { id: 'games', label: 'Игры' },
@@ -42,11 +42,38 @@ function renderCatalog(existing?: Intent) {
       activeBatch={existing ? [existing] : undefined}
       adjustment={null}
       onCreateLocation={vi.fn()}
-      onDone={vi.fn()}
+      onDone={onDone}
       onBack={vi.fn()}
     />,
   )
 }
+
+it('shows a preflight schedule conflict without opening Tinder or losing signal settings', async () => {
+  const onDone = vi.fn()
+  const create = vi
+    .spyOn(api, 'signalBatch')
+    .mockRejectedValue(new ApiError(409, 'У тебя уже есть движ на это время.', 'SCHEDULE_CONFLICT'))
+  renderCatalog(undefined, onDone)
+  fireEvent.click(screen.getByRole('button', { name: 'Квест' }))
+  fireEvent.click(screen.getByText('Бюджет, расстояние и количество друзей'))
+  fireEvent.click(screen.getByRole('button', { name: 'Своя сумма' }))
+  fireEvent.change(screen.getByRole('spinbutton', { name: 'Сумма, ₽' }), {
+    target: { value: '750' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Начать поиск' }))
+  await waitFor(() => expect(create).toHaveBeenCalledTimes(1))
+  expect(await screen.findByRole('dialog', { name: 'У тебя уже есть планы' })).toHaveTextContent(
+    'Выбери другое время.',
+  )
+  expect(onDone).not.toHaveBeenCalled()
+  expect(screen.queryByText('Куда пошёл бы?')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Понятно' }))
+  expect(screen.getByRole('spinbutton', { name: 'Сумма, ₽' })).toHaveValue(750)
+  expect(JSON.parse(localStorage.getItem('dvizh-signal-draft-v2:new') || '{}').categories).toEqual([
+    'quest',
+  ])
+  expect(screen.getByRole('button', { name: 'Начать поиск' })).toBeEnabled()
+})
 
 function existingSignal(categories: string[]): Intent {
   return {

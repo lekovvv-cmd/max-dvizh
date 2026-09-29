@@ -7,6 +7,25 @@ afterEach(() => {
 })
 
 describe('API error messages', () => {
+  it('keeps a stable domain code and safe detail from a conflict response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: async () => ({
+          code: 'SCHEDULE_CONFLICT',
+          detail: 'У тебя уже есть движ на это время.',
+        }),
+      }),
+    )
+    await expect(api.groups()).rejects.toMatchObject({
+      status: 409,
+      code: 'SCHEDULE_CONFLICT',
+      message: 'У тебя уже есть движ на это время.',
+    })
+  })
+
   it.each([404, 410, 500, 503])(
     'preserves HTTP %s for invitation classification',
     async (status) => {

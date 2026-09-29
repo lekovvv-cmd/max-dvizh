@@ -13,6 +13,7 @@ from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbSession
 from app.api.schemas import AutoSignalIn, SignalBatchIn
+from app.core.domain_errors import DomainError
 from app.db.models import (
     DvizhCandidate,
     DvizhConfirmation,
@@ -45,6 +46,7 @@ from app.modules.matching.dvizh import (
     premeet_due_time,
     public_dvizh,
     recompute,
+    require_available_schedule,
 )
 
 router = APIRouter(tags=["dvizh"])
@@ -168,6 +170,7 @@ def _create(
     batch_id = request_id or str(uuid4())
     if (existing := _existing_batch(session, user, batch_id)) is not None:
         return existing
+    require_available_schedule(session, user.id, payload.available_from, payload.available_to)
     # Provider I/O is outside the transaction and the per-user lock.
     origin = (
         session.get(Location, payload.origin_location_id) if payload.origin_location_id else None
@@ -190,6 +193,7 @@ def _create(
     groups, city = _validate_groups(payload, session, user)
     if (existing := _existing_batch(session, user, batch_id)) is not None:
         return existing
+    require_available_schedule(session, user.id, payload.available_from, payload.available_to)
     if replace_id:
         old = list(
             session.scalars(
@@ -322,7 +326,12 @@ def materialize_recurring(
     batch_id = str(uuid5(NAMESPACE_URL, f"dvizh:{rule.id}:{occurrence.available_from.isoformat()}"))
     if session.scalar(select(Intent.id).where(Intent.signal_batch_id == batch_id)):
         return False
-    result = _create(occurrence, session, user, batch_id)
+    try:
+        result = _create(occurrence, session, user, batch_id)
+    except DomainError as error:
+        if error.code != "SCHEDULE_CONFLICT":
+            raise
+        return False
     children = list(
         session.scalars(
             select(Intent).where(Intent.signal_batch_id == batch_id, Intent.flow_version == 2)
@@ -652,7 +661,7 @@ def react(
     if dvizh.status not in (
         {"CHOOSING_CANDIDATES"} if owner else {"COLLECTING_REACTIONS", "AWAITING_CONFIRMATION"}
     ):
-        raise fail(409, "Выбор уже закрыт")
+        raise DomainError(409, "SELECTION_CLOSED", "Выбор уже закрыт")
     candidate = session.get(DvizhCandidate, candidate_id)
     if (
         candidate is None
@@ -660,15 +669,15 @@ def react(
         or (not owner and not candidate.seed)
         or aware(candidate.expires_at) <= now()
     ):
-        raise fail(404, "Вариант устарел")
+        raise DomainError(404, "CANDIDATE_STALE", "Вариант устарел")
     if (
         payload.value == "WOULD_GO"
         and candidate.compatibility == "NEAR"
         and not payload.confirm_near_exception
     ):
-        raise fail(409, "Подтверди отличие условий")
+        raise DomainError(409, "NEAR_CONFIRMATION_REQUIRED", "Подтверди отличие условий")
     if payload.value == "WOULD_GO" and conflict(session, user.id, candidate):
-        raise fail(409, "У тебя уже есть движ на это время")
+        raise DomainError(409, "SCHEDULE_CONFLICT", "У тебя уже есть движ на это время.")
     current = session.scalar(
         select(DvizhReaction).where(
             DvizhReaction.candidate_id == candidate.id, DvizhReaction.user_id == user.id
@@ -685,7 +694,7 @@ def react(
             and candidate.id == dvizh.active_candidate_id
             and current.value != payload.value
         ):
-            raise fail(409, "Для этого места уже идёт подтверждение")
+            raise DomainError(409, "STATE_CONFLICT", "Для этого места уже идёт подтверждение")
         current.value = payload.value
     current.near_consented_at = (
         now() if payload.value == "WOULD_GO" and candidate.compatibility == "NEAR" else None
