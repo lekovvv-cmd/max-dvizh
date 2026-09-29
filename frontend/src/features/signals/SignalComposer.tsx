@@ -9,12 +9,15 @@ import {
 import { activityLabel, formatPeople, formatSignalWindow, weekDays } from '../../shared/lib/format'
 import { currentCoordinates, geolocationError } from '../../shared/lib/geolocation'
 import {
-  formatLocalDateTimeInput,
+  formatRussianDateTimeInput,
   groupSizeRange,
   initialGroupSize,
+  isLocalTimeInput,
   parseExactPeople,
   parseOptionalInteger,
   parseOptionalRadius,
+  parseRussianDateTimeInput,
+  restoreRussianDateTimeInput,
   type GroupSizeChoice,
 } from '../../shared/lib/signalForm'
 import { ConfirmDialog } from '../../shared/ui/ConfirmDialog'
@@ -82,8 +85,8 @@ function initialForm(groups: Group[], group: Group, existing?: Intent): Form {
       : group.id
   return {
     when: existing?.available_from ? 'custom' : 'tomorrow',
-    start: formatLocalDateTimeInput(start),
-    end: formatLocalDateTimeInput(end),
+    start: formatRussianDateTimeInput(start),
+    end: formatRussianDateTimeInput(end),
     categories: existing?.activity_categories?.length
       ? normalizeCategorySelection(existing.activity_categories)
       : [],
@@ -130,6 +133,8 @@ function readDraft(key: string, fallback: Form): Form {
     return {
       ...fallback,
       ...savedForm,
+      start: restoreRussianDateTimeInput(saved.start, fallback.start),
+      end: restoreRussianDateTimeInput(saved.end, fallback.end),
       budgetCustom:
         typeof saved.budgetCustom === 'boolean'
           ? saved.budgetCustom
@@ -275,15 +280,16 @@ export function SignalComposer({
   )
   const dirty = JSON.stringify(form) !== JSON.stringify(initial.current)
   const budgetChoice = form.budgetCustom ? 'custom' : form.budget
+  const from = parseRussianDateTimeInput(form.start)
+  const to = parseRussianDateTimeInput(form.end)
   const whenLabel = form.repeat
     ? 'Каждую неделю · ' + weekDays(form.weekdays)
     : form.when === 'tomorrow'
       ? 'Завтра · 18:00–23:00'
       : form.when === 'weekend'
         ? 'В субботу · 18:00–23:00'
-        : Number.isFinite(new Date(form.start).getTime()) &&
-            Number.isFinite(new Date(form.end).getTime())
-          ? formatSignalWindow(new Date(form.start).toISOString(), new Date(form.end).toISOString())
+        : from && to
+          ? formatSignalWindow(from.toISOString(), to.toISOString())
           : 'Выбери время'
   const selectedActivitySummary = anyActivitySelected
     ? 'Любое занятие'
@@ -304,11 +310,11 @@ export function SignalComposer({
     const [start, end] = rangeFor(value)
     update({
       when: value,
-      start: formatLocalDateTimeInput(start),
-      end: formatLocalDateTimeInput(end),
+      start: formatRussianDateTimeInput(start),
+      end: formatRussianDateTimeInput(end),
       weekdays: [weekdayFrom(start)],
-      localStart: formatLocalDateTimeInput(start).slice(11),
-      localEnd: formatLocalDateTimeInput(end).slice(11),
+      localStart: formatRussianDateTimeInput(start).slice(11),
+      localEnd: formatRussianDateTimeInput(end).slice(11),
     })
     setTimeError('')
   }
@@ -396,14 +402,30 @@ export function SignalComposer({
   async function submit(event: React.FormEvent) {
     event.preventDefault()
     if (busyRef.current || !valid || budget === undefined || radius === undefined || !people) return
-    const from = new Date(form.start)
-    const to = new Date(form.end)
-    if (!form.repeat && (!Number.isFinite(from.getTime()) || from <= new Date())) {
-      setTimeError('Выбери время начала в будущем.')
-      return
+    let availableFrom = ''
+    let availableTo = ''
+    if (!form.repeat) {
+      if (!from) {
+        setTimeError('Введи начало в формате дд.мм.гггг чч:мм.')
+        return
+      }
+      if (!to) {
+        setTimeError('Введи окончание в формате дд.мм.гггг чч:мм.')
+        return
+      }
+      if (from <= new Date()) {
+        setTimeError('Выбери время начала в будущем.')
+        return
+      }
+      if (to <= from) {
+        setTimeError('Время окончания должно быть позже начала.')
+        return
+      }
+      availableFrom = from.toISOString()
+      availableTo = to.toISOString()
     }
-    if (!form.repeat && (!Number.isFinite(to.getTime()) || to <= from)) {
-      setTimeError('Время окончания должно быть позже начала.')
+    if (form.repeat && (!isLocalTimeInput(form.localStart) || !isLocalTimeInput(form.localEnd))) {
+      setTimeError('Введи время в формате чч:мм.')
       return
     }
     if (form.repeat && form.localEnd <= form.localStart) {
@@ -450,8 +472,8 @@ export function SignalComposer({
         const body = {
           ...common,
           group_ids: form.groupIds,
-          available_from: from.toISOString(),
-          available_to: to.toISOString(),
+          available_from: availableFrom,
+          available_to: availableTo,
         }
         if (activeBatch?.[0]?.signal_batch_id) {
           const result = await api.editSignalBatch(
@@ -477,7 +499,7 @@ export function SignalComposer({
       await onDone(createdDvizhi)
     } catch (reason) {
       if (reason instanceof ApiTimeoutError) {
-        await checkTimedOutSubmission(Number.isFinite(from.getTime()) ? from.toISOString() : '')
+        await checkTimedOutSubmission(availableFrom)
       } else showActionError(reason)
     } finally {
       setBusy(false)
@@ -608,7 +630,9 @@ export function SignalComposer({
                 <label>
                   С{' '}
                   <input
-                    type="time"
+                    type="text"
+                    placeholder="чч:мм"
+                    maxLength={5}
                     value={form.localStart}
                     onChange={(event) => update({ localStart: event.target.value })}
                   />
@@ -616,7 +640,9 @@ export function SignalComposer({
                 <label>
                   До{' '}
                   <input
-                    type="time"
+                    type="text"
+                    placeholder="чч:мм"
+                    maxLength={5}
                     value={form.localEnd}
                     onChange={(event) => update({ localEnd: event.target.value })}
                   />
@@ -638,7 +664,9 @@ export function SignalComposer({
                   <span>Свое время</span>
                   <small>
                     {form.when === 'custom'
-                      ? `${new Date(form.start).toLocaleDateString('ru-RU')} с ${form.start.slice(11)} до ${form.end.slice(11)}`
+                      ? from && to
+                        ? `${form.start.slice(0, 10)} с ${form.start.slice(11)} до ${form.end.slice(11)}`
+                        : 'Введи дату и время'
                       : `__.__.${new Date().getFullYear()} с __:__ до __:__`}
                   </small>
                 </Choice>
@@ -648,7 +676,9 @@ export function SignalComposer({
                   <label>
                     С{' '}
                     <input
-                      type="datetime-local"
+                      type="text"
+                      placeholder="дд.мм.гггг чч:мм"
+                      maxLength={16}
                       value={form.start}
                       onChange={(event) => update({ start: event.target.value })}
                     />
@@ -656,7 +686,9 @@ export function SignalComposer({
                   <label>
                     До{' '}
                     <input
-                      type="datetime-local"
+                      type="text"
+                      placeholder="дд.мм.гггг чч:мм"
+                      maxLength={16}
                       value={form.end}
                       onChange={(event) => update({ end: event.target.value })}
                     />

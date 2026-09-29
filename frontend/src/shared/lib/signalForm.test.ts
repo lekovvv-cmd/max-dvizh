@@ -1,17 +1,35 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  formatLocalDateTimeInput,
+  formatRussianDateTimeInput,
   groupSizeRange,
   initialGroupSize,
+  isLocalTimeInput,
   parseExactPeople,
   parseOptionalInteger,
   parseOptionalRadius,
+  parseRussianDateTimeInput,
+  restoreRussianDateTimeInput,
 } from './signalForm'
 
 describe('signal form values', () => {
-  it('formats datetime-local values from local calendar fields', () => {
-    expect(formatLocalDateTimeInput(new Date(2026, 8, 17, 9, 5))).toBe('2026-09-17T09:05')
+  it('formats and parses Russian date and 24-hour time in local time', () => {
+    const date = new Date(2026, 8, 17, 16, 5)
+    expect(formatRussianDateTimeInput(date)).toBe('17.09.2026 16:05')
+    expect(parseRussianDateTimeInput('17.09.2026 16:05')).toEqual(date)
+    expect(isLocalTimeInput('16:00')).toBe(true)
+    expect(isLocalTimeInput('04:00')).toBe(true)
+    expect(isLocalTimeInput('24:00')).toBe(false)
+    expect(isLocalTimeInput('4:00')).toBe(false)
+  })
+
+  it('rejects impossible dates and restores older local datetime drafts', () => {
+    expect(parseRussianDateTimeInput('31.02.2026 16:00')).toBeNull()
+    expect(parseRussianDateTimeInput('29.02.2026 16:00')).toBeNull()
+    expect(parseRussianDateTimeInput('29.02.2028 16:00')).toEqual(new Date(2028, 1, 29, 16))
+    expect(parseRussianDateTimeInput('17.09.2026 25:00')).toBeNull()
+    expect(parseRussianDateTimeInput('09/17/2026 16:00')).toBeNull()
+    expect(restoreRussianDateTimeInput('2026-09-17T16:00', '')).toBe('17.09.2026 16:00')
   })
 
   it('preserves a zero budget and rejects invalid numeric input', () => {
