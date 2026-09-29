@@ -23,6 +23,8 @@ backend/.venv/
 venv/
 
 # Local tooling
+promts/
+output/
 .idea/
 .vscode/
 *.log

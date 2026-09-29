@@ -137,9 +137,9 @@ AUTOSIGNAL_POLL_SECONDS=1800
 AUTOSIGNAL_LOOKAHEAD_DAYS=7
 ```
 
-`PORT` вручную не задавайте: это служебная переменная RelaxDev. `MAX_MINI_APP_URL`
-текущая продуктовая логика не использует; публичный URL Mini App регистрируется в MAX
-отдельно.
+`PORT` вручную не задавайте: это служебная переменная RelaxDev. Публичный URL Mini App
+регистрируется в MAX отдельно; `MAX_MINI_APP_URL` служит запасной HTTPS-ссылкой в
+приветствии и deep link на конкретный движ, если `MAX_BOT_USERNAME` не задан.
 
 Для старта API в production нужны валидный `DATABASE_URL` и `ALLOW_DEMO_AUTH=false`.
 При отсутствии настроек MAX API запускается с безопасным предупреждением

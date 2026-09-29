@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | GET / POST | `/session`, `/session/onboarding-seen` | Текущий пользователь и отметка локального онбординга |
 | GET / POST | `/groups`, `/groups/join/{token}` | Компании пользователя, создание и вступление по приглашению |
-| GET | `/locations/suggest` | Подсказки адреса через Geoapify при наличии серверного ключа |
+| GET | `/locations/suggest?q=...&city=...` | Подсказки Geoapify: сначала выбранный город, затем другие города РФ при наличии серверного ключа |
 | GET | `/leisure/taxonomy` | Направления, занятия, доступные wildcard-направления |
 | POST | `/signals` | Сигнал в 1–12 компаний одного города; `X-Request-ID` делает повтор безопасным |
 | PUT / DELETE | `/signals/{batch_id}` | Изменить или отменить ещё не запущенный сигнал |
@@ -18,15 +18,19 @@
 | POST | `/dvizhi/{id}/launch` | Явно открыть обзор компании |
 | POST | `/dvizhi/{id}/confirm` | Окончательное подтверждение активного варианта |
 | POST | `/dvizhi/{id}/decline` | Отказ до окончательного подтверждения |
+| POST | `/dvizhi/{id}/reconfirm` | Ответ «Я иду» на отдельный вопрос перед встречей; body содержит актуальный `candidate_id` |
+| POST | `/dvizhi/{id}/withdraw` | «Не смогу» до начала; body содержит актуальный `candidate_id`, состав и waitlist пересчитываются |
 | POST / PUT | `/recurring-signals[/{id}]` | Создать или изменить еженедельное правило |
 | POST | `/recurring-signals/{id}/pause` | Приостановить правило; незапущенные раунды отменяются |
 | POST | `/recurring-signals/{id}/resume` | Возобновить правило |
 | DELETE | `/recurring-signals/{id}` | Мягкое удаление: статус `DELETED`, запись остаётся в БД |
 | POST | `/integrations/max/webhook` | Подписанный входящий MAX Update |
 
-`POST /signals` принимает `group_ids`, `activity_categories`, `available_from`, `available_to`, `min_people`, необязательные `max_people`, `budget_max`, `origin_location_id`, `radius_km`. Ответ содержит `signal_batch_id` и отдельный `dvizhi[]` для каждой компании. Режимы `NO_SOURCE` и `PROVIDER_UNAVAILABLE` явны. В `GET /dvizhi` поля `my_reaction`, `my_confirmation` личные; до `GATHERED` `participants=[]`.
+`POST /signals` принимает `group_ids`, `activity_categories`, `available_from`, `available_to`, `min_people`, необязательные `max_people`, `budget_max`, `origin_location_id`, `radius_km`. Ответ содержит `signal_batch_id` и отдельный `dvizhi[]` для каждой компании. Реальный пересекающийся подтверждённый движ блокирует создание **до** поиска провайдера: HTTP 409 с `code: SCHEDULE_CONFLICT` и `detail`. Устаревший кандидат и закрытый выбор также возвращают стабильные `code: CANDIDATE_STALE` / `SELECTION_CLOSED`. Режимы `NO_SOURCE` и `PROVIDER_UNAVAILABLE` явны. В `GET /dvizhi` поля `my_reaction`, `my_confirmation`, `my_reconfirmed`, `my_reconfirm_available` личные; до `GATHERED` `participants=[]`.
 
-Полный контракт текущего FastAPI экспортирован в [OpenAPI](openapi.json). Проверочный сценарий с динамическими ID и локальными demo-ролями — в [EVALUATOR_SCENARIO.md](EVALUATOR_SCENARIO.md). Публичный HTTPS origin для `DATA-API.yaml` ещё не предоставлен командой, поэтому `base_url: null`.
+Scheduler создаёт регулярные раунды, один раз напоминает об отсутствии review/подтверждения, сообщает автору о несобранном движе или отсутствии источника, перед встречей проверяет источник и задаёт подтверждённым отдельный вопрос с не более чем одним напоминанием. При `withdraw` следующий подходящий участник waitlist продвигается и получает уведомление. Все push проходят через PostgreSQL outbox: worker проверяет актуальность, отправляет и повторяет временные сбои; ссылки ведут в конкретный ДВИЖ.
+
+Полный контракт текущего FastAPI экспортирован в [OpenAPI](openapi.json). Проверочный сценарий с динамическими ID и заранее созданными demo-ролями — в [EVALUATOR_SCENARIO.md](EVALUATOR_SCENARIO.md), набор — [test-data.json](test-data.json). Публичный HTTPS origin для `DATA-API.yaml` ещё не предоставлен командой, поэтому `base_url: null`.
 
 ## MAX Webhook
 

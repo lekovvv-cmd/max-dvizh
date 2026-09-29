@@ -714,7 +714,7 @@
           "product"
         ],
         "summary": "Suggest Locations",
-        "description": "Suggest addresses in a user's city without exposing the geocoder to the browser.",
+        "description": "Suggest nearby addresses first without restricting the search to one city.",
         "operationId": "suggest_locations_api_v1_locations_suggest_get",
         "parameters": [
           {
@@ -2366,6 +2366,64 @@
         }
       }
     },
+    "/api/v1/place-map/{latitude}/{longitude}/{signature}": {
+      "get": {
+        "tags": [
+          "leisure"
+        ],
+        "summary": "Place Map",
+        "operationId": "place_map_api_v1_place_map__latitude___longitude___signature__get",
+        "parameters": [
+          {
+            "name": "latitude",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Latitude"
+            }
+          },
+          {
+            "name": "longitude",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Longitude"
+            }
+          },
+          {
+            "name": "signature",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Signature"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/recurring-signals": {
       "post": {
         "tags": [
@@ -3607,6 +3665,178 @@
                   "type": "object",
                   "additionalProperties": true,
                   "title": "Response Confirm Api V1 Dvizhi  Dvizh Id  Confirm Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dvizhi/{dvizh_id}/reconfirm": {
+      "post": {
+        "tags": [
+          "dvizh"
+        ],
+        "summary": "Reconfirm",
+        "operationId": "reconfirm_api_v1_dvizhi__dvizh_id__reconfirm_post",
+        "parameters": [
+          {
+            "name": "dvizh_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dvizh Id"
+            }
+          },
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmationIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Reconfirm Api V1 Dvizhi  Dvizh Id  Reconfirm Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dvizhi/{dvizh_id}/withdraw": {
+      "post": {
+        "tags": [
+          "dvizh"
+        ],
+        "summary": "Withdraw",
+        "operationId": "withdraw_api_v1_dvizhi__dvizh_id__withdraw_post",
+        "parameters": [
+          {
+            "name": "dvizh_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dvizh Id"
+            }
+          },
+          {
+            "name": "x-max-init-data",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Max-Init-Data"
+            }
+          },
+          {
+            "name": "x-demo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Demo-User"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmationIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Withdraw Api V1 Dvizhi  Dvizh Id  Withdraw Post"
                 }
               }
             }

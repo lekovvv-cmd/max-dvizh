@@ -1,0 +1,13 @@
+{
+  "users": [
+    { "demo_id": "anton", "role": "initiator" },
+    { "demo_id": "lena", "role": "member" },
+    { "demo_id": "maxim", "role": "member" }
+  ],
+  "company": {
+    "name": "Demo company",
+    "city_slug": "msk"
+  },
+  "mode": "APP_ENV=development and ALLOW_DEMO_AUTH=true",
+  "data_source": "The seed creates identities and membership only. Candidate results come from real providers unless an explicitly marked MODEL fixture is requested through the development endpoint."
+}

@@ -1,18 +1,19 @@
 config_version: "2.0"
 solution:
   name: "MAX ДВИЖ"
-  team: null # TO_BE_FILLED_BEFORE_SUBMISSION: confirmed team name
+  team: null # NEEDS_TEAM_INPUT: confirmed team name
   stage: "MVP"
   repository: "https://github.com/lekovvv-cmd/max-dvizh"
-base_url: null # TO_BE_FILLED_BEFORE_SUBMISSION: public HTTPS API origin; never use localhost here
+base_url: null # NEEDS_TEAM_INPUT: public HTTPS API origin; never use localhost here
 authentication:
   production: "X-MAX-Init-Data: signed MAX WebApp.initData"
   development: "X-Demo-User: anton|lena|maxim; APP_ENV=development and ALLOW_DEMO_AUTH=true only"
   max_webhook: "X-Max-Bot-Api-Secret: value from MAX_WEBHOOK_SECRET; real MAX delivery only"
 request_conventions:
   content_type: application/json
-  response_fields: "required_response_fields/required_item_fields apply to successful responses; errors use FastAPI detail"
+  response_fields: "required_response_fields/required_item_fields apply to successful responses; domain errors may include stable code plus detail"
   demo_auth: "For local Compose replace X-MAX-Init-Data header with X-Demo-User: anton|lena|maxim"
+  test_data: "docs/test-data.json; run docker compose exec backend python -m scripts.seed_demo first"
   dynamic_ids: "Resolve group_id, invite_token, dvizh_id and candidate_id from preceding responses"
   future_times: "Use future ISO-8601 datetimes with timezone offset; provider results are not deterministic"
 checks:
@@ -33,7 +34,7 @@ checks:
     query_params: {}
     expected_statuses: [200, 401]
     response_format: json_object
-    required_response_fields: [id, display_name, max_mode]
+    required_response_fields: [id, display_name, max_mode, onboarding_seen]
   - id: create_company
     method: POST
     path: /api/v1/groups
@@ -76,9 +77,10 @@ checks:
     role: company_member
     headers: { X-MAX-Init-Data: "<signed initData; or X-Demo-User in development>", X-Request-ID: "<unique ASCII request id>" }
     body: { group_ids: ["<group_id>"], activity_categories: ["quest"], available_from: "<future ISO-8601>", available_to: "<later ISO-8601>", budget_max: 1500, min_people: 3 }
-    expected_statuses: [201, 401, 404, 422]
+    expected_statuses: [201, 401, 404, 409, 422]
     response_format: json_object
     required_response_fields: [signal_batch_id, dvizhi]
+    error_response_fields: [code, detail] # 409 SCHEDULE_CONFLICT
   - id: private_dvizh
     method: GET
     path: /api/v1/dvizhi/{dvizh_id}
@@ -87,7 +89,7 @@ checks:
     headers: { X-MAX-Init-Data: "<signed initData; or X-Demo-User in development>" }
     expected_statuses: [200, 401, 404]
     response_format: json_object
-    required_response_fields: [id, status, candidates, my_confirmation, participants]
+    required_response_fields: [id, status, candidates, active_candidate_id, my_confirmation, my_reconfirmed, my_reconfirm_available, participants]
   - id: soft_reaction
     method: PUT
     path: /api/v1/dvizhi/{dvizh_id}/candidates/{candidate_id}/reaction
@@ -98,6 +100,7 @@ checks:
     expected_statuses: [200, 401, 403, 404, 409]
     response_format: json_object
     required_response_fields: [id, status, chosen_count]
+    error_response_fields: [code, detail] # known 404/409 domain errors
   - id: launch
     method: POST
     path: /api/v1/dvizhi/{dvizh_id}/launch
@@ -117,6 +120,26 @@ checks:
     expected_statuses: [200, 401, 403, 404, 409]
     response_format: json_object
     required_response_fields: [id, status, my_confirmation, confirmed_count]
+  - id: premeeting_reconfirmation
+    method: POST
+    path: /api/v1/dvizhi/{dvizh_id}/reconfirm
+    role: confirmed_company_member_after_premeeting_question
+    path_params: { dvizh_id: "<dvizh ID>" }
+    headers: { X-MAX-Init-Data: "<signed initData; or X-Demo-User in development>" }
+    body: { candidate_id: "<active_candidate_id>" }
+    expected_statuses: [200, 401, 403, 404, 409, 422]
+    response_format: json_object
+    required_response_fields: [id, status, my_confirmation, my_reconfirmed, my_reconfirm_available]
+  - id: withdraw
+    method: POST
+    path: /api/v1/dvizhi/{dvizh_id}/withdraw
+    role: confirmed_company_member_before_start
+    path_params: { dvizh_id: "<dvizh ID>" }
+    headers: { X-MAX-Init-Data: "<signed initData; or X-Demo-User in development>" }
+    body: { candidate_id: "<active_candidate_id>" }
+    expected_statuses: [200, 401, 403, 404, 409, 422]
+    response_format: json_object
+    required_response_fields: [id, status, my_confirmation, confirmed_count, participants]
   - id: list_dvizhi
     method: GET
     path: /api/v1/dvizhi
