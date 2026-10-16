@@ -23,6 +23,8 @@ export type DvizhCandidate = {
   address_text: string | null
   source_url: string | null
   image_url: string | null
+  latitude?: number | null
+  longitude?: number | null
   activity_ids: string[]
   compatibility: string
   budget_delta: number | null

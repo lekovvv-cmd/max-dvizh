@@ -134,7 +134,7 @@ describe('finite candidate round', () => {
     expect(view.container.querySelector('.inline-notice')).toBeNull()
   })
 
-  it('shows a Geoapify map preview and falls back when the image fails', () => {
+  it('shows a Geoapify map preview and a real map when the image fails', () => {
     const item = sample()
     item.candidates[0].image_url = '/api/v1/place-map/59.934300/30.335100/signed'
     render(<DvizhFlow dvizh={item} onUpdate={vi.fn()} onEdit={vi.fn()} onNew={vi.fn()} />)
@@ -142,8 +142,22 @@ describe('finite candidate round', () => {
     expect(image).toHaveAttribute('src', item.candidates[0].image_url)
     expect(screen.getByText('На карте')).toBeInTheDocument()
     fireEvent.error(image)
-    expect(screen.getByText('ДВИЖ')).toBeInTheDocument()
-    expect(screen.queryByText('На карте')).not.toBeInTheDocument()
+    expect(screen.getByTitle('Место «Квест «Лабиринт»» на карте')).toHaveAttribute(
+      'src',
+      expect.stringContaining('openstreetmap.org/export/embed.html'),
+    )
+    expect(screen.getByText('На карте')).toBeInTheDocument()
+  })
+
+  it('shows a map immediately when a venue has coordinates but no photo', () => {
+    const item = sample()
+    item.candidates[0].latitude = 57.1522
+    item.candidates[0].longitude = 65.5272
+    item.candidates[0].price_text = null
+    item.candidates[0].price_min = null
+    render(<DvizhFlow dvizh={item} onUpdate={vi.fn()} onEdit={vi.fn()} onNew={vi.fn()} />)
+    expect(screen.getByTitle('Место «Квест «Лабиринт»» на карте')).toBeInTheDocument()
+    expect(screen.getByText('Уточни у места')).toBeInTheDocument()
   })
 
   it('uses the same reaction endpoint for the calm buttons', async () => {

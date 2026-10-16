@@ -50,9 +50,9 @@ from app.db.models import (
     User,
 )
 from app.modules.auth.service import optional_max_chat_id
+from app.modules.leisure.cities import CITIES
 from app.modules.leisure.geoapify import city_name, resolve_city_center
 from app.modules.leisure.provider import (
-    KudaGoProvider,
     NormalizedLeisureItem,
     ProviderQuery,
     ProviderResult,
@@ -104,12 +104,7 @@ def member(session: DbSession, group_id: str, user_id: str) -> Group:
 
 
 def supported_cities() -> dict[str, dict[str, str]]:
-    try:
-        return {city["slug"]: city for city in KudaGoProvider().cities()}
-    except Exception as exc:
-        raise error(
-            status.HTTP_503_SERVICE_UNAVAILABLE, "Список городов временно недоступен"
-        ) from exc
+    return CITIES
 
 
 def group_out(session: DbSession, group: Group, expose_token: bool = False) -> GroupOut:
@@ -1655,13 +1650,9 @@ def get_plan(plan_id: str, session: DbSession, user: CurrentUser) -> PlanOut:
 
 @router.get("/leisure/cities", response_model=list[CityOut])
 def cities() -> list[CityOut]:
-    try:
-        return [
-            CityOut(slug=item["slug"], name=item["name"], source="KudaGo")
-            for item in KudaGoProvider().cities()
-        ]
-    except Exception:
-        return []
+    return [
+        CityOut(slug=city["slug"], name=city["name"], source="catalog") for city in CITIES.values()
+    ]
 
 
 @router.post("/leisure/sync/{city_slug}")

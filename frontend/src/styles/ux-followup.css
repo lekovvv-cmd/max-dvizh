@@ -329,6 +329,7 @@
   box-shadow: 0 8px 24px rgb(38 20 91 / 8%);
 }
 .activity-card__image,
+.activity-card__map,
 .activity-card__art {
   height: clamp(230px, 62vw, 300px);
 }

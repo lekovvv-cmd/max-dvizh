@@ -502,6 +502,7 @@
 }
 
 .dvizh-flow--restyled > .activity-card .activity-card__image,
+.dvizh-flow--restyled > .activity-card .activity-card__map,
 .dvizh-flow--restyled > .activity-card .activity-card__art {
   height: 150px;
 }

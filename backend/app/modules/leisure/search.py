@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 import httpx
 
 from app.core.config import settings
+from app.modules.leisure.cities import GEOAPIFY_ONLY_CITIES
 from app.modules.leisure.geoapify import place_map_url, resolve_city_id
 from app.modules.leisure.provider import (
     KudaGoProvider,
@@ -95,6 +96,13 @@ def _normalize(
         website if isinstance(website, str) and urlparse(website).scheme == "https" else None
     )
     address = properties.get("formatted")
+    # Geoapify's no_fee.no means explicitly free admission. A cafe can have
+    # free admission while food still costs money, so only use it for activities
+    # whose price is the admission itself.
+    free_admission = "no_fee.no" in (properties.get("categories") or ()) and set(activities) <= {
+        "walk",
+        "museum",
+    }
     return NormalizedLeisureItem(
         provider="GEOAPIFY",
         provider_id=sha256(identifier.encode()).hexdigest()[:32],
@@ -109,9 +117,9 @@ def _normalize(
         ends_at=query.ends_at,
         latitude=latitude,
         longitude=longitude,
-        price_text=None,
-        price_min=None,
-        price_kind="UNKNOWN",
+        price_text="Бесплатно" if free_admission else None,
+        price_min=0 if free_admission else None,
+        price_kind="FREE" if free_admission else "UNKNOWN",
         source_url=source_url,
         image_url=place_map_url(latitude, longitude),
         address_text=str(address) if address else None,
@@ -225,7 +233,9 @@ async def _search(query: ProviderQuery) -> ProviderResult:
     geo_categories, geo_names = geoapify_retrieval(query.categories)
     place_categories, event_categories, searches = retrieval(query.categories)
     needs_geo = bool(geo_categories or geo_names)
-    needs_kudago = bool(place_categories or event_categories or searches)
+    needs_kudago = query.city_slug not in GEOAPIFY_ONLY_CITIES and bool(
+        place_categories or event_categories or searches
+    )
     tasks: dict[str, asyncio.Task[list[NormalizedLeisureItem]]] = {}
     counts = {"geoapify": 0, "kudago": 0}
     timings = {"geoapify": 0, "kudago": 0}
@@ -376,14 +386,15 @@ def search_exact_place(query: ProviderQuery, phrase: str) -> ProviderResult:
                         )
                 except (httpx.HTTPError, ValueError):
                     failed = True
-        try:
-            items.extend(
-                await asyncio.get_running_loop().run_in_executor(
-                    _kudago_pool, KudaGoProvider().search_place_items, query, phrase
+        if query.city_slug not in GEOAPIFY_ONLY_CITIES:
+            try:
+                items.extend(
+                    await asyncio.get_running_loop().run_in_executor(
+                        _kudago_pool, KudaGoProvider().search_place_items, query, phrase
+                    )
                 )
-            )
-        except (httpx.HTTPError, ValueError):
-            failed = True
+            except (httpx.HTTPError, ValueError):
+                failed = True
         combined = dedupe(items)
         return ProviderResult(
             combined, False, datetime.now(UTC), unavailable=failed and not combined, partial=failed

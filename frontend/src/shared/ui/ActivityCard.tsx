@@ -11,6 +11,9 @@ function detailsUrl(candidate: DvizhCandidate) {
   const mapCoordinates = candidate.image_url?.match(
     /^\/api\/v1\/place-map\/(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)\//,
   )
+  if (candidate.latitude != null && candidate.longitude != null) {
+    return `https://www.openstreetmap.org/?mlat=${candidate.latitude}&mlon=${candidate.longitude}#map=17/${candidate.latitude}/${candidate.longitude}`
+  }
   if (mapCoordinates) {
     const [, latitude, longitude] = mapCoordinates
     return `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=17/${latitude}/${longitude}`
@@ -18,6 +21,12 @@ function detailsUrl(candidate: DvizhCandidate) {
 
   const query = [candidate.title, candidate.address_text].filter(Boolean).join(', ')
   return `https://www.openstreetmap.org/search?query=${encodeURIComponent(query)}`
+}
+
+function mapEmbedUrl(latitude: number, longitude: number) {
+  const delta = 0.006
+  const bounds = [longitude - delta, latitude - delta, longitude + delta, latitude + delta]
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${bounds.join('%2C')}&layer=mapnik&marker=${latitude}%2C${longitude}`
 }
 
 export function ActivityCard({
@@ -32,6 +41,14 @@ export function ActivityCard({
   const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null)
   const imageUrl = candidate.image_url === failedImageUrl ? null : candidate.image_url
   const isMap = imageUrl?.startsWith('/api/v1/place-map/')
+  const fallbackCoordinates = candidate.image_url?.match(
+    /^\/api\/v1\/place-map\/(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)\//,
+  )
+  const latitude =
+    candidate.latitude ?? (fallbackCoordinates ? Number(fallbackCoordinates[1]) : null)
+  const longitude =
+    candidate.longitude ?? (fallbackCoordinates ? Number(fallbackCoordinates[2]) : null)
+  const showMap = !imageUrl && latitude != null && longitude != null
   return (
     <article className="activity-card">
       <div className="activity-card__visual">
@@ -43,12 +60,21 @@ export function ActivityCard({
             loading="lazy"
             onError={() => setFailedImageUrl(imageUrl)}
           />
+        ) : showMap ? (
+          <iframe
+            className="activity-card__map"
+            src={mapEmbedUrl(latitude, longitude)}
+            title={`Место «${candidate.title}» на карте`}
+            loading="lazy"
+            referrerPolicy="no-referrer"
+          />
         ) : (
           <div className="activity-card__art" aria-hidden="true">
-            ДВИЖ
+            <Icon name="pin" size={32} />
+            <span>Фото нет</span>
           </div>
         )}
-        {isMap ? <span className="activity-card__map-label">На карте</span> : null}
+        {isMap || showMap ? <span className="activity-card__map-label">На карте</span> : null}
       </div>
       <div className="activity-card__body">
         {status ? <span className="activity-card__status">{status}</span> : null}

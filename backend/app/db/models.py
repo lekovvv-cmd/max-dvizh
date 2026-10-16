@@ -249,6 +249,8 @@ class DvizhCandidate(Base):
     venue_name: Mapped[str | None] = mapped_column(String(250), nullable=True)
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     price_text: Mapped[str | None] = mapped_column(String(250), nullable=True)
     price_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
     distance_km: Mapped[float | None] = mapped_column(Float, nullable=True)

@@ -118,6 +118,24 @@ def test_geoapify_place_has_signed_map_preview(monkeypatch: Any) -> None:
     assert not geoapify.valid_place_map_signature(float(latitude), float(longitude), "wrong")
 
 
+def test_geoapify_uses_only_explicit_free_admission_for_price() -> None:
+    park = feature()
+    park["properties"]["categories"].append("no_fee.no")
+    item = search._normalize(park, query("walk"), datetime.now(UTC))
+    assert item is not None
+    assert (item.price_text, item.price_min, item.price_kind) == ("Бесплатно", 0, "FREE")
+
+    cafe = feature("Кафе")
+    cafe["properties"]["categories"] = ["catering.cafe", "no_fee.no"]
+    paid_food = search._normalize(cafe, query("restaurant"), datetime.now(UTC))
+    assert paid_food is not None
+    assert (paid_food.price_text, paid_food.price_min, paid_food.price_kind) == (
+        None,
+        None,
+        "UNKNOWN",
+    )
+
+
 def test_signed_map_proxy_keeps_key_server_side(monkeypatch: Any) -> None:
     configured = replace(geoapify.settings, geoapify_api_key="secret")
     monkeypatch.setattr(geoapify, "settings", configured)

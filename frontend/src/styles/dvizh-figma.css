@@ -124,8 +124,10 @@
 }
 
 .dvizh-flow--tinder .activity-card__image,
+.dvizh-flow--tinder .activity-card__map,
 .dvizh-flow--tinder .activity-card__art,
 .dvizh-flow--match .activity-card__image,
+.dvizh-flow--match .activity-card__map,
 .dvizh-flow--match .activity-card__art {
   width: 100%;
   height: 150px;

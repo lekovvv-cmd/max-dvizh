@@ -19,6 +19,7 @@ CITY_NAMES = {
     "nn": "Нижний Новгород",
     "nnv": "Нижний Новгород",
     "nsk": "Новосибирск",
+    "tmn": "Тюмень",
 }
 _cities: dict[str, tuple[str, str, float]] = {}
 _city_centers: dict[str, tuple[str, float, float, float]] = {}
